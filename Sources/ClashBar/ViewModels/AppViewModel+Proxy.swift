@@ -229,6 +229,8 @@ extension AppViewModel {
                 let response: GroupDelayMeasurement = try await self.clientOrThrow().request(
                     .groupDelay(name: group.name, url: testURL, timeout: timeout))
                 self.applyMeasuredNodeDelays(Self.groupDelayResult(members: group.all, measured: response.values))
+                // 测速后立即刷新代理组，同步各策略组实际选中的节点。
+                await self.refreshProxyGroups()
             } catch let APIError.statusCode(code, _) where Self.delayTestFailureStatusCodes.contains(code) {
                 // Every member failed the test: record them all as timeouts.
                 self.applyMeasuredNodeDelays(Self.groupDelayResult(members: group.all, measured: [:]))
