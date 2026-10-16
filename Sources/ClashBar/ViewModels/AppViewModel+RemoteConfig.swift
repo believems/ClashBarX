@@ -356,6 +356,8 @@ extension AppViewModel {
                 self.preserveLocalSettingsOnNextSync = false
                 try await self.restoreTunAfterConfigReloadIfNeeded(expectedEnabled: settingsOverlay.tunEnabled)
             }
+            // 配置重载会清空内核侧的进程匹配，流量统计需要重新启用（上游 #123）。
+            await self.enableTrafficStatisticsProcessMatching()
             appendLog(level: "info", message: tr("log.action.success", actionName))
         } catch {
             self.preserveLocalSettingsOnNextSync = false

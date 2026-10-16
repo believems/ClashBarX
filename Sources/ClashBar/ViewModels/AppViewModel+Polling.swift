@@ -145,8 +145,8 @@ extension AppViewModel {
             return DataAcquisitionPolicy(
                 enableTrafficStream: trafficEnabled,
                 enableMemoryStream: false,
-                enableConnectionsStream: false,
-                connectionsIntervalMilliseconds: nil,
+                enableConnectionsStream: true,
+                connectionsIntervalMilliseconds: 1000,
                 enableLogsStream: false,
                 mediumFrequencyIntervalNanoseconds: self.backgroundMediumFrequencyIntervalNanoseconds,
                 lowFrequencyIntervalNanoseconds: self.backgroundLowFrequencyIntervalNanoseconds)
@@ -160,14 +160,13 @@ extension AppViewModel {
         }
 
         let memoryEnabled = activeTab == .proxy
-        let connectionsEnabled = activeTab == .proxy || activeTab == .connections
         let logsEnabled = activeTab == .logs
 
         return DataAcquisitionPolicy(
             enableTrafficStream: trafficEnabled,
             enableMemoryStream: memoryEnabled,
-            enableConnectionsStream: connectionsEnabled,
-            connectionsIntervalMilliseconds: connectionsEnabled ? 1000 : nil,
+            enableConnectionsStream: true,
+            connectionsIntervalMilliseconds: 1000,
             enableLogsStream: logsEnabled,
             mediumFrequencyIntervalNanoseconds: self.foregroundMediumFrequencyIntervalNanoseconds,
             lowFrequencyIntervalNanoseconds: lowFrequencyInterval)
@@ -423,6 +422,7 @@ extension AppViewModel {
     private func releasePanelCachedData() {
         connectionsStore.connectionsCount = 0
         connectionsStore.connections.removeAll(keepingCapacity: false)
+        connectionsStore.statistics = .empty
 
         memory = MemorySnapshot(inuse: 0)
 
@@ -654,7 +654,9 @@ extension AppViewModel {
             cancelStream(.connections)
             return
         }
-        startConnectionsStream(intervalMilliseconds: policy.connectionsIntervalMilliseconds)
+        self.syncConnectionsStream(
+            enabled: true,
+            intervalMilliseconds: policy.connectionsIntervalMilliseconds)
     }
 
     func refreshSystemProxyStatus() async {

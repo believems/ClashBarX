@@ -1,6 +1,6 @@
 import Foundation
 
-struct ConnectionsSnapshot: Decodable, Equatable {
+struct ConnectionsSnapshot: Decodable, Equatable, Sendable {
     static let retainedConnectionLimit = 120
 
     let totalCount: Int
@@ -18,22 +18,18 @@ struct ConnectionsSnapshot: Decodable, Equatable {
             return
         }
 
-        var retained: [ConnectionSummary] = []
-        retained.reserveCapacity(min(
-            Self.retainedConnectionLimit,
-            connectionsContainer.count ?? Self.retainedConnectionLimit))
+        var connections: [ConnectionSummary] = []
+        connections.reserveCapacity(connectionsContainer.count ?? Self.retainedConnectionLimit)
 
-        var totalCount = 0
         while !connectionsContainer.isAtEnd {
-            let connection = try connectionsContainer.decode(ConnectionSummary.self)
-            if retained.count < Self.retainedConnectionLimit {
-                retained.append(connection)
-            }
-            totalCount += 1
+            let connection = try ConnectionSummary(
+                from: connectionsContainer.superDecoder(),
+                parseStartTimestamp: false)
+            connections.append(connection)
         }
 
-        self.connections = retained
-        self.totalCount = totalCount
+        self.connections = connections
+        self.totalCount = connections.count
     }
 }
 
@@ -88,12 +84,12 @@ struct ConnectionRoutesSnapshot: Decodable {
     }
 }
 
-struct ConnectionSummary: Codable, Equatable, Identifiable {
+struct ConnectionSummary: Codable, Equatable, Identifiable, Sendable {
     let id: String
     let upload: Int64?
     let download: Int64?
     let start: String?
-    let startTimestamp: TimeInterval?
+    var startTimestamp: TimeInterval?
     let rule: String?
     let rulePayload: String?
     let chains: [String]?
@@ -137,6 +133,10 @@ struct ConnectionSummary: Codable, Equatable, Identifiable {
     }
 
     init(from decoder: Decoder) throws {
+        try self.init(from: decoder, parseStartTimestamp: true)
+    }
+
+    init(from decoder: Decoder, parseStartTimestamp: Bool) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let dynamic = try decoder.container(keyedBy: ConnectionAnyCodingKey.self)
 
@@ -144,7 +144,7 @@ struct ConnectionSummary: Codable, Equatable, Identifiable {
         self.upload = try container.decodeIfPresent(Int64.self, forKey: .upload)
         self.download = try container.decodeIfPresent(Int64.self, forKey: .download)
         self.start = try container.decodeIfPresent(String.self, forKey: .start)
-        self.startTimestamp = Self.parseTimestamp(self.start)
+        self.startTimestamp = parseStartTimestamp ? Self.parseTimestamp(self.start) : nil
         self.rule = try container.decodeIfPresent(String.self, forKey: .rule)
         self.metadata = try container.decodeIfPresent(ConnectionMetadata.self, forKey: .metadata)
         self.rulePayload = ConnectionAnyCodingKey.decodeString(
@@ -154,12 +154,15 @@ struct ConnectionSummary: Codable, Equatable, Identifiable {
     }
 }
 
-struct ConnectionMetadata: Codable, Equatable {
+struct ConnectionMetadata: Codable, Equatable, Sendable {
     let network: String?
     let sourceIP: String?
     let sourcePort: Int?
     let destinationIP: String?
     let host: String?
+    let sniffHost: String?
+    let process: String?
+    let processPath: String?
 
     private enum CodingKeys: String, CodingKey {
         case network
@@ -167,13 +170,28 @@ struct ConnectionMetadata: Codable, Equatable {
         case sourcePort
         case destinationIP
         case host
+        case sniffHost
+        case process
+        case processPath
     }
 
-    init(network: String?, sourceIP: String?, destinationIP: String?, host: String?, sourcePort: Int? = nil) {
+    init(
+        network: String?,
+        sourceIP: String?,
+        destinationIP: String?,
+        host: String?,
+        sniffHost: String? = nil,
+        process: String? = nil,
+        processPath: String? = nil,
+        sourcePort: Int? = nil)
+    {
         self.network = network
         self.sourceIP = sourceIP
         self.destinationIP = destinationIP
         self.host = host
+        self.sniffHost = sniffHost
+        self.process = process
+        self.processPath = processPath
         self.sourcePort = sourcePort
     }
 
@@ -191,6 +209,9 @@ struct ConnectionMetadata: Codable, Equatable {
                 keys: ["destination_ip", "destination", "remoteIP", "remoteAddress"])
         self.host = try container.decodeIfPresent(String.self, forKey: .host).trimmedNonEmpty
             ?? ConnectionAnyCodingKey.decodeString(in: dynamic, keys: ["destinationHost", "remoteHost", "addr"])
+        self.sniffHost = try container.decodeIfPresent(String.self, forKey: .sniffHost).trimmedNonEmpty
+        self.process = try container.decodeIfPresent(String.self, forKey: .process).trimmedNonEmpty
+        self.processPath = try container.decodeIfPresent(String.self, forKey: .processPath).trimmedNonEmpty
         self.sourcePort = ConnectionAnyCodingKey.decodeString(in: dynamic, keys: ["sourcePort", "source_port"]).flatMap(Int.init)
     }
 }

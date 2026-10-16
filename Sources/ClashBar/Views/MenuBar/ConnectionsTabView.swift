@@ -44,14 +44,26 @@ struct ConnectionsTabView: TranslatingView {
         let connections = self.viewModel.visibleConnections
 
         return VStack(alignment: .leading, spacing: T.space6) {
-            self.connectionsControlCard
+            Picker(self.tr("ui.tab.connections"), selection: self.$connectionsStore.showsStatistics) {
+                Text(self.tr("ui.tab.connections")).tag(false)
+                Text(self.tr("ui.statistics.title")).tag(true)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, T.space4)
 
-            if connections.isEmpty {
-                emptyCard(self.tr("ui.empty.connections"))
+            if self.connectionsStore.showsStatistics {
+                TrafficStatisticsView()
             } else {
-                LazyVStack(spacing: 0) {
-                    SeparatedForEach(data: connections, id: \.id, separator: nativeSeparator) { conn in
-                        self.connectionRow(conn)
+                self.connectionsControlCard
+
+                if connections.isEmpty {
+                    emptyCard(self.tr("ui.empty.connections"))
+                } else {
+                    LazyVStack(spacing: 0) {
+                        SeparatedForEach(data: connections, id: \.id, separator: nativeSeparator) { conn in
+                            self.connectionRow(conn)
+                        }
                     }
                 }
                 .onHover { self.viewModel.isReorderingPaused = $0 }
@@ -70,9 +82,11 @@ struct ConnectionsTabView: TranslatingView {
         .onChange(of: self.viewModel.sortKey) { _ in self.refreshData() }
         .onChange(of: self.viewModel.sortDirection) { _ in self.refreshData() }
         .onChange(of: self.viewModel.isReorderingPaused) { _ in self.refreshData() }
+        .onChange(of: self.connectionsStore.showsStatistics) { _ in self.refreshData() }
     }
 
     private func refreshData() {
+        guard !self.connectionsStore.showsStatistics else { return }
         self.viewModel.updateVisibleConnections(
             from: self.connectionsStore.connections,
             searchText: { connection in self.connectionSearchText(for: connection) })
