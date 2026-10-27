@@ -307,7 +307,8 @@ extension AppViewModel {
         await runRefresh {
             do {
                 let response: DelayMeasurement = try await self.clientOrThrow().request(endpoint)
-                guard let value = response.value else { return }
+                // 空值同样记为 0：不让界面继续展示上一次成功的旧延迟（上游 #128）。
+                let value = response.value ?? 0
                 self.applyMeasuredNodeDelays([node: value])
             } catch let APIError.statusCode(code, _) where Self.delayTestFailureStatusCodes.contains(code) {
                 // The node itself failed the test (unreachable or timed out): show it as a
