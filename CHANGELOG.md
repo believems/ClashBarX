@@ -1,3 +1,32 @@
+## v0.4.0
+
+![macOS](https://img.shields.io/badge/macOS-Supported-000000?style=flat-square&logo=apple) ![Version](https://img.shields.io/badge/Release-v0.4.0-10B981?style=flat-square) ![Core](https://img.shields.io/badge/Core-Mihomo-6366f1?style=flat-square)
+
+> 本次更新是一次 **菜单栏面板的界面与交互重设计**：按 macOS 原生设计规范重做了面板的视觉层级与控件反馈——字体回归 SF Pro，图标统一为单色、颜色只用来表达状态，所有可点击元素都有一致的「静止 / 悬停 / 按下 / 开启」反馈；在 macOS 26 及以上面板与侧边弹出菜单使用系统 Liquid Glass 材质。同时应用更新检查与 Homebrew 安装源切换到本仓库（`kingcanfish/ClashBar`、`kingcanfish/tap`）。
+
+### 📝 更新日志 (Changelog)
+
+**✨ 新增功能 (New Features)**
+
+- ![Feature](https://img.shields.io/badge/Feature-10B981?style=flat-square) **Liquid Glass 面板**：macOS 26+ 上主面板与侧边弹出菜单使用系统 `glassEffect` 材质，低版本系统自动回退到原有毛玻璃材质。
+- ![Feature](https://img.shields.io/badge/Feature-10B981?style=flat-square) **统一的按钮交互规范**：新增图标按钮、列表行、胶囊按钮、分段控件、胶囊下拉菜单等共享样式，静止时即有浅底以示可点，悬停加深、按下加深并轻微缩放，开关类按钮开启时显示强调色底。
+
+**🚀 优化改进 (Improvements)**
+
+- ![Optimize](https://img.shields.io/badge/Optimize-3B82F6?style=flat-square) **模式与标签页**：代理模式改为原生分段控件样式（选中项为浮起滑块），标签页选中项以强调色胶囊标示；切换标签页改为即时切换，避免半透明背景下新旧页面叠影。
+- ![Optimize](https://img.shields.io/badge/Optimize-3B82F6?style=flat-square) **节点页分组布局**：流量概览、快捷设置、代理提供者、代理组分别置于圆角分组卡片；代理组行右侧以 › 提示可展开节点列表，测速按钮仅在悬停时出现。
+- ![Optimize](https://img.shields.io/badge/Optimize-3B82F6?style=flat-square) **TUN 协议栈选择**：由需双击的四个标签改为胶囊下拉菜单，单击展开、选择后生效，避免误触重启 TUN。
+- ![Optimize](https://img.shields.io/badge/Optimize-3B82F6?style=flat-square) **面板高度上限**：面板最高 640pt，头部与底栏固定、内容区滚动，不再在高屏幕上铺满整屏。
+- ![Optimize](https://img.shields.io/badge/Optimize-3B82F6?style=flat-square) **输入框与下拉菜单**：过滤框、端口与代理例外输入框改为自绘样式（聚焦时强调色描边），连接 / 分流 / 日志页的下拉筛选统一为胶囊样式。
+- ![Optimize](https://img.shields.io/badge/Optimize-3B82F6?style=flat-square) **更新源切换**：应用内版本检查与发布页链接指向 `kingcanfish/ClashBar`，Homebrew Cask 发布到 `kingcanfish/tap`。
+
+**🐞 修复问题 (Bug Fixes)**
+
+- ![Fix](https://img.shields.io/badge/Fix-EF4444?style=flat-square) **深色模式输入框闪白**：修复原生圆角输入框在玻璃面板上切换标签页时先绘制为浅色再变为深色的问题。
+- ![Fix](https://img.shields.io/badge/Fix-EF4444?style=flat-square) **订阅到期误报**：订阅剩余天数仅在 15 天内到期时以橙色提示。
+
+---
+
 ## v0.3.6
 
 ![macOS](https://img.shields.io/badge/macOS-Supported-000000?style=flat-square&logo=apple) ![Version](https://img.shields.io/badge/Release-v0.3.6-10B981?style=flat-square) ![Core](https://img.shields.io/badge/Core-Mihomo-6366f1?style=flat-square)

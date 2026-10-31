@@ -78,11 +78,11 @@
 **要求：** macOS 13+ 🍎
 
 ```sh
-brew tap Sitoi/tap
+brew tap kingcanfish/tap
 brew install --cask clashbar
 ```
 
-或从 [Releases](https://github.com/Sitoi/ClashBar/releases) 下载 `.dmg`，将 `ClashBar.app` 拖入 `/Applications`。
+或从 [Releases](https://github.com/kingcanfish/ClashBar/releases) 下载 `.dmg`，将 `ClashBar.app` 拖入 `/Applications`。
 
 卸载：
 
