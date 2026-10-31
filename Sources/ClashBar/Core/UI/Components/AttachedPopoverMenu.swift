@@ -38,7 +38,7 @@ struct AttachedPopoverMenu<Label: View, Content: View>: View {
         Button(action: self.activateAnchor) {
             self.anchorLabel
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableButtonStyle())
         .onHover { hovering in
             self.isAnchorHovered = hovering
 
@@ -106,18 +106,7 @@ struct AttachedPopoverMenu<Label: View, Content: View>: View {
             .frame(width: self.width, alignment: .leading)
             .frame(maxHeight: self.maxHeight)
             .padding(T.space8)
-            .background {
-                AppMaterialSurface(
-                    cornerRadius: T.panelCornerRadius,
-                    fallbackStyle: .material(.regularMaterial),
-                    stroke: self.nativeSeparator.opacity(0.46),
-                    lineWidth: T.stroke)
-            }
-            .shadow(
-                color: self.nativeShadow.opacity(T.Shadow.standard.opacity),
-                radius: T.Shadow.standard.radius,
-                x: T.Shadow.standard.x,
-                y: T.Shadow.standard.y)
+            .panelSurface(cornerRadius: T.panelCornerRadius, stroke: self.nativeSeparator.opacity(0.46))
         }
     }
 

@@ -76,8 +76,7 @@ struct LogsTabView: TranslatingView {
 
             self.compactTopIcon(
                 "doc.on.doc",
-                label: self.tr("ui.action.copy_all_logs"),
-                toneOverride: nativeSecondaryLabel)
+                label: self.tr("ui.action.copy_all_logs"))
             {
                 self.appViewModel.copyAllLogs()
             }
@@ -113,7 +112,7 @@ struct LogsTabView: TranslatingView {
 
     var coreLogLevelMenu: some View {
         let current = ConfigLogLevel(rawValue: self.appViewModel.stringValue(for: .logLevel)) ?? .info
-        return Menu {
+        return ChipMenu(title: current.rawValue, symbol: "text.alignleft") {
             ForEach(ConfigLogLevel.allCases, id: \.rawValue) { level in
                 Button {
                     Task { await self.appViewModel.applyEditableCoreSetting(.logLevel, to: level.rawValue) }
@@ -125,25 +124,8 @@ struct LogsTabView: TranslatingView {
                     }
                 }
             }
-        } label: {
-            HStack(spacing: T.space2) {
-                Image(systemName: "text.alignleft")
-                Text(current.rawValue)
-                Image(systemName: "chevron.down")
-                    .font(.app(size: T.FontSize.statusBar - 2, weight: .semibold))
-                    .foregroundStyle(nativeTertiaryLabel)
-            }
-            .font(.app(size: T.FontSize.caption, weight: .medium))
-            .foregroundStyle(nativeSecondaryLabel)
-            .lineLimit(1)
-            .fixedSize()
-            .padding(.horizontal, T.space6)
-            .padding(.vertical, T.space2)
-            .background(self.nativeBadgeCapsule())
-            .contentShape(Capsule(style: .continuous))
         }
-        .buttonStyle(.plain)
-        .menuIndicator(.hidden)
+        .fixedSize()
         .help(self.tr("ui.settings.log_level"))
     }
 
@@ -216,7 +198,7 @@ struct LogsTabView: TranslatingView {
                 }
 
                 Text(parsed.mainText)
-                    .font(.app(size: T.FontSize.caption, weight: .regular))
+                    .font(.appMono(size: T.FontSize.caption, weight: .regular))
                     .foregroundStyle(nativePrimaryLabel)
                     .fixedSize(horizontal: false, vertical: true)
 

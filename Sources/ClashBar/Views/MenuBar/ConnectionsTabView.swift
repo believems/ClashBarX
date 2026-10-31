@@ -246,11 +246,8 @@ struct ConnectionsTabView: TranslatingView {
         } label: {
             Image(systemName: "xmark")
                 .font(.app(size: T.FontSize.caption, weight: .semibold))
-                .frame(width: 10, height: 10)
         }
-        .buttonStyle(.plain)
-        .foregroundStyle(hovered ? nativeSecondaryLabel : nativeTertiaryLabel)
-        .frame(width: 12, height: 12)
+        .buttonStyle(IconButtonStyle(size: 18, destructive: true, showsRestingFill: false))
         .opacity(hovered ? 1 : 0)
     }
 
@@ -470,25 +467,25 @@ struct ConnectionsTabView: TranslatingView {
         let network = conn.metadata?.network?.lowercased() ?? ""
 
         if host.contains("google") || host.contains("gstatic") {
-            return ("shield.fill", nativePurple.opacity(T.Opacity.solid))
+            return ("shield.fill", nativeSecondaryLabel)
         }
         if host.contains("icloud") || host.contains("apple") {
-            return ("icloud.fill", nativeInfo.opacity(T.Opacity.solid))
+            return ("icloud.fill", nativeSecondaryLabel)
         }
         if host.contains("github") {
-            return ("terminal.fill", nativeIndigo.opacity(T.Opacity.solid))
+            return ("terminal.fill", nativeSecondaryLabel)
         }
         if host.contains("twitter") || host.contains("x.com") {
-            return ("lock.fill", nativePositive.opacity(T.Opacity.solid))
+            return ("lock.fill", nativeSecondaryLabel)
         }
         if host.contains("amazon") {
-            return ("cart.fill", nativeWarning.opacity(T.Opacity.solid))
+            return ("cart.fill", nativeSecondaryLabel)
         }
         if network.contains("udp") {
-            return ("dot.radiowaves.left.and.right", nativeTeal.opacity(T.Opacity.solid))
+            return ("dot.radiowaves.left.and.right", nativeSecondaryLabel)
         }
         if network.contains("tcp") {
-            return ("network", nativeInfo.opacity(T.Opacity.solid))
+            return ("network", nativeSecondaryLabel)
         }
         return ("globe", nativeSecondaryLabel)
     }

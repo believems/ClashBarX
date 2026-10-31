@@ -29,6 +29,23 @@ struct AppMaterialSurface: View {
 }
 
 extension View {
+    /// Floating panel surface: Liquid Glass on macOS 26+, translucent material before that.
+    @ViewBuilder
+    func panelSurface(cornerRadius: CGFloat, stroke: Color) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        if #available(macOS 26.0, *) {
+            self
+                .glassEffect(.regular, in: shape)
+                .overlay(shape.strokeBorder(stroke.opacity(0.5), lineWidth: MenuBarLayoutTokens.stroke))
+        } else {
+            self.background(
+                AppMaterialSurface(
+                    cornerRadius: cornerRadius,
+                    fallbackStyle: .material(.regularMaterial),
+                    stroke: stroke))
+        }
+    }
+
     @ViewBuilder
     func appBorderedButtonStyle(prominent: Bool = false) -> some View {
         if prominent {

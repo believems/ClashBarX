@@ -141,7 +141,7 @@ struct RulesTabView: TranslatingView {
         return self.compactTopIcon(
             grouped ? "rectangle.3.group.fill" : "list.bullet",
             label: self.tr("ui.rules.group.toggle"),
-            toneOverride: grouped ? nativeInfo : nil)
+            isOn: grouped)
         {
             self.viewModel.groupByPolicy.toggle()
             self.storedGroupByPolicy = self.viewModel.groupByPolicy
@@ -226,7 +226,7 @@ struct RulesTabView: TranslatingView {
             .frame(height: T.rowHeight)
             .background(nativeHoverRowBackground(hovered))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableButtonStyle())
         .onHover { self.hoveredGroupPolicy = self.nextHovered(
             current: self.hoveredGroupPolicy, target: group.policy, isHovering: $0) }
     }
@@ -254,7 +254,6 @@ struct RulesTabView: TranslatingView {
         self.compactTopIcon(
             "arrow.clockwise",
             label: self.tr("ui.action.refresh"),
-            toneOverride: nativeInfo,
             isLoading: self.proxyStore.isRuleProvidersRefreshing)
         {
             await self.appViewModel.refreshRuleProviders()
@@ -336,15 +335,15 @@ struct RulesTabView: TranslatingView {
     func ruleTypeIcon(for type: String) -> (symbol: String, color: Color) {
         let lower = type.lowercased()
         if lower.contains("ipcidr") {
-            return ("globe.americas.fill", nativeInfo.opacity(T.Opacity.solid))
+            return ("globe.americas", nativeSecondaryLabel)
         }
         if lower.contains("domain") || lower.contains("suffix") || lower.contains("keyword") {
-            return ("network", nativeTeal.opacity(T.Opacity.solid))
+            return ("network", nativeSecondaryLabel)
         }
         if lower.contains("ruleset") {
-            return ("list.bullet.rectangle.fill", nativeWarning.opacity(T.Opacity.solid))
+            return ("list.bullet.rectangle", nativeSecondaryLabel)
         }
-        return ("circle.grid.2x2.fill", nativeIndigo.opacity(T.Opacity.solid))
+        return ("circle.grid.2x2", nativeSecondaryLabel)
     }
 
     func rulePolicyBadge(for policy: String) -> (symbol: String?, color: Color) {

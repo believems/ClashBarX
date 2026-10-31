@@ -7,10 +7,9 @@ extension ProxyTabView {
     var proxyProvidersSection: some View {
         let providers = proxyStore.sortedProxyProviderNames
 
-        return VStack(alignment: .leading, spacing: T.space6) {
+        return VStack(alignment: .leading, spacing: T.space2) {
             self.nodesSectionHeader(
                 tr("ui.section.proxy_providers"),
-                symbol: "externaldrive.fill",
                 count: "\(providers.count)")
             {
                 let label = tr(isProxyProvidersCollapsed ? "ui.action.expand" : "ui.action.collapse")
@@ -20,11 +19,8 @@ extension ProxyTabView {
                     }
                 } label: {
                     Image(systemName: isProxyProvidersCollapsed ? "chevron.right" : "chevron.down")
-                        .font(.app(size: T.FontSize.caption, weight: .semibold))
-                        .foregroundStyle(nativeSecondaryLabel)
-                        .frame(width: T.rowLeadingIcon, height: T.rowLeadingIcon)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(IconButtonStyle(size: 22, showsRestingFill: false))
                 .accessibilityLabel(label)
                 .help(label)
             }
@@ -37,6 +33,7 @@ extension ProxyTabView {
                         self.proxyProviderRow(name: name, detail: proxyStore.proxyProvidersDetail[name])
                     }
                 }
+                .groupedSection()
             }
         }
     }
@@ -46,7 +43,8 @@ extension ProxyTabView {
         let updatedText = ValueFormatter.relativeTime(from: detail?.updatedAt, language: language)
         let expireSeconds = detail?.subscriptionInfo?.expire
         let expireText = ValueFormatter.daysUntilExpiryShort(from: expireSeconds, language: language)
-        let expireColor: Color = expireSeconds == 0 ? nativeSecondaryLabel : nativeWarning
+        let expiresSoon = expireSeconds.map { $0 > 0 && Double($0) - Date().timeIntervalSince1970 < 15 * 86400 } ?? false
+        let expireColor: Color = expiresSoon ? nativeWarning : nativeSecondaryLabel
         let upload = detail?.subscriptionInfo?.upload
         let download = detail?.subscriptionInfo?.download
         let total = detail?.subscriptionInfo?.total
@@ -55,18 +53,17 @@ extension ProxyTabView {
             let used = upload + download
             return min(max(Double(used) / Double(total), 0), 1)
         }()
-        let rowHorizontalPadding = T.space4
+        let rowHorizontalPadding = T.space6
         let isUpdating = proxyStore.providerUpdating.contains(name)
-        let hovered = hoveredProviderName == name
-        let updateTimeWidth: CGFloat = 44
+        let updateTimeWidth: CGFloat = 56
 
         let hasSubscription = detail?.subscriptionInfo != nil
 
         return VStack(alignment: .leading, spacing: T.space6) {
             HStack(alignment: .center, spacing: T.space6) {
-                Image(systemName: "externaldrive.fill")
-                    .font(.app(size: T.FontSize.caption, weight: .semibold))
-                    .foregroundStyle(nativeTeal.opacity(T.Opacity.solid))
+                Image(systemName: "externaldrive")
+                    .font(.system(size: T.FontSize.callout, weight: .regular))
+                    .foregroundStyle(nativeSecondaryLabel)
                     .frame(width: T.rowLeadingIcon, height: T.rowLeadingIcon)
 
                 HStack(alignment: .center, spacing: T.space4) {
@@ -78,7 +75,8 @@ extension ProxyTabView {
                             .layoutPriority(1)
 
                         Text("\(nodeCount)")
-                            .font(.app(size: T.FontSize.caption, weight: .semibold))
+                            .font(.app(size: T.FontSize.caption, weight: .medium))
+                            .monospacedDigit()
                             .foregroundStyle(nativeSecondaryLabel)
                             .fixedSize()
                     }
@@ -92,23 +90,9 @@ extension ProxyTabView {
                 }
                 .frame(maxWidth: .infinity)
 
-                Button {
-                    Task { await appViewModel.updateProxyProvider(name: name) }
-                } label: {
-                    ZStack {
-                        Image(systemName: "arrow.triangle.2.circlepath")
-                            .font(.app(size: T.FontSize.caption, weight: .semibold))
-                            .symbolRenderingMode(.hierarchical)
-                            .foregroundStyle(nativeSecondaryLabel)
-                            .opacity(isUpdating ? 0 : 1)
-                        ProgressView()
-                            .scaleEffect(0.5)
-                            .opacity(isUpdating ? 1 : 0)
-                    }
-                    .frame(width: T.rowLeadingIcon, height: T.rowLeadingIcon)
+                self.providerActionButton(.refresh, isLoading: isUpdating) {
+                    await appViewModel.updateProxyProvider(name: name)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(tr("ui.action.refresh"))
             }
 
             if hasSubscription {
@@ -125,6 +109,7 @@ extension ProxyTabView {
                                 "\(ValueFormatter.bytesCompactNoSpace(total))"
                             Text(quotaText)
                                 .font(.app(size: T.FontSize.caption, weight: .regular))
+                                .monospacedDigit()
                                 .foregroundStyle(nativeSecondaryLabel)
                                 .lineLimit(1)
                         }
@@ -133,27 +118,22 @@ extension ProxyTabView {
                     if let usedRatio {
                         GeometryReader { geo in
                             ZStack(alignment: .leading) {
-                                Capsule().fill(nativeControlFill.opacity(T.Opacity.solid))
+                                Capsule().fill(Color.primary.opacity(0.09))
                                 Capsule()
                                     .fill((usedRatio >= 0.9 ? nativeCritical : usedRatio >= 0.75 ? nativeWarning :
                                             nativeAccent).opacity(T.Opacity.solid))
                                     .frame(width: geo.size.width * usedRatio)
                             }
                         }
-                        .frame(height: T.space6)
+                        .frame(height: T.space4)
                     }
                 }
                 .padding(.leading, T.rowLeadingIcon + T.space6)
-                .padding(.trailing, T.rowLeadingIcon + T.space6)
+                .padding(.trailing, 22 + T.space6)
             }
         }
         .padding(.horizontal, rowHorizontalPadding)
-        .padding(.vertical, T.space6)
-        .background(nativeHoverRowBackground(hovered))
-        .onHover { hoveredProviderName = self.nextHovered(
-            current: hoveredProviderName,
-            target: name,
-            isHovering: $0) }
+        .padding(.vertical, T.space4)
     }
 
     enum ProviderAction {
@@ -162,8 +142,8 @@ extension ProxyTabView {
 
         var symbol: String {
             switch self {
-            case .healthcheck: "gauge.with.dots.needle.50percent"
-            case .refresh: "arrow.triangle.2.circlepath"
+            case .healthcheck: "bolt"
+            case .refresh: "arrow.clockwise"
             }
         }
 
@@ -180,95 +160,70 @@ extension ProxyTabView {
         isLoading: Bool = false,
         action: @escaping () async -> Void) -> some View
     {
-        let tone = kind == .healthcheck ? nativeTeal : nativeInfo
-        return self.compactAsyncIconButton(
+        self.compactAsyncIconButton(
             symbol: kind.symbol,
             label: tr(kind.labelKey),
-            tint: tone.opacity(T.Opacity.solid),
             isLoading: isLoading,
-            size: T.rowLeadingIcon,
-            fontSize: T.FontSize.caption,
-            hierarchicalSymbol: true,
+            size: 22,
+            showsRestingFill: kind == .refresh,
             action: action)
     }
 
     var proxyGroupsSection: some View {
         let groups = rootViewModel.filteredProxyGroups
 
-        return VStack(alignment: .leading, spacing: T.space6) {
+        return VStack(alignment: .leading, spacing: T.space2) {
             self.nodesSectionHeader(
                 tr("ui.section.proxy_groups"),
-                symbol: "point.3.connected.trianglepath.dotted",
                 count: "\(groups.count)")
             {
-                HStack(spacing: T.space6) {
+                HStack(spacing: T.space2) {
                     self.compactTopIcon(
-                        sortGroupNodesByLatency ? "timer" : "list.number",
-                        label: tr(
-                            sortGroupNodesByLatency
-                                ? "ui.action.sort_nodes_default"
-                                : "ui.action.sort_nodes_by_latency"),
-                        toneOverride: nativeTeal)
+                        "arrow.up.arrow.down",
+                        label: tr("ui.action.sort_nodes_by_latency"),
+                        isOn: sortGroupNodesByLatency,
+                        size: 22)
                     {
                         sortGroupNodesByLatency.toggle()
                     }
-                    .help(
-                        tr(
-                            sortGroupNodesByLatency
-                                ? "ui.action.sort_nodes_default"
-                                : "ui.action.sort_nodes_by_latency"))
 
                     self.compactTopIcon(
-                        showLatencyHistory ? "chart.bar.xaxis" : "chart.bar",
-                        label: tr(
-                            showLatencyHistory
-                                ? "ui.action.hide_latency_history"
-                                : "ui.action.show_latency_history"),
-                        toneOverride: nativeTeal)
+                        "chart.bar",
+                        label: tr("ui.action.show_latency_history"),
+                        isOn: showLatencyHistory,
+                        size: 22)
                     {
                         showLatencyHistory.toggle()
                     }
-                    .help(
-                        tr(
-                            showLatencyHistory
-                                ? "ui.action.hide_latency_history"
-                                : "ui.action.show_latency_history"))
 
                     self.compactTopIcon(
-                        hideHiddenProxyGroups ? "eye.slash" : "eye",
-                        label: tr(
-                            hideHiddenProxyGroups
-                                ? "ui.action.show_hidden_proxy_groups"
-                                : "ui.action.hide_hidden_proxy_groups"),
-                        toneOverride: nativeIndigo)
+                        "eye",
+                        label: tr("ui.action.show_hidden_proxy_groups"),
+                        isOn: !hideHiddenProxyGroups,
+                        size: 22)
                     {
                         hideHiddenProxyGroups.toggle()
                     }
-                    .help(
-                        tr(
-                            hideHiddenProxyGroups
-                                ? "ui.action.show_hidden_proxy_groups"
-                                : "ui.action.hide_hidden_proxy_groups"))
 
                     self.compactTopIcon(
-                        "gauge",
+                        "bolt",
                         label: tr("ui.action.test_latency"),
-                        toneOverride: nativeTeal)
+                        size: 22)
                     {
                         await appViewModel.refreshAllGroupLatencies(includeHiddenGroups: !hideHiddenProxyGroups)
                     }
-                    .help(tr("ui.action.test_latency"))
                 }
             }
 
             if groups.isEmpty {
                 emptyCard(tr("ui.empty.proxy_groups"))
             } else {
-                VStack(spacing: T.space2) {
+                VStack(spacing: 0) {
                     ForEach(groups, id: \.name) { group in
                         self.proxyGroupInlineRow(group)
                     }
                 }
+                .groupedSection()
             }
         }
     }
@@ -287,8 +242,9 @@ extension ProxyTabView {
         let nodeCount = group.all.count
         let iconURL = self.proxyGroupIconURL(group)
         let hasLeadingIcon = iconURL != nil
-        let rowHorizontalPadding = T.space4
-        let rowVerticalPadding: CGFloat = T.space1
+        let rowHorizontalPadding = T.space6
+        let rowVerticalPadding: CGFloat = 2
+        let isLatencyLoading = proxyStore.groupLatencyLoading.contains(group.name)
 
         return AttachedPopoverMenu { isHovered in
             GeometryReader { geo in
@@ -301,7 +257,7 @@ extension ProxyTabView {
                     }
 
                     Text(group.name)
-                        .font(.app(size: T.FontSize.body, weight: .semibold))
+                        .font(.app(size: T.FontSize.body, weight: .medium))
                         .foregroundStyle(nativePrimaryLabel)
                         .lineLimit(1)
                         .truncationMode(.tail)
@@ -309,14 +265,11 @@ extension ProxyTabView {
                         .frame(width: columns.name, alignment: .leading)
 
                     Text(currentNode)
-                        .font(.app(size: T.FontSize.caption, weight: .medium))
+                        .font(.app(size: T.FontSize.caption, weight: .regular))
                         .foregroundStyle(nativeSecondaryLabel)
                         .lineLimit(1)
                         .truncationMode(.middle)
                         .minimumScaleFactor(T.minimumScale)
-                        .padding(.horizontal, T.space4)
-                        .padding(.vertical, T.space1)
-                        .background(nativeBadgeCapsule())
                         .frame(width: columns.current, alignment: .leading)
 
                     Group {
@@ -335,18 +288,25 @@ extension ProxyTabView {
                     }
                     .frame(width: columns.delay, alignment: .trailing)
 
-                    self.providerActionButton(
-                        .healthcheck,
-                        isLoading: proxyStore.groupLatencyLoading.contains(group.name))
-                    {
-                        await appViewModel.refreshGroupLatency(group)
+                    // Chevron at rest hints "opens node list"; hovering swaps in the latency test action.
+                    ZStack {
+                        if isHovered || isLatencyLoading {
+                            self.providerActionButton(.healthcheck, isLoading: isLatencyLoading) {
+                                await appViewModel.refreshGroupLatency(group)
+                            }
+                        } else {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: T.FontSize.caption - 1, weight: .semibold))
+                                .foregroundStyle(nativeTertiaryLabel)
+                        }
                     }
-                    .frame(width: 18, alignment: .center)
+                    .frame(width: 22)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             }
-            .frame(height: T.compactRowHeight)
-            .padding(.horizontal, rowHorizontalPadding)
+            .frame(height: 22)
+            .padding(.leading, rowHorizontalPadding)
+            .padding(.trailing, T.space1)
             .padding(.vertical, rowVerticalPadding)
             .background(nativeHoverRowBackground(isHovered))
         } content: { dismiss in
@@ -395,12 +355,12 @@ extension ProxyTabView {
         hasLeadingIcon: Bool) -> (name: CGFloat, current: CGFloat, delay: CGFloat)
     {
         let iconWidth: CGFloat = hasLeadingIcon ? T.rowLeadingIcon : 0
-        let actionWidth: CGFloat = 18
+        let actionWidth: CGFloat = 22
         let spacingCount: CGFloat = hasLeadingIcon ? 4 : 3
         let spacing = T.space1 * spacingCount
         let available = max(0, totalWidth - iconWidth - actionWidth - spacing)
-        let name = floor(available * 0.34)
-        let delay = floor(available * 0.20)
+        let name = floor(available * 0.38)
+        let delay = floor(available * 0.18)
         let current = max(0, available - name - delay)
         return (name, current, delay)
     }
@@ -420,29 +380,20 @@ extension ProxyTabView {
 
     func nodesSectionHeader(
         _ title: String,
-        symbol: String,
         count: String? = nil,
         @ViewBuilder trailing: () -> some View = { EmptyView() }) -> some View
     {
         HStack(spacing: T.space6) {
-            Image(systemName: symbol)
-                .font(.app(size: T.FontSize.caption, weight: .semibold))
-                .foregroundStyle(nativeTertiaryLabel)
-                .frame(
-                    width: T.rowLeadingIcon,
-                    height: T.rowLeadingIcon,
-                    alignment: .center)
-
             Text(title)
-                .font(.app(size: T.FontSize.body, weight: .bold))
-                .foregroundStyle(nativeTertiaryLabel)
-                .textCase(.uppercase)
+                .font(.app(size: T.FontSize.caption, weight: .semibold))
+                .foregroundStyle(nativeSecondaryLabel)
 
             if let count {
                 Text(count)
-                    .font(.app(size: T.FontSize.caption, weight: .bold))
+                    .font(.app(size: T.FontSize.caption, weight: .medium))
+                    .monospacedDigit()
                     .foregroundStyle(nativeSecondaryLabel)
-                    .padding(.horizontal, T.space4)
+                    .padding(.horizontal, T.space6)
                     .padding(.vertical, T.space1)
                     .background(nativeBadgeCapsule())
             }
@@ -450,8 +401,9 @@ extension ProxyTabView {
             Spacer(minLength: 0)
             trailing()
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, T.space4)
+        .frame(maxWidth: .infinity, minHeight: 26, alignment: .leading)
+        .padding(.leading, T.space8)
+        .padding(.trailing, T.space4)
     }
 
     func popoverHeader(
@@ -570,7 +522,6 @@ private struct ProxyGroupPopoverNodeItem: View {
     let action: () -> Void
 
     @State private var isHovered = false
-    @State private var isTestButtonHovered = false
     @AppStorage("clashbar.proxy.group.show_latency_history") private var showLatencyHistory: Bool = false
 
     private var delayValue: Int? {
@@ -614,7 +565,7 @@ private struct ProxyGroupPopoverNodeItem: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableButtonStyle())
 
             self.latencyControl
                 .frame(width: 56, alignment: .trailing)
@@ -625,12 +576,7 @@ private struct ProxyGroupPopoverNodeItem: View {
         .background(
             RoundedRectangle(cornerRadius: T.cornerRadius, style: .continuous)
                 .fill(self.rowBackground))
-        .onHover {
-            self.isHovered = $0
-            if !$0 {
-                self.isTestButtonHovered = false
-            }
-        }
+        .onHover { self.isHovered = $0 }
     }
 
     @ViewBuilder
@@ -642,17 +588,11 @@ private struct ProxyGroupPopoverNodeItem: View {
                 Button {
                     Task { await self.onTestLatency() }
                 } label: {
-                    Image(systemName: "gauge.with.dots.needle.50percent")
-                        .font(.app(size: T.FontSize.caption, weight: .semibold))
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(self.isTestButtonHovered ? self.testButtonTint : self.testButtonBaseTint)
-                        .frame(width: 18, height: 18, alignment: .center)
-                        .contentShape(Rectangle())
+                    Image(systemName: "bolt")
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(IconButtonStyle(size: 20))
                 .help(self.testLatencyLabel)
                 .accessibilityLabel(self.testLatencyLabel)
-                .onHover { self.isTestButtonHovered = $0 }
             }
         } else {
             self.delayMetricView
@@ -664,17 +604,9 @@ private struct ProxyGroupPopoverNodeItem: View {
             return self.nativeAccent.opacity(T.Opacity.tint)
         }
         if self.isHovered {
-            return self.nativeHoverFill.opacity(0.22)
+            return InteractiveFill.neutral(hovered: true, pressed: false)
         }
         return .clear
-    }
-
-    var testButtonTint: Color {
-        self.nativeTeal.opacity(T.Opacity.solid)
-    }
-
-    var testButtonBaseTint: Color {
-        self.nativeSecondaryLabel
     }
 
     @ViewBuilder

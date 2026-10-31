@@ -204,6 +204,8 @@ final class StatusItemController: NSObject {
     private let statusContentView: StatusItemContentView
     private let popoverLayoutModel = PopoverLayoutModel()
     private let popoverFallbackMaxHeight: CGFloat = 640
+    /// Keep the panel menu-sized on tall screens; content scrolls beyond this.
+    private let popoverPreferredMaxHeight: CGFloat = 640
     private let popoverScreenPadding: CGFloat = 10
     private let panelTopSpacing: CGFloat = 0
     private let panelHorizontalPadding: CGFloat = T.space8
@@ -575,9 +577,10 @@ final class StatusItemController: NSObject {
             return self.popoverFallbackMaxHeight
         }
 
-        return anchorContext.maximumHeightBelowMenuBar(
+        let available = anchorContext.maximumHeightBelowMenuBar(
             screenPadding: self.popoverScreenPadding,
             verticalSpacing: self.panelTopSpacing)
+        return min(available, self.popoverPreferredMaxHeight)
     }
 
     private func applyPopoverSize(preferredHeight: CGFloat, preserveHorizontalPosition: Bool) {

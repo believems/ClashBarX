@@ -50,7 +50,6 @@ struct ProxyTabView: TranslatingView {
 
     @State var copiedProxyCommandTarget: ProxyCommandCopyTarget?
     @State var proxyCommandCopyResetTask: Task<Void, Never>?
-    @State var hoveredProviderName: String?
 
     var body: some View {
         self.proxyTabBody
@@ -95,9 +94,7 @@ struct ProxyTabView: TranslatingView {
     }
 
     private func configMenuLeadingTint(for context: ConfigMenuItemContext) -> Color {
-        context.isRemote
-            ? self.nativePurple.opacity(T.Opacity.solid)
-            : self.nativeInfo.opacity(T.Opacity.solid)
+        self.nativeSecondaryLabel
     }
 
     private func configMenuRemoteSubtitle(state: RemoteConfigMenuState) -> String? {
@@ -290,7 +287,7 @@ struct ProxyTabView: TranslatingView {
         AttachedPopoverMenuItem(
             title: self.tr("ui.quick.reload_config_list"),
             leadingSymbol: "arrow.clockwise",
-            leadingTint: self.nativeInfo.opacity(T.Opacity.solid))
+            leadingTint: self.nativeSecondaryLabel)
         {
             dismiss()
             self.appViewModel.reloadConfigFileList()
@@ -298,7 +295,7 @@ struct ProxyTabView: TranslatingView {
         AttachedPopoverMenuItem(
             title: self.tr("ui.quick.import_local_config"),
             leadingSymbol: "square.and.arrow.down",
-            leadingTint: self.nativePositive.opacity(T.Opacity.solid))
+            leadingTint: self.nativeSecondaryLabel)
         {
             dismiss()
             self.appViewModel.importLocalConfigFile()
@@ -306,7 +303,7 @@ struct ProxyTabView: TranslatingView {
         AttachedPopoverMenuItem(
             title: self.tr("ui.quick.import_remote_config"),
             leadingSymbol: "link.badge.plus",
-            leadingTint: self.nativePurple.opacity(T.Opacity.solid))
+            leadingTint: self.nativeSecondaryLabel)
         {
             dismiss()
             Task { await self.appViewModel.importRemoteConfigFile() }
@@ -314,7 +311,7 @@ struct ProxyTabView: TranslatingView {
         AttachedPopoverMenuItem(
             title: self.tr("ui.quick.update_remote_configs"),
             leadingSymbol: "arrow.triangle.2.circlepath",
-            leadingTint: self.nativeWarning.opacity(T.Opacity.solid))
+            leadingTint: self.nativeSecondaryLabel)
         {
             dismiss()
             Task { await self.appViewModel.updateAllRemoteConfigFiles() }
@@ -359,82 +356,58 @@ struct ProxyTabView: TranslatingView {
     }
 
     var trafficOverview: some View {
-        let sparklineHeight: CGFloat = 64
-        let sparklineHorizontalInset = T.space4
+        VStack(spacing: T.space4) {
+            HStack(spacing: T.space6) {
+                self.trafficRateMetric(
+                    symbol: "arrow.up",
+                    rate: ValueFormatter.speed(self.trafficStore.traffic.up),
+                    total: ValueFormatter.bytesOrDash(self.trafficStore.displayUpTotal),
+                    color: nativeAccent)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-        return ZStack {
+                self.trafficRateMetric(
+                    symbol: "arrow.down",
+                    rate: ValueFormatter.speed(self.trafficStore.traffic.down),
+                    total: ValueFormatter.bytesOrDash(self.trafficStore.displayDownTotal),
+                    color: nativePositive)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+
             TrafficSparklineView(
                 upValues: self.trafficStore.trafficHistoryUp,
                 downValues: self.trafficStore.trafficHistoryDown)
-                .frame(height: sparklineHeight)
-                .padding(.horizontal, sparklineHorizontalInset)
+                .frame(height: 30)
 
-            VStack(spacing: 0) {
-                HStack(spacing: T.space6) {
-                    self.cornerMetric(
-                        symbol: "link",
-                        value: "\(self.connectionsStore.connectionsCount)",
-                        color: nativeIndigo)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    self.cornerMetric(
-                        symbol: "arrow.up.circle",
-                        value: ValueFormatter.speedAndTotal(
-                            rate: self.trafficStore.traffic.up,
-                            total: self.trafficStore.displayUpTotal),
-                        color: nativeInfo,
-                        iconTrailing: true)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                }
-
+            HStack(spacing: T.space8 + T.space6) {
+                Text("\(self.tr("ui.tab.connections")) \(self.connectionsStore.connectionsCount)")
+                Text("\(self.tr("app.stream.label.memory")) \(ValueFormatter.bytesInteger(self.trafficStore.memory.inuse))")
                 Spacer(minLength: 0)
-
-                HStack(spacing: T.space6) {
-                    self.cornerMetric(
-                        symbol: "memorychip",
-                        value: ValueFormatter.bytesInteger(self.trafficStore.memory.inuse),
-                        color: nativeTeal)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    self.cornerMetric(
-                        symbol: "arrow.down.circle",
-                        value: ValueFormatter.speedAndTotal(
-                            rate: self.trafficStore.traffic.down,
-                            total: self.trafficStore.displayDownTotal),
-                        color: nativePositive.opacity(T.Opacity.solid),
-                        iconTrailing: true)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                }
             }
-            .padding(.horizontal, T.space4)
-            .padding(.vertical, T.space2)
-        }
-        .frame(height: sparklineHeight)
-        .padding(.top, T.space2)
-    }
-
-    func cornerMetric(
-        symbol: String,
-        value: String,
-        color: Color,
-        iconTrailing: Bool = false) -> some View
-    {
-        let icon = Image(systemName: symbol)
-            .font(.app(size: T.FontSize.caption, weight: .semibold))
-            .foregroundStyle(color)
-        let text = Text(value)
-            .font(.app(size: T.FontSize.body, weight: .regular))
+            .font(.app(size: T.FontSize.caption))
+            .monospacedDigit()
             .foregroundStyle(nativeSecondaryLabel)
             .lineLimit(1)
-            .minimumScaleFactor(T.minimumScale)
-
-        return HStack(spacing: iconTrailing ? T.space1 : T.space2) {
-            if iconTrailing {
-                text; icon
-            } else {
-                icon; text
-            }
         }
+        .padding(.horizontal, T.space6)
+        .padding(.vertical, T.space4)
+        .groupedSection()
+    }
+
+    func trafficRateMetric(symbol: String, rate: String, total: String, color: Color) -> some View {
+        HStack(spacing: T.space4) {
+            Image(systemName: symbol)
+                .font(.system(size: T.FontSize.caption, weight: .bold))
+                .foregroundStyle(color)
+            Text(rate)
+                .font(.app(size: T.FontSize.callout, weight: .semibold))
+                .foregroundStyle(nativePrimaryLabel)
+            Text(total)
+                .font(.app(size: T.FontSize.caption))
+                .foregroundStyle(nativeSecondaryLabel)
+        }
+        .monospacedDigit()
+        .lineLimit(1)
+        .minimumScaleFactor(T.minimumScale)
     }
 
     var proxyQuickRows: some View {
@@ -447,7 +420,7 @@ struct ProxyTabView: TranslatingView {
                 self.quickRowContent(
                     title: self.tr("ui.quick.switch_config"),
                     symbol: "doc.text",
-                    foreground: nativePurple)
+                    foreground: nativeSecondaryLabel)
                 {
                     Text(self.tr("ui.machine.remote_readonly"))
                         .font(.app(size: T.FontSize.caption, weight: .regular))
@@ -459,11 +432,11 @@ struct ProxyTabView: TranslatingView {
                     onWillPresent: {
                         self.appViewModel.refreshRemoteConfigMenuStates()
                     },
-                    label: { _ in
+                    label: { hovered in
                         self.quickRowContent(
                             title: self.tr("ui.quick.switch_config"),
                             symbol: "doc.text",
-                            foreground: nativePurple)
+                            foreground: nativeSecondaryLabel)
                         {
                             HStack(spacing: T.space2) {
                                 Text(self.appViewModel.selectedConfigName)
@@ -476,21 +449,23 @@ struct ProxyTabView: TranslatingView {
                                     .foregroundStyle(nativeTertiaryLabel)
                             }
                         }
+                        .background(self.nativeHoverRowBackground(hovered))
                     },
                     content: { dismiss in
                         self.configMenuContent(dismiss: dismiss)
                     })
-                    .buttonStyle(.plain)
             }
 
+            self.quickRowSeparator
             self.systemProxyQuickToggleRow
-
+            self.quickRowSeparator
             self.tunModeQuickToggleRow
+            self.quickRowSeparator
 
             self.quickRowContent(
                 title: self.tr("ui.quick.copy_terminal"),
                 symbol: "terminal",
-                foreground: nativeWarning,
+                foreground: nativeSecondaryLabel,
                 trailingFitsContent: true)
             {
                 HStack(spacing: T.space2) {
@@ -516,6 +491,15 @@ struct ProxyTabView: TranslatingView {
                 }
             }
         }
+        .groupedSection()
+    }
+
+    var quickRowSeparator: some View {
+        Rectangle()
+            .fill(nativeSeparator.opacity(0.6))
+            .frame(height: T.stroke)
+            .padding(.leading, T.space8 + 18 + T.space8)
+            .padding(.trailing, T.space8)
     }
 
     func proxyCommandActionButton(
@@ -526,12 +510,6 @@ struct ProxyTabView: TranslatingView {
         action: @escaping () -> Void) -> some View
     {
         let copied = self.copiedProxyCommandTarget == target
-        let foreground = copied
-            ? self.nativePositive.opacity(T.Opacity.solid)
-            : self.nativeSecondaryLabel
-        let iconForeground = copied
-            ? self.nativePositive.opacity(T.Opacity.solid)
-            : self.nativeTertiaryLabel
 
         return Button {
             self.handleCopyProxyCommand(target) {
@@ -540,31 +518,14 @@ struct ProxyTabView: TranslatingView {
         } label: {
             HStack(spacing: T.space4) {
                 Text(title)
-                    .font(.app(size: T.FontSize.caption, weight: .medium))
-                    .lineLimit(1)
                     .truncationMode(.middle)
                     .minimumScaleFactor(T.minimumScale)
                     .monospacedDigit()
-                    .foregroundStyle(foreground)
-                Image(systemName: copied ? "checkmark.circle.fill" : "doc.on.doc")
-                    .font(.app(size: T.FontSize.caption, weight: .semibold))
-                    .foregroundStyle(iconForeground)
-            }
-            .padding(T.space2)
-            .background {
-                Capsule(style: .continuous)
-                    .fill(copied ? self.nativePositive.opacity(T.Opacity.tint) : self.nativeBadgeFill)
-                    .overlay {
-                        Capsule(style: .continuous)
-                            .stroke(
-                                copied
-                                    ? self.nativePositive.opacity(0.18)
-                                    : self.nativeControlBorder.opacity(0.42),
-                                lineWidth: T.stroke)
-                    }
+                Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                    .font(.system(size: T.FontSize.caption - 1, weight: .semibold))
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ChipButtonStyle(selected: copied, tint: self.nativePositive))
         .help("\(helpTitle)\n\(helpDetail)")
     }
 
@@ -584,7 +545,7 @@ struct ProxyTabView: TranslatingView {
         trailingFitsContent: Bool = false,
         @ViewBuilder trailing: () -> some View) -> some View
     {
-        HStack(spacing: T.space6) {
+        HStack(spacing: T.space8) {
             self.quickIcon(symbol: symbol, foreground: foreground)
             Text(title)
                 .font(.app(size: T.FontSize.body, weight: .medium))
@@ -600,9 +561,9 @@ struct ProxyTabView: TranslatingView {
                     .frame(width: trailingWidth ?? self.quickRowTrailingColumnWidth, alignment: .trailing)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, T.space4)
-        .padding(.vertical, T.space2)
+        .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
+        .padding(.horizontal, T.space8)
+        .contentShape(Rectangle())
     }
 
     var systemProxyRowTitle: String {
@@ -620,7 +581,7 @@ struct ProxyTabView: TranslatingView {
     }
 
     var systemProxyQuickToggleRow: some View {
-        HStack(spacing: T.space6) {
+        HStack(spacing: T.space8) {
             self.systemProxyCompositeIcon
             HStack(spacing: T.space2) {
                 Text(self.systemProxyRowTitle)
@@ -657,11 +618,9 @@ struct ProxyTabView: TranslatingView {
                 .toggleStyle(.switch)
                 .controlSize(.small)
                 .disabled(self.proxyStore.isProxySyncing)
-                .frame(width: 50, alignment: .trailing)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, T.space4)
-        .padding(.vertical, T.space2)
+        .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
+        .padding(.horizontal, T.space8)
     }
 
     var systemProxyInlineFailureText: String? {
@@ -689,15 +648,11 @@ struct ProxyTabView: TranslatingView {
         self.quickRowContent(
             title: self.tr("ui.quick.tun_mode"),
             symbol: "shield.lefthalf.filled",
-            foreground: nativePositive,
+            foreground: nativeSecondaryLabel,
             trailingFitsContent: true)
         {
-            HStack(spacing: T.space4) {
-                HStack(spacing: T.space2) {
-                    ForEach(Self.tunStackOptions, id: \.self) { option in
-                        self.tunStackChip(option)
-                    }
-                }
+            HStack(spacing: T.space8) {
+                self.tunStackMenu
                 Toggle("", isOn: Binding(
                     get: { self.appViewModel.isTunEnabled },
                     set: { value in
@@ -711,51 +666,37 @@ struct ProxyTabView: TranslatingView {
         }
     }
 
-    func tunStackChip(_ option: String) -> some View {
-        let active = self.appViewModel.isTunEnabled
-            && self.appViewModel.tunStack?.caseInsensitiveCompare(option) == .orderedSame
-        let mipsUnsupported = option.caseInsensitiveCompare("mips") == .orderedSame
-            && !self.appViewModel.isMipsStackSupported
-        let enabled = self.appViewModel.isTunToggleEnabled && !mipsUnsupported
-        let hint = mipsUnsupported
-            ? self.tr("app.tun.mips_requires_upgrade", AppViewModel.mipsStackMinimumCoreVersion)
-            : self.tr("ui.quick.tun_stack_switch_hint")
-        let fill = active ? self.nativePositive.opacity(T.Opacity.tint) : self.nativeBadgeFill
-        let border = active
-            ? self.nativePositive.opacity(0.18)
-            : self.nativeControlBorder.opacity(0.42)
-        let foreground = active ? self.nativePositive.opacity(T.Opacity.solid) : self.nativeSecondaryLabel
+    /// Stack picker as a native pop-up: one compact control instead of four chips, and a deliberate
+    /// two-step choice since switching the stack restarts TUN.
+    var tunStackMenu: some View {
+        let current = self.appViewModel.tunStack?.lowercased() ?? "mixed"
 
-        let activate = {
-            guard enabled else { return }
-            Task { await self.appViewModel.selectTunStack(option) }
-        }
-
-        return Text(option)
-            .font(.app(size: T.FontSize.caption, weight: active ? .semibold : .medium))
-            .foregroundStyle(foreground)
-            .lineLimit(1)
-            .padding(.horizontal, T.space4)
-            .padding(.vertical, T.space2)
-            .background {
-                Capsule(style: .continuous)
-                    .fill(fill)
-                    .overlay {
-                        Capsule(style: .continuous)
-                            .stroke(border, lineWidth: T.stroke)
+        return ChipMenu(title: current) {
+            ForEach(Self.tunStackOptions, id: \.self) { option in
+                let mipsUnsupported = option == "mips" && !self.appViewModel.isMipsStackSupported
+                Button {
+                    guard option != current else { return }
+                    Task { await self.appViewModel.selectTunStack(option) }
+                } label: {
+                    if option == current {
+                        Label(option, systemImage: "checkmark")
+                    } else {
+                        Text(mipsUnsupported
+                            ? "\(option) (\(self.tr("app.tun.mips_requires_upgrade", AppViewModel.mipsStackMinimumCoreVersion)))"
+                            : option)
                     }
+                }
+                .disabled(mipsUnsupported)
             }
-            .contentShape(Capsule(style: .continuous))
-            .opacity(enabled ? 1 : 0.5)
-            .onTapGesture(count: 2, perform: activate)
-            .help(hint)
-            .accessibilityLabel(option)
-            .accessibilityHint(hint)
+        }
+        .fixedSize()
+        .disabled(!self.appViewModel.isTunToggleEnabled)
+        .help(self.tr("ui.quick.tun_stack_switch_hint"))
     }
 
     func quickIcon(symbol: String, foreground: Color) -> some View {
         Image(systemName: symbol)
-            .font(.app(size: T.FontSize.body, weight: .semibold))
+            .font(.system(size: T.FontSize.body, weight: .regular))
             .foregroundStyle(foreground)
             .frame(width: 18, height: 18, alignment: .center)
     }
@@ -775,7 +716,7 @@ struct ProxyTabView: TranslatingView {
 
     func systemProxyCompositeIconLayer(tint: Color, alignment: Alignment) -> some View {
         Image(systemName: "network")
-            .font(.app(size: T.FontSize.body, weight: .semibold))
+            .font(.system(size: T.FontSize.body, weight: .regular))
             .foregroundStyle(tint)
             .frame(width: 18, height: 18)
             .mask(alignment: alignment) {
@@ -787,7 +728,7 @@ struct ProxyTabView: TranslatingView {
     var systemProxyHelperInstalledTint: Color {
         switch self.appViewModel.systemProxyHelperInstalled {
         case .some(true):
-            nativePositive.opacity(T.Opacity.solid)
+            nativeSecondaryLabel
         case .some(false):
             nativeCritical.opacity(T.Opacity.solid)
         case .none:
@@ -798,7 +739,7 @@ struct ProxyTabView: TranslatingView {
     var systemProxyHelperProcessTint: Color {
         switch self.appViewModel.systemProxyHelperProcessRunning {
         case .some(true):
-            nativePositive.opacity(T.Opacity.solid)
+            nativeSecondaryLabel
         case .some(false):
             nativeWarning.opacity(T.Opacity.solid)
         case .none:
@@ -923,35 +864,21 @@ private struct ConfigMenuItemView: View {
         onRefresh: @escaping () -> Void) -> some View
     {
         let failureTint = self.nativeCritical
-        let helpText: String
-        let tint: Color
-        let baseTint: Color
         let isLoading = phase == .refreshing
-
-        switch phase {
-        case .idle:
-            helpText = self.refreshHelpText
-            tint = self.nativeAccent
-            baseTint = self.secondaryTextColor
-        case .refreshing:
-            helpText = self.refreshingAccessibilityLabel
-            tint = self.secondaryTextColor
-            baseTint = self.secondaryTextColor
-        case .failed:
-            helpText = self.refreshFailedHelpText
-            tint = failureTint
-            baseTint = failureTint.opacity(0.92)
+        let helpText = switch phase {
+        case .idle: self.refreshHelpText
+        case .refreshing: self.refreshingAccessibilityLabel
+        case .failed: self.refreshFailedHelpText
         }
 
         return CompactAsyncIconButton(
             symbol: "arrow.clockwise",
-            tint: tint,
-            baseTint: baseTint,
+            style: IconButtonStyle(
+                size: 22,
+                tint: phase == .failed ? failureTint : (self.isHovered ? self.nativeSelectedMenuText : nil),
+                showsRestingFill: false),
             role: nil,
             isLoading: isLoading,
-            size: 20,
-            fontSize: T.FontSize.body,
-            hierarchicalSymbol: false,
             action: { onRefresh() })
             .help(helpText)
             .accessibilityLabel(helpText)

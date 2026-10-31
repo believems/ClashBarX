@@ -58,8 +58,6 @@ struct MenuBarRootView: TranslatingView {
     @State var switchingMode: CoreMode?
     @State var isSwitchingMachine = false
     @State var showRemoteMachineManager = false
-    @State var hoveredMode: CoreMode?
-    @State var hoveredTab: RootTab?
     @State var topHeaderHeight: CGFloat = 0
     @State var modeAndTabSectionHeight: CGFloat = 0
     @State var footerBarHeight: CGFloat = 0
@@ -123,10 +121,10 @@ struct MenuBarRootView: TranslatingView {
                 width: T.panelWidth,
                 height: resolvedPanelHeight,
                 alignment: .topLeading)
-            .background(self.panelBackground)
             .clipShape(
                 RoundedRectangle(
                     cornerRadius: T.panelCornerRadius, style: .continuous))
+            .panelSurface(cornerRadius: T.panelCornerRadius, stroke: nativeSeparator)
     }
 
     var panelContent: some View {
@@ -225,19 +223,6 @@ struct MenuBarRootView: TranslatingView {
         } else {
             content
         }
-    }
-
-    var panelBackground: some View {
-        AppMaterialSurface(
-            cornerRadius: T.panelCornerRadius,
-            fallbackStyle: .material(.regularMaterial),
-            stroke: nativeSeparator)
-            .shadow(
-                color: self.nativeShadow.opacity(
-                    T.Shadow.standard.opacity),
-                radius: T.Shadow.standard.radius,
-                x: T.Shadow.standard.x,
-                y: T.Shadow.standard.y)
     }
 
     func refreshDerivedData(for tab: RootTab) {

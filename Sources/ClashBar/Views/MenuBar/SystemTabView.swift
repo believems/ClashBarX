@@ -17,26 +17,27 @@ struct SystemTabView: TranslatingView {
     @EnvironmentObject var appViewModel: AppViewModel
     @State private var isExceptionsExpanded = false
 
-    func settingsCardHeader(_ title: String, symbol: String) -> some View {
-        HStack(spacing: T.space6) {
-            Image(systemName: symbol)
-                .font(.app(size: T.FontSize.caption, weight: .semibold))
-                .foregroundStyle(nativeTertiaryLabel)
+    func settingsSection(_ title: String, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: T.space2) {
             Text(title)
-                .font(.app(size: T.FontSize.body, weight: .bold))
-                .foregroundStyle(nativeTertiaryLabel)
-                .textCase(.uppercase)
-            Spacer(minLength: 0)
+                .font(.app(size: T.FontSize.caption, weight: .semibold))
+                .foregroundStyle(nativeSecondaryLabel)
+                .padding(.leading, T.space8)
+                .frame(minHeight: 22)
+
+            VStack(spacing: 0) {
+                content()
+            }
+            .groupedSection()
         }
-        .menuRowPadding(vertical: T.space2)
     }
 
     func settingsRowLabel(symbol: String, title: String) -> some View {
         HStack(spacing: T.space6) {
             Image(systemName: symbol)
-                .font(.app(size: T.FontSize.caption, weight: .semibold))
-                .foregroundStyle(nativeTertiaryLabel)
-                .frame(width: 14, alignment: .center)
+                .font(.system(size: T.FontSize.callout, weight: .regular))
+                .foregroundStyle(nativeSecondaryLabel)
+                .frame(width: 16, alignment: .center)
             Text(title)
                 .font(.app(size: T.FontSize.body, weight: .medium))
                 .foregroundStyle(nativePrimaryLabel)
@@ -128,10 +129,8 @@ struct SystemTabView: TranslatingView {
             Spacer(minLength: 0)
 
             TextField(self.tr("ui.placeholder.port"), text: text)
-                .textFieldStyle(.roundedBorder)
-                .font(.app(size: T.FontSize.body, weight: .regular))
-                .foregroundStyle(nativePrimaryLabel)
                 .multilineTextAlignment(.trailing)
+                .appTextField()
                 .frame(width: self.settingsPortFieldWidth, alignment: .trailing)
                 .onChange(of: text.wrappedValue) { _ in
                     self.appViewModel.scheduleProxyPortsAutoSaveIfNeeded()
@@ -160,18 +159,14 @@ struct SystemTabView: TranslatingView {
             TextField(
                 self.tr("ui.placeholder.system_proxy_exception"),
                 text: self.systemProxyExceptionBinding(id: exception.id))
-                .textFieldStyle(.roundedBorder)
-                .controlSize(.small)
-                .font(.app(size: T.FontSize.body, weight: .regular))
-                .foregroundStyle(nativePrimaryLabel)
+                .appTextField()
 
             Button {
                 self.appViewModel.removeSystemProxyExceptionDraft(id: exception.id)
             } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(nativeCritical.opacity(T.Opacity.solid))
+                Image(systemName: "minus.circle")
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(IconButtonStyle(size: 22, destructive: true, showsRestingFill: false))
             .accessibilityLabel(self.tr("ui.action.remove_exception"))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -370,10 +365,9 @@ struct SystemTabView: TranslatingView {
             : self.tr("ui.section.system_proxy_exceptions")
 
         return VStack(alignment: .leading, spacing: T.space6) {
-            VStack(spacing: 0) {
-                self.settingsCardHeader(
-                    isRemote ? self.tr("ui.section.local_app_settings") : self.tr("ui.section.basic_settings"),
-                    symbol: "slider.horizontal.3")
+            self.settingsSection(
+                    isRemote ? self.tr("ui.section.local_app_settings") : self.tr("ui.section.basic_settings"))
+            {
                 ForEach(localOnlyItems, id: \.id) { item in
                     self.settingsToggleRow(
                         isRemote ? "\(item.title) (\(self.tr("ui.machine.local_label")))" : item.title,
@@ -439,8 +433,9 @@ struct SystemTabView: TranslatingView {
                         .font(.app(size: T.FontSize.caption, weight: .medium))
                     }
                     .menuRowPadding(vertical: T.space4)
+                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(RowButtonStyle())
 
                 VStack(alignment: .leading, spacing: T.space4) {
                     Text(self.tr("ui.settings.system_proxy_exceptions_hint"))
@@ -464,10 +459,7 @@ struct SystemTabView: TranslatingView {
                         TextField(
                             self.tr("ui.placeholder.system_proxy_exception"),
                             text: self.$appViewModel.systemProxyNewException)
-                            .textFieldStyle(.roundedBorder)
-                            .controlSize(.small)
-                            .font(.app(size: T.FontSize.body, weight: .regular))
-                            .foregroundStyle(nativePrimaryLabel)
+                            .appTextField()
                             .onSubmit {
                                 self.appViewModel.addSystemProxyExceptionDraft()
                             }
@@ -510,10 +502,9 @@ struct SystemTabView: TranslatingView {
             }
             .animation(.spring(response: 0.30, dampingFraction: 0.80), value: self.isExceptionsExpanded)
 
-            VStack(spacing: 0) {
-                self.settingsCardHeader(
-                    isRemote ? self.tr("ui.section.core_settings_remote") : self.tr("ui.section.core_settings"),
-                    symbol: "gearshape.2")
+            self.settingsSection(
+                    isRemote ? self.tr("ui.section.core_settings_remote") : self.tr("ui.section.core_settings"))
+            {
                 ForEach(coreToggleItems, id: \.id) { item in
                     self.settingsToggleRow(
                         item.title,
@@ -523,10 +514,9 @@ struct SystemTabView: TranslatingView {
                 }
             }
 
-            VStack(spacing: 0) {
-                self.settingsCardHeader(
-                    self.tr("ui.section.proxy_ports"),
-                    symbol: "point.3.connected.trianglepath.dotted")
+            self.settingsSection(
+                    self.tr("ui.section.proxy_ports"))
+            {
 
                 VStack(alignment: .leading, spacing: T.space4) {
                     ForEach(proxyPortFields, id: \.titleKey) { item in
@@ -539,10 +529,9 @@ struct SystemTabView: TranslatingView {
                 .menuRowPadding(vertical: T.space4)
             }
 
-            VStack(spacing: 0) {
-                self.settingsCardHeader(
-                    self.tr("ui.section.maintenance"),
-                    symbol: "wrench.and.screwdriver")
+            self.settingsSection(
+                    self.tr("ui.section.maintenance"))
+            {
 
                 VStack(alignment: .leading, spacing: T.space4) {
                     HStack(spacing: T.space6) {

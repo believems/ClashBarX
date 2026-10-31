@@ -91,7 +91,7 @@ extension MenuBarRootView {
             Link(destination: url) {
                 self.footerInfoLabel(text, iconSystemName: iconSystemName)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableButtonStyle())
         } else {
             self.footerInfoLabel(text, iconSystemName: iconSystemName)
         }
@@ -121,11 +121,9 @@ extension MenuBarRootView {
             symbol: self.footerCoreUpgradeButtonSymbolName ?? "arrow.down.circle",
             label: self.footerCoreUpgradeButtonTitle,
             tint: self.footerCoreUpgradeButtonTint,
-            baseTint: self.nativeSecondaryLabel,
             isLoading: self.appViewModel.isCoreUpgradeInFlight,
-            size: 18,
-            fontSize: T.FontSize.caption,
-            hierarchicalSymbol: true)
+            size: 20,
+            showsRestingFill: false)
         {
             await self.appViewModel.upgradeCore()
         }
@@ -167,10 +165,10 @@ extension MenuBarRootView {
         }
     }
 
-    var footerCoreUpgradeButtonTint: Color {
+    var footerCoreUpgradeButtonTint: Color? {
         switch self.appViewModel.coreUpgradeState {
         case .idle, .running:
-            self.nativeAccent.opacity(T.Opacity.solid)
+            nil
         case .succeeded, .alreadyLatest:
             self.nativePositive.opacity(T.Opacity.solid)
         case .failed:
@@ -210,7 +208,7 @@ extension MenuBarRootView {
                     tint: self.nativeAccent.opacity(T.Opacity.solid),
                     emphasized: true)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(ChipButtonStyle(selected: true))
             .help(tr("ui.footer.version_update_help", update.displayVersion))
             .accessibilityLabel(tr(
                 "ui.footer.version_update_accessibility",
@@ -225,7 +223,7 @@ extension MenuBarRootView {
                         tint: self.nativeSecondaryLabel,
                         emphasized: false)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressableButtonStyle())
                 .help(tr("ui.footer.version", self.appViewModel.currentAppVersionText))
             } else {
                 self.footerVersionBadge(
@@ -251,8 +249,8 @@ extension MenuBarRootView {
                 .lineLimit(1)
                 .minimumScaleFactor(T.minimumScale)
         }
-        .foregroundStyle(tint)
-        .padding(.horizontal, T.space6)
+        .foregroundStyle(emphasized ? Color.white : tint)
+        .padding(.horizontal, emphasized ? 0 : T.space6)
         .padding(.vertical, T.space2)
     }
 }
@@ -293,18 +291,6 @@ extension View {
 
     var nativeCritical: Color {
         Color(nsColor: .systemRed)
-    }
-
-    var nativeTeal: Color {
-        Color(nsColor: .systemTeal)
-    }
-
-    var nativeIndigo: Color {
-        Color(nsColor: .systemIndigo)
-    }
-
-    var nativePurple: Color {
-        Color(nsColor: .systemPurple)
     }
 
     var nativePrimaryLabel: Color {
@@ -352,7 +338,7 @@ extension View {
         cornerRadius: CGFloat = T.cornerRadius) -> some View
     {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .fill(hovered ? self.nativeHoverFill : .clear)
+            .fill(InteractiveFill.neutral(hovered: hovered, pressed: false))
     }
 
     func nativeBadgeCapsule() -> some View {
@@ -366,30 +352,17 @@ extension View {
         action: @escaping () -> Void) -> some View
     {
         Button(action: action) {
-            HStack(spacing: T.space2) {
+            HStack(spacing: T.space4) {
                 Text(title)
-                    .font(.app(size: T.FontSize.caption, weight: .medium))
                 if let count {
                     Text("\(count)")
-                        .font(.app(size: T.FontSize.caption, weight: selected ? .bold : .medium))
-                        .foregroundStyle(selected ? Color.white.opacity(0.75) : self.nativeTertiaryLabel)
+                        .monospacedDigit()
+                        .opacity(0.7)
                 }
             }
-            .foregroundStyle(selected ? Color.white : self.nativeSecondaryLabel)
-            .lineLimit(1)
             .fixedSize()
-            .padding(.horizontal, T.space6)
-            .padding(.vertical, T.space2)
-            .background {
-                if selected {
-                    Capsule(style: .continuous).fill(self.nativeInfo.opacity(T.Opacity.solid))
-                } else {
-                    self.nativeBadgeCapsule()
-                }
-            }
-            .contentShape(Capsule(style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ChipButtonStyle(selected: selected))
     }
 
     func nativeRowFill(active: Bool, hovered: Bool) -> Color {
@@ -434,9 +407,7 @@ extension View {
 
     func filterTextField(_ placeholder: String, text: Binding<String>) -> some View {
         TextField(placeholder, text: text)
-            .textFieldStyle(.roundedBorder)
-            .font(.app(size: T.FontSize.body, weight: .regular))
-            .foregroundStyle(self.nativePrimaryLabel)
+            .appTextField()
     }
 
     func emptyCard(_ text: String) -> some View {
@@ -467,58 +438,61 @@ extension View {
     func compactAsyncIconButton(
         symbol: String,
         label: String,
-        tint: Color,
-        baseTint: Color? = nil,
+        tint: Color? = nil,
         role: ButtonRole? = nil,
+        isOn: Bool = false,
+        destructive: Bool = false,
         isLoading: Bool = false,
-        size: CGFloat = 20,
-        fontSize: CGFloat = T.FontSize.body,
-        hierarchicalSymbol: Bool = false,
+        size: CGFloat = 24,
+        showsRestingFill: Bool = true,
         action: @escaping () async -> Void) -> some View
     {
         CompactAsyncIconButton(
             symbol: symbol,
-            tint: tint,
-            baseTint: baseTint ?? self.nativeSecondaryLabel,
+            style: IconButtonStyle(
+                size: size,
+                isOn: isOn,
+                tint: tint,
+                destructive: destructive,
+                showsRestingFill: showsRestingFill),
             role: role,
             isLoading: isLoading,
-            size: size,
-            fontSize: fontSize,
-            hierarchicalSymbol: hierarchicalSymbol,
             action: action)
             .accessibilityLabel(label)
+            .help(label)
     }
 
+    /// Toolbar-style icon button. `isOn` shows a toggled state; `warning` turns red on hover.
     func compactTopIcon(
         _ symbol: String,
         label: String,
         role: ButtonRole? = nil,
         warning: Bool = false,
-        toneOverride: Color? = nil,
+        isOn: Bool = false,
+        tint: Color? = nil,
         isLoading: Bool = false,
+        size: CGFloat = 24,
         action: @escaping () async -> Void) -> some View
     {
-        let tone: Color = if let toneOverride {
-            toneOverride
-        } else if warning {
-            self.nativeCritical
-        } else {
-            self.nativeSecondaryLabel
-        }
-
-        return self.compactAsyncIconButton(
+        self.compactAsyncIconButton(
             symbol: symbol,
             label: label,
-            tint: tone.opacity(T.Opacity.solid),
+            tint: tint,
             role: role,
+            isOn: isOn,
+            destructive: warning,
             isLoading: isLoading,
+            size: size,
             action: action)
     }
 
     func compactSelectionMenu(
         _ configuration: CompactSelectionMenuConfiguration<some Hashable & Identifiable>) -> some View
     {
-        Menu {
+        ChipMenu(
+            title: configuration.optionTitle(configuration.selection),
+            symbol: configuration.symbol)
+        {
             ForEach(configuration.options) { option in
                 Button {
                     configuration.onSelect(option)
@@ -530,13 +504,7 @@ extension View {
                     }
                 }
             }
-        } label: {
-            Label(configuration.optionTitle(configuration.selection), systemImage: configuration.symbol)
-                .font(.app(size: T.FontSize.caption, weight: .medium))
-                .lineLimit(1)
         }
-        .appBorderedButtonStyle()
-        .controlSize(.small)
         .help(configuration.helpText)
     }
 
@@ -588,16 +556,10 @@ extension View {
 
 struct CompactAsyncIconButton: View {
     let symbol: String
-    let tint: Color
-    let baseTint: Color
+    let style: IconButtonStyle
     let role: ButtonRole?
     let isLoading: Bool
-    let size: CGFloat
-    let fontSize: CGFloat
-    let hierarchicalSymbol: Bool
     let action: () async -> Void
-
-    @State private var hovered = false
 
     var body: some View {
         Button(role: self.role) {
@@ -605,20 +567,14 @@ struct CompactAsyncIconButton: View {
         } label: {
             ZStack {
                 Image(systemName: self.symbol)
-                    .font(.app(size: self.fontSize, weight: .semibold))
-                    .foregroundStyle(self.hovered ? self.tint : self.baseTint)
-                    .symbolRenderingMode(self.hierarchicalSymbol ? .hierarchical : .monochrome)
                     .opacity(self.isLoading ? 0 : 1)
 
                 ProgressView()
                     .controlSize(.mini)
                     .opacity(self.isLoading ? 1 : 0)
             }
-            .frame(width: self.size, height: self.size)
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.borderless)
-        .disabled(self.isLoading)
-        .onHover { self.hovered = $0 }
+        .buttonStyle(self.style)
+        .allowsHitTesting(!self.isLoading)
     }
 }
