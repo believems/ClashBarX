@@ -1,3 +1,21 @@
+## v0.4.4
+
+![macOS](https://img.shields.io/badge/macOS-Supported-000000?style=flat-square&logo=apple) ![Version](https://img.shields.io/badge/Release-v0.4.4-10B981?style=flat-square) ![Core](https://img.shields.io/badge/Core-Mihomo-6366f1?style=flat-square)
+
+> 本次更新优化模式切换控件：规则 / 全局 / 直连改为三个等宽原生按钮，并统一选中与未选中状态的圆角轮廓，避免选中项显得像直角矩形。
+
+### 📝 更新日志 (Changelog)
+
+**🚀 优化改进 (Improvements)**
+
+- ![Optimize](https://img.shields.io/badge/Optimize-3B82F6?style=flat-square) **模式切换原生按钮**：规则 / 全局 / 直连改用三个等宽的原生 Liquid Glass 按钮，选中项使用强调色，保留单次点击切换与防闪烁处理。
+
+**🐞 修复问题 (Bug Fixes)**
+
+- ![Fix](https://img.shields.io/badge/Fix-EF4444?style=flat-square) **模式按钮圆角不一致**：选中态与未选中态原先由不同按钮样式绘制圆角，导致选中项看起来偏方；现在统一为相同的大号圆角矩形轮廓。
+
+---
+
 ## v0.4.3
 
 ![macOS](https://img.shields.io/badge/macOS-Supported-000000?style=flat-square&logo=apple) ![Version](https://img.shields.io/badge/Release-v0.4.3-10B981?style=flat-square) ![Core](https://img.shields.io/badge/Core-Mihomo-6366f1?style=flat-square)
