@@ -244,6 +244,8 @@ extension View {
 struct ChipMenu<Content: View>: View {
     let title: String
     var symbol: String?
+    /// Caps titles that come from user data (e.g. policy group names); fixed option labels leave it nil.
+    var maxTitleWidth: CGFloat?
     @ViewBuilder let content: () -> Content
 
     @Environment(\.isEnabled) private var isEnabled
@@ -261,6 +263,7 @@ struct ChipMenu<Content: View>: View {
                 Text(self.title)
                     .lineLimit(1)
                     .truncationMode(.tail)
+                    .frame(maxWidth: self.maxTitleWidth)
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.system(size: 8, weight: .semibold))
                     .foregroundStyle(Color(nsColor: .secondaryLabelColor))
@@ -279,6 +282,8 @@ struct ChipMenu<Content: View>: View {
         }
         .buttonStyle(.plain)
         .menuIndicator(.hidden)
+        // Never truncate the current value; rows decide what to drop when space runs out.
+        .fixedSize()
         .opacity(self.isEnabled ? 1 : 0.4)
         .animation(.easeOut(duration: 0.12), value: self.hovered)
         .onHover { self.hovered = $0 && self.isEnabled }

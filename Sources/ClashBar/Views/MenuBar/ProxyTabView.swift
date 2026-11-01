@@ -362,14 +362,14 @@ struct ProxyTabView: TranslatingView {
                     symbol: "arrow.up",
                     rate: ValueFormatter.speed(self.trafficStore.traffic.up),
                     total: ValueFormatter.bytesOrDash(self.trafficStore.displayUpTotal),
-                    color: nativeAccent)
+                    color: trafficUploadTint)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 self.trafficRateMetric(
                     symbol: "arrow.down",
                     rate: ValueFormatter.speed(self.trafficStore.traffic.down),
                     total: ValueFormatter.bytesOrDash(self.trafficStore.displayDownTotal),
-                    color: nativePositive)
+                    color: trafficDownloadTint)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
 

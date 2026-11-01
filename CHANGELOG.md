@@ -1,3 +1,27 @@
+## v0.4.1
+
+![macOS](https://img.shields.io/badge/macOS-Supported-000000?style=flat-square&logo=apple) ![Version](https://img.shields.io/badge/Release-v0.4.1-10B981?style=flat-square) ![Core](https://img.shields.io/badge/Core-Mihomo-6366f1?style=flat-square)
+
+> 本次更新聚焦 **连接页的排序体验**：新增按实时上传 / 下载速度排序，排序依据与升降序拆分为两个独立控件；鼠标停在列表上时暂停重排，避免目标行跳走。同时流量配色由蓝绿改为橙蓝、数字回归正文颜色，浅色模式下更易读；并修复连接页下拉菜单在空间不足时被截断的问题。
+
+### 📝 更新日志 (Changelog)
+
+**✨ 新增功能 (New Features)**
+
+- ![Feature](https://img.shields.io/badge/Feature-10B981?style=flat-square) **按速度排序连接**：mihomo 只提供每条连接的累计字节数，ClashBar 以相邻两次快照的差值除以实际间隔得出实时速度，并做轻度平滑避免排名随瞬时波动来回交换；排序依据新增「下载速度 / 上传速度」，此时连接行的 ↑ ↓ 列显示实时速率（空闲为 `–`）。
+- ![Feature](https://img.shields.io/badge/Feature-10B981?style=flat-square) **排序依据与方向分离**：排序依据（默认顺序 / 连接时间 / 下载速度 / 上传速度 / 下载流量 / 上传流量 / 总流量）与升降序按钮独立设置并记忆；旧版的组合排序设置会自动迁移。
+- ![Feature](https://img.shields.io/badge/Feature-10B981?style=flat-square) **悬停暂停重排**：鼠标位于连接列表上时，已显示的行保持位置、数据照常刷新，新连接追加到末尾；移开后立即按当前排序重排。
+
+**🚀 优化改进 (Improvements)**
+
+- ![Optimize](https://img.shields.io/badge/Optimize-3B82F6?style=flat-square) **流量配色**：上传 / 下载由蓝绿改为橙 / 蓝，颜色只用于箭头与曲线，数字使用正文颜色，浅色模式下更易读，对色弱用户也更友好。
+
+**🐞 修复问题 (Bug Fixes)**
+
+- ![Fix](https://img.shields.io/badge/Fix-EF4444?style=flat-square) **下拉菜单被截断**：下拉胶囊不再被压缩截断；连接页控制栏在空间不足时依次隐藏胶囊图标与计数徽标，分流页策略菜单对过长的策略组名限宽并显示省略号。
+
+---
+
 ## v0.4.0
 
 ![macOS](https://img.shields.io/badge/macOS-Supported-000000?style=flat-square&logo=apple) ![Version](https://img.shields.io/badge/Release-v0.4.0-10B981?style=flat-square) ![Core](https://img.shields.io/badge/Core-Mihomo-6366f1?style=flat-square)

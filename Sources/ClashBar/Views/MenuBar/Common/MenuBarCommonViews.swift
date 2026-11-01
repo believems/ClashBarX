@@ -293,6 +293,16 @@ extension View {
         Color(nsColor: .systemRed)
     }
 
+    /// Traffic direction tints. Orange/blue differ in hue and lightness (also for color-blind users);
+    /// apply them to glyphs and chart lines only and keep numbers in label colors for legibility.
+    var trafficUploadTint: Color {
+        Color(nsColor: .systemOrange)
+    }
+
+    var trafficDownloadTint: Color {
+        Color(nsColor: .systemBlue)
+    }
+
     var nativePrimaryLabel: Color {
         Color(nsColor: .labelColor)
     }
@@ -487,11 +497,14 @@ extension View {
     }
 
     func compactSelectionMenu(
-        _ configuration: CompactSelectionMenuConfiguration<some Hashable & Identifiable>) -> some View
+        _ configuration: CompactSelectionMenuConfiguration<some Hashable & Identifiable>,
+        showsSymbol: Bool = true,
+        maxTitleWidth: CGFloat? = nil) -> some View
     {
         ChipMenu(
             title: configuration.optionTitle(configuration.selection),
-            symbol: configuration.symbol)
+            symbol: showsSymbol ? configuration.symbol : nil,
+            maxTitleWidth: maxTitleWidth)
         {
             ForEach(configuration.options) { option in
                 Button {

@@ -133,7 +133,8 @@ struct RulesTabView: TranslatingView {
             symbol: "arrow.triangle.branch",
             helpText: self.tr("ui.rules.filter.policy"),
             optionTitle: { $0.isAll ? self.tr("ui.rules.policy.all") : $0.name },
-            onSelect: { self.viewModel.policyFilter = $0 }))
+            onSelect: { self.viewModel.policyFilter = $0 }),
+            maxTitleWidth: 120)
     }
 
     var rulesGroupToggle: some View {

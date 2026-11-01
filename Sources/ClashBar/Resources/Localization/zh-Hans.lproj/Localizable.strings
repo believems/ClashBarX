@@ -151,13 +151,16 @@
 "ui.network.filter.transport.tcp" = "仅 TCP";
 "ui.network.filter.transport.udp" = "仅 UDP";
 "ui.network.filter.transport.other" = "其他协议";
-"ui.network.sort.label" = "网络排序";
-"ui.network.sort.default" = "默认顺序";
-"ui.network.sort.newest" = "最新连接";
-"ui.network.sort.oldest" = "最早连接";
-"ui.network.sort.upload_desc" = "上传流量高到低";
-"ui.network.sort.download_desc" = "下载流量高到低";
-"ui.network.sort.total_desc" = "总流量高到低";
+"ui.network.sort.label" = "排序依据";
+"ui.network.sort.key.default" = "默认顺序";
+"ui.network.sort.key.start_time" = "连接时间";
+"ui.network.sort.key.download_speed" = "下载速度";
+"ui.network.sort.key.upload_speed" = "上传速度";
+"ui.network.sort.key.download" = "下载流量";
+"ui.network.sort.key.upload" = "上传流量";
+"ui.network.sort.key.total" = "总流量";
+"ui.network.sort.direction.descending" = "降序：从高到低 / 从新到旧";
+"ui.network.sort.direction.ascending" = "升序：从低到高 / 从旧到新";
 
 "ui.settings.auto_start_core" = "内核自启";
 "ui.settings.launch_at_login" = "开机自启";

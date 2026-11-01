@@ -9,8 +9,11 @@ struct ConnectionsTabView: TranslatingView {
     @EnvironmentObject var connectionsStore: ConnectionsStore
     @AppStorage("clashbar.connections.transport_filter") private var storedTransportFilterRawValue =
         ConnectionsTransportFilter.all.rawValue
-    @AppStorage("clashbar.connections.sort_option") private var storedSortOptionRawValue =
-        ConnectionsSortOption.default.rawValue
+    @AppStorage("clashbar.connections.sort_key") private var storedSortKeyRawValue = ""
+    @AppStorage("clashbar.connections.sort_direction") private var storedSortDirectionRawValue =
+        ConnectionsSortDirection.descending.rawValue
+    /// Pre-0.4.1 combined sort setting; read once to migrate, then cleared.
+    @AppStorage("clashbar.connections.sort_option") private var legacySortOptionRawValue = ""
     @StateObject private var viewModel = ConnectionsViewModel()
 
     private enum ConnectionsLayout {
@@ -31,6 +34,12 @@ struct ConnectionsTabView: TranslatingView {
 
     private static var textWidthCache: [String: CGFloat] = [:]
 
+    private static func rateText(_ bytesPerSecond: Double) -> String {
+        // Sub-byte trickles read as idle rather than "0B/s".
+        guard bytesPerSecond >= 1 else { return "–" }
+        return "\(ValueFormatter.bytesCompactNoSpace(Int64(bytesPerSecond.rounded())))/s"
+    }
+
     var body: some View {
         let connections = self.viewModel.visibleConnections
 
@@ -45,16 +54,22 @@ struct ConnectionsTabView: TranslatingView {
                         self.connectionRow(conn)
                     }
                 }
+                .onHover { self.viewModel.isReorderingPaused = $0 }
             }
         }
         .onAppear {
             self.restoreStoredPreferences()
             self.refreshData()
         }
-        .onChange(of: self.connectionsStore.connections) { _ in self.refreshData() }
+        .onChange(of: self.connectionsStore.connections) { connections in
+            self.viewModel.ingestSnapshot(connections)
+            self.refreshData()
+        }
         .onChange(of: self.viewModel.filterText) { _ in self.refreshData() }
         .onChange(of: self.viewModel.transportFilter) { _ in self.refreshData() }
-        .onChange(of: self.viewModel.sortOption) { _ in self.refreshData() }
+        .onChange(of: self.viewModel.sortKey) { _ in self.refreshData() }
+        .onChange(of: self.viewModel.sortDirection) { _ in self.refreshData() }
+        .onChange(of: self.viewModel.isReorderingPaused) { _ in self.refreshData() }
     }
 
     private func refreshData() {
@@ -65,17 +80,25 @@ struct ConnectionsTabView: TranslatingView {
 
     private func restoreStoredPreferences() {
         let transportFilter = ConnectionsTransportFilter(rawValue: self.storedTransportFilterRawValue) ?? .all
-        let sortOption = ConnectionsSortOption(rawValue: self.storedSortOptionRawValue) ?? .default
-
         self.viewModel.transportFilter = transportFilter
-        self.viewModel.sortOption = sortOption
-
         if self.storedTransportFilterRawValue != transportFilter.rawValue {
             self.storedTransportFilterRawValue = transportFilter.rawValue
         }
-        if self.storedSortOptionRawValue != sortOption.rawValue {
-            self.storedSortOptionRawValue = sortOption.rawValue
+
+        if self.storedSortKeyRawValue.isEmpty,
+           let legacy = ConnectionsSortKey.migrated(fromLegacyOption: self.legacySortOptionRawValue)
+        {
+            self.storedSortKeyRawValue = legacy.key.rawValue
+            self.storedSortDirectionRawValue = legacy.direction.rawValue
         }
+        self.legacySortOptionRawValue = ""
+
+        let sortKey = ConnectionsSortKey(rawValue: self.storedSortKeyRawValue) ?? .default
+        let sortDirection = ConnectionsSortDirection(rawValue: self.storedSortDirectionRawValue) ?? .descending
+        self.viewModel.sortKey = sortKey
+        self.viewModel.sortDirection = sortDirection
+        self.storedSortKeyRawValue = sortKey.rawValue
+        self.storedSortDirectionRawValue = sortDirection.rawValue
     }
 
     private func selectTransportFilter(_ filter: ConnectionsTransportFilter) {
@@ -83,31 +106,25 @@ struct ConnectionsTabView: TranslatingView {
         self.storedTransportFilterRawValue = filter.rawValue
     }
 
-    private func selectSortOption(_ sortOption: ConnectionsSortOption) {
-        self.viewModel.sortOption = sortOption
-        self.storedSortOptionRawValue = sortOption.rawValue
+    private func selectSortKey(_ sortKey: ConnectionsSortKey) {
+        self.viewModel.sortKey = sortKey
+        self.storedSortKeyRawValue = sortKey.rawValue
+    }
+
+    private func toggleSortDirection() {
+        let direction = self.viewModel.sortDirection.toggled
+        self.viewModel.sortDirection = direction
+        self.storedSortDirectionRawValue = direction.rawValue
     }
 
     var connectionsControlCard: some View {
         self.tabControlCard {
-            HStack(spacing: T.space6) {
-                self.connectionsFilterMenu
-                self.connectionsSortMenu
-
-                Spacer(minLength: 0)
-
-                self.fractionSummaryBadge(
-                    current: self.viewModel.visibleConnections.count,
-                    total: min(self.connectionsStore.connections.count, 120))
-
-                self.compactTopIcon(
-                    "xmark",
-                    label: self.tr("ui.action.close_all"),
-                    warning: true)
-                {
-                    await self.appViewModel.closeAllConnections()
-                }
-                .help(self.tr("ui.action.close_all"))
+            // Menus keep their full titles; when the row is too narrow (long English labels),
+            // drop the chip glyphs first, then the count badge.
+            ViewThatFits(in: .horizontal) {
+                self.connectionsControlRow(showsMenuSymbols: true, showsCount: true)
+                self.connectionsControlRow(showsMenuSymbols: false, showsCount: true)
+                self.connectionsControlRow(showsMenuSymbols: false, showsCount: false)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -115,24 +132,70 @@ struct ConnectionsTabView: TranslatingView {
         }
     }
 
-    var connectionsFilterMenu: some View {
+    private func connectionsControlRow(showsMenuSymbols: Bool, showsCount: Bool) -> some View {
+        HStack(spacing: T.space6) {
+            self.connectionsFilterMenu(showsSymbol: showsMenuSymbols)
+            HStack(spacing: T.space2) {
+                self.connectionsSortMenu(showsSymbol: showsMenuSymbols)
+                self.connectionsSortDirectionButton
+            }
+
+            Spacer(minLength: 0)
+
+            if showsCount {
+                self.fractionSummaryBadge(
+                    current: self.viewModel.visibleConnections.count,
+                    total: min(self.connectionsStore.connections.count, 120))
+                    .fixedSize()
+            }
+
+            self.compactTopIcon(
+                "xmark",
+                label: self.tr("ui.action.close_all"),
+                warning: true)
+            {
+                await self.appViewModel.closeAllConnections()
+            }
+        }
+    }
+
+    func connectionsFilterMenu(showsSymbol: Bool) -> some View {
         self.compactSelectionMenu(.init(
             selection: self.viewModel.transportFilter,
             options: ConnectionsTransportFilter.allCases,
             symbol: "line.3.horizontal.decrease.circle",
             helpText: self.tr("ui.network.filter.transport"),
             optionTitle: { self.tr($0.titleKey) },
-            onSelect: { self.selectTransportFilter($0) }))
+            onSelect: { self.selectTransportFilter($0) }),
+            showsSymbol: showsSymbol)
     }
 
-    var connectionsSortMenu: some View {
+    func connectionsSortMenu(showsSymbol: Bool) -> some View {
         self.compactSelectionMenu(.init(
-            selection: self.viewModel.sortOption,
-            options: ConnectionsSortOption.allCases,
+            selection: self.viewModel.sortKey,
+            options: ConnectionsSortKey.allCases,
             symbol: "arrow.up.arrow.down",
             helpText: self.tr("ui.network.sort.label"),
             optionTitle: { self.tr($0.titleKey) },
-            onSelect: { self.selectSortOption($0) }))
+            onSelect: { self.selectSortKey($0) }),
+            showsSymbol: showsSymbol)
+    }
+
+    var connectionsSortDirectionButton: some View {
+        let descending = self.viewModel.sortDirection == .descending
+        let label = self.tr(descending
+            ? "ui.network.sort.direction.descending"
+            : "ui.network.sort.direction.ascending")
+
+        return Button {
+            self.toggleSortDirection()
+        } label: {
+            Image(systemName: descending ? "arrow.down" : "arrow.up")
+        }
+        .buttonStyle(IconButtonStyle(size: 22))
+        .disabled(!self.viewModel.sortKey.supportsDirection)
+        .help(label)
+        .accessibilityLabel(label)
     }
 
     func connectionRow(_ conn: ConnectionSummary) -> some View {
@@ -143,8 +206,15 @@ struct ConnectionsTabView: TranslatingView {
             ?? self.tr("ui.common.na")
         let networkType = conn.metadata?.network.trimmedNonEmpty?.uppercased() ?? "--"
         let timeText = self.connectionTimeOnly(conn.start)
-        let upText = ValueFormatter.bytesCompactNoSpace(conn.upload ?? 0)
-        let downText = ValueFormatter.bytesCompactNoSpace(conn.download ?? 0)
+        // The traffic columns follow the sort: rates when ranking by speed, totals otherwise.
+        let showsRates = self.viewModel.sortKey.isSpeed
+        let speed = self.viewModel.speed(for: conn.id)
+        let upText = showsRates
+            ? Self.rateText(speed.upload)
+            : ValueFormatter.bytesCompactNoSpace(conn.upload ?? 0)
+        let downText = showsRates
+            ? Self.rateText(speed.download)
+            : ValueFormatter.bytesCompactNoSpace(conn.download ?? 0)
         let parsedRule = self.parseConnectionRule(conn.rule)
         let ruleTypeText = self.connectionRuleTypeText(conn.rule, fallback: parsedRule?.type)
         let rulePayloadText = conn.rulePayload.trimmedNonEmpty
@@ -223,16 +293,16 @@ struct ConnectionsTabView: TranslatingView {
             self.connectionsMetricColumn(
                 symbol: "arrow.up",
                 text: up,
-                symbolColor: nativeInfo.opacity(T.Opacity.solid),
-                textColor: nativeInfo.opacity(T.Opacity.solid),
+                symbolColor: trafficUploadTint,
+                textColor: nativePrimaryLabel,
                 spacing: 0,
                 truncation: .tail,
                 width: columnWidth)
             self.connectionsMetricColumn(
                 symbol: "arrow.down",
                 text: down,
-                symbolColor: nativePositive.opacity(T.Opacity.solid),
-                textColor: nativePositive.opacity(T.Opacity.solid),
+                symbolColor: trafficDownloadTint,
+                textColor: nativePrimaryLabel,
                 spacing: 0,
                 truncation: .tail,
                 width: columnWidth)

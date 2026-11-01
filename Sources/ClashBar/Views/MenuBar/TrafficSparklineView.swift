@@ -39,8 +39,8 @@ struct TrafficSparklineView: View {
                     .fill(
                         LinearGradient(
                             colors: [
-                                self.nativeAccent.opacity(0.30),
-                                self.nativeAccent.opacity(0.02),
+                                self.trafficUploadTint.opacity(0.24),
+                                self.trafficUploadTint.opacity(0.02),
                             ],
                             startPoint: .top,
                             endPoint: .bottom))
@@ -49,20 +49,20 @@ struct TrafficSparklineView: View {
                     .fill(
                         LinearGradient(
                             colors: [
-                                self.nativePositive.opacity(0.32),
-                                self.nativePositive.opacity(0.0),
+                                self.trafficDownloadTint.opacity(0.24),
+                                self.trafficDownloadTint.opacity(0.0),
                             ],
                             startPoint: .top,
                             endPoint: .bottom))
 
                 self.linePath(for: self.upValues, context: upContext)
                     .stroke(
-                        self.nativeAccent.opacity(0.9),
+                        self.trafficUploadTint,
                         style: StrokeStyle(lineWidth: 1.2, lineCap: .round, lineJoin: .round))
 
                 self.linePath(for: self.downValues, context: downContext)
                     .stroke(
-                        self.nativePositive.opacity(0.9),
+                        self.trafficDownloadTint,
                         style: StrokeStyle(lineWidth: 1.2, lineCap: .round, lineJoin: .round))
             }
         }

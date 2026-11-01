@@ -149,13 +149,16 @@
 "ui.network.filter.transport.tcp" = "TCP Only";
 "ui.network.filter.transport.udp" = "UDP Only";
 "ui.network.filter.transport.other" = "Other Protocols";
-"ui.network.sort.label" = "Network Sort";
-"ui.network.sort.default" = "Default Order";
-"ui.network.sort.newest" = "Newest Connections";
-"ui.network.sort.oldest" = "Oldest Connections";
-"ui.network.sort.upload_desc" = "Upload High to Low";
-"ui.network.sort.download_desc" = "Download High to Low";
-"ui.network.sort.total_desc" = "Total Traffic High to Low";
+"ui.network.sort.label" = "Sort By";
+"ui.network.sort.key.default" = "Default Order";
+"ui.network.sort.key.start_time" = "Connect Time";
+"ui.network.sort.key.download_speed" = "Download Speed";
+"ui.network.sort.key.upload_speed" = "Upload Speed";
+"ui.network.sort.key.download" = "Download";
+"ui.network.sort.key.upload" = "Upload";
+"ui.network.sort.key.total" = "Total Traffic";
+"ui.network.sort.direction.descending" = "Descending: high to low / newest first";
+"ui.network.sort.direction.ascending" = "Ascending: low to high / oldest first";
 
 "ui.settings.auto_start_core" = "Auto Start Core";
 "ui.settings.launch_at_login" = "Start at Login";
