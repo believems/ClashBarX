@@ -13,70 +13,35 @@ extension MenuBarRootView {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // MARK: - Mode switcher (native-style segmented control with a raised selection)
+    // MARK: - Mode switcher (native segmented control)
 
     var modeSwitcher: some View {
-        HStack(spacing: T.space2) {
-            self.modeSegmentButton(
-                title: tr("ui.mode.rule"),
-                mode: .rule,
-                symbol: "arrow.triangle.branch")
-            self.modeSegmentButton(
-                title: tr("ui.mode.global"),
-                mode: .global,
-                symbol: "globe")
-            self.modeSegmentButton(
-                title: tr("ui.mode.direct"),
-                mode: .direct,
-                symbol: "arrow.right")
-        }
-        .padding(T.space2)
-        .frame(width: contentWidth)
-        .background(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(Color.primary.opacity(self.isDarkAppearance ? 0.08 : 0.06)))
-        .opacity(appViewModel.isModeSwitchEnabled ? 1 : 0.5)
-    }
+        let selection = Binding<CoreMode>(
+            get: { self.switchingMode ?? self.appViewModel.currentMode },
+            set: { mode in
+                guard self.appViewModel.isModeSwitchEnabled, self.switchingMode == nil,
+                      mode != self.appViewModel.currentMode else { return }
 
-    func modeSegmentButton(title: String, mode: CoreMode, symbol: String) -> some View {
-        let selected = appViewModel.currentMode == mode
-        let switchingThisMode = switchingMode == mode
-
-        return Button {
-            guard appViewModel.isModeSwitchEnabled, switchingMode == nil,
-                  mode != appViewModel.currentMode else { return }
-
-            switchingMode = mode
-            Task { @MainActor in
-                await appViewModel.switchMode(to: mode)
-                switchingMode = nil
-            }
-        } label: {
-            HStack(spacing: T.space4) {
-                if switchingThisMode {
-                    ProgressView()
-                        .controlSize(.mini)
-                        .frame(width: 12, height: 12)
-                } else {
-                    Image(systemName: symbol)
-                        .font(.system(size: T.FontSize.callout, weight: .semibold))
-                        .foregroundStyle(selected ? nativeAccent : nativeSecondaryLabel)
+                self.switchingMode = mode
+                Task { @MainActor in
+                    await self.appViewModel.switchMode(to: mode)
+                    self.switchingMode = nil
                 }
+            })
 
-                Text(title)
-                    .font(.app(size: T.FontSize.callout, weight: selected ? .semibold : .medium))
-                    .lineLimit(1)
-                    .foregroundStyle(selected ? nativePrimaryLabel : nativeSecondaryLabel)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 26)
+        return Picker(selection: selection) {
+            Label(tr("ui.mode.rule"), systemImage: "arrow.triangle.branch").tag(CoreMode.rule)
+            Label(tr("ui.mode.global"), systemImage: "globe").tag(CoreMode.global)
+            Label(tr("ui.mode.direct"), systemImage: "arrow.right").tag(CoreMode.direct)
+        } label: {
+            EmptyView()
         }
-        .buttonStyle(SegmentButtonStyle(
-            selected: selected,
-            selectionNamespace: self.segmentedSelectionNamespace,
-            selectionID: "mode-selection"))
-        .accessibilityAddTraits(selected ? .isSelected : [])
-        .animation(.snappy(duration: 0.2), value: appViewModel.currentMode)
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .labelStyle(.titleAndIcon)
+        .controlSize(.large)
+        .frame(width: contentWidth)
+        .disabled(!self.appViewModel.isModeSwitchEnabled || self.switchingMode != nil)
     }
 
     // MARK: - Tabs (accent-tinted pill marks the current page)
@@ -109,49 +74,6 @@ extension MenuBarRootView {
             selected: selected,
             selectionNamespace: self.segmentedSelectionNamespace))
         .accessibilityAddTraits(selected ? .isSelected : [])
-    }
-}
-
-/// Segment inside a track: the selected segment is a raised "thumb" like NSSegmentedControl.
-private struct SegmentButtonStyle: ButtonStyle {
-    let selected: Bool
-    let selectionNamespace: Namespace.ID
-    let selectionID: String
-
-    func makeBody(configuration: Configuration) -> some View {
-        SegmentBody(configuration: configuration, style: self)
-    }
-
-    private struct SegmentBody: View {
-        let configuration: ButtonStyleConfiguration
-        let style: SegmentButtonStyle
-
-        @Environment(\.colorScheme) private var colorScheme
-        @State private var hovered = false
-
-        var body: some View {
-            let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
-            let pressed = self.configuration.isPressed
-
-            self.configuration.label
-                .background {
-                    if self.style.selected {
-                        shape
-                            .fill(self.colorScheme == .dark
-                                ? Color.white.opacity(0.18)
-                                : Color(nsColor: .controlBackgroundColor))
-                            .shadow(color: .black.opacity(self.colorScheme == .dark ? 0.3 : 0.12), radius: 1.5, y: 0.5)
-                            .matchedGeometryEffect(id: self.style.selectionID, in: self.style.selectionNamespace)
-                    } else {
-                        shape.fill(InteractiveFill.neutral(hovered: self.hovered, pressed: pressed))
-                    }
-                }
-                .contentShape(shape)
-                .scaleEffect(pressed && !self.style.selected ? 0.97 : 1)
-                .animation(.easeOut(duration: 0.12), value: pressed)
-                .animation(.easeOut(duration: 0.12), value: self.hovered)
-                .onHover { self.hovered = $0 }
-        }
     }
 }
 
