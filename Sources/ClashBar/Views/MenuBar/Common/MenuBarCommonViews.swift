@@ -50,33 +50,33 @@ struct CompactSelectionMenuConfiguration<Option: Hashable & Identifiable> {
 }
 
 extension MenuBarRootView {
+    /// Status-bar style footer: a hairline and one quiet row, no boxed surface. The old boxed
+    /// background used window-background colors resolved through NSApp's appearance, which paint
+    /// light for a frame when the popover opens in dark mode.
     var footerBar: some View {
         let mihomoRepositoryURL = URL(string: "https://github.com/MetaCubeX/mihomo")
-        let mihomoSymbol = "cpu"
 
         return VStack(spacing: 0) {
-            HStack(spacing: T.space6) {
-                HStack(spacing: T.space6) {
-                    self.footerInfo(
-                        tr("ui.footer.core_mihomo", self.footerMihomoVersionText),
-                        url: mihomoRepositoryURL,
-                        iconSystemName: mihomoSymbol)
+            Rectangle()
+                .fill(Color.primary.opacity(0.08))
+                .frame(height: T.stroke)
 
-                    self.footerCoreUpgradeControl
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .layoutPriority(1)
+            HStack(spacing: T.space2) {
+                self.footerInfo(
+                    tr("ui.footer.core_mihomo", self.footerMihomoVersionText),
+                    url: mihomoRepositoryURL,
+                    iconSystemName: "cpu")
+                    .layoutPriority(1)
+
+                self.footerCoreUpgradeControl
+
+                Spacer(minLength: T.space6)
 
                 self.footerVersionInfo
                     .fixedSize(horizontal: true, vertical: false)
             }
-            .menuRowPadding(vertical: T.space2)
-            .background(self.footerSurfaceBackground)
+            .frame(height: 30)
         }
-    }
-
-    var footerSurfaceBackground: some View {
-        self.nativeControlSurface()
     }
 
     var footerMihomoVersionText: String {
@@ -91,7 +91,7 @@ extension MenuBarRootView {
             Link(destination: url) {
                 self.footerInfoLabel(text, iconSystemName: iconSystemName)
             }
-            .buttonStyle(PressableButtonStyle())
+            .buttonStyle(RowButtonStyle(cornerRadius: 6))
         } else {
             self.footerInfoLabel(text, iconSystemName: iconSystemName)
         }
@@ -113,6 +113,8 @@ extension MenuBarRootView {
                 .minimumScaleFactor(T.minimumScale)
                 .allowsTightening(true)
         }
+        .padding(.horizontal, T.space6)
+        .frame(height: 22)
         .help(text)
     }
 
@@ -200,13 +202,11 @@ extension MenuBarRootView {
 
     @ViewBuilder
     var footerVersionInfo: some View {
+        let currentText = tr("ui.footer.version", self.appViewModel.currentAppVersionText)
         if let update = self.appViewModel.availableAppUpdate {
             Link(destination: update.releaseURL) {
-                self.footerVersionBadge(
-                    text: tr("ui.footer.version", update.displayVersion),
-                    symbol: "arrow.down.circle.fill",
-                    tint: self.nativeAccent.opacity(T.Opacity.solid),
-                    emphasized: true)
+                Label(tr("ui.footer.version", update.displayVersion), systemImage: "arrow.down.circle.fill")
+                    .labelStyle(.titleAndIcon)
             }
             .buttonStyle(ChipButtonStyle(selected: true))
             .help(tr("ui.footer.version_update_help", update.displayVersion))
@@ -214,44 +214,25 @@ extension MenuBarRootView {
                 "ui.footer.version_update_accessibility",
                 self.appViewModel.currentAppVersionText,
                 update.displayVersion))
-        } else {
-            if let releaseIndexURL = self.appViewModel.appReleaseIndexURL {
-                Link(destination: releaseIndexURL) {
-                    self.footerVersionBadge(
-                        text: tr("ui.footer.version", self.appViewModel.currentAppVersionText),
-                        symbol: nil,
-                        tint: self.nativeSecondaryLabel,
-                        emphasized: false)
-                }
-                .buttonStyle(PressableButtonStyle())
-                .help(tr("ui.footer.version", self.appViewModel.currentAppVersionText))
-            } else {
-                self.footerVersionBadge(
-                    text: tr("ui.footer.version", self.appViewModel.currentAppVersionText),
-                    symbol: nil,
-                    tint: self.nativeSecondaryLabel,
-                    emphasized: false)
+        } else if let releaseIndexURL = self.appViewModel.appReleaseIndexURL {
+            Link(destination: releaseIndexURL) {
+                self.footerVersionLabel(currentText)
             }
+            .buttonStyle(RowButtonStyle(cornerRadius: 6))
+            .help(currentText)
+        } else {
+            self.footerVersionLabel(currentText)
         }
     }
 
-    func footerVersionBadge(text: String, symbol: String?, tint: Color, emphasized: Bool) -> some View {
-        HStack(spacing: T.space4) {
-            if let symbol {
-                Image(systemName: symbol)
-                    .font(.app(size: T.FontSize.caption, weight: .semibold))
-            }
-
-            Text(text)
-                .font(.app(
-                    size: T.FontSize.caption,
-                    weight: emphasized ? .bold : .medium))
-                .lineLimit(1)
-                .minimumScaleFactor(T.minimumScale)
-        }
-        .foregroundStyle(emphasized ? Color.white : tint)
-        .padding(.horizontal, emphasized ? 0 : T.space6)
-        .padding(.vertical, T.space2)
+    func footerVersionLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.app(size: T.FontSize.caption, weight: .medium))
+            .monospacedDigit()
+            .foregroundStyle(self.nativeSecondaryLabel)
+            .lineLimit(1)
+            .padding(.horizontal, T.space6)
+            .frame(height: 22)
     }
 }
 

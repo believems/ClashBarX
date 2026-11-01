@@ -29,6 +29,17 @@ struct AppMaterialSurface: View {
 }
 
 extension View {
+    /// Root panel surface. On macOS 26+ the window itself is an `NSGlassEffectView`
+    /// (see `PanelGlassContainerController`), so only older systems need a SwiftUI background.
+    @ViewBuilder
+    func rootPanelSurface(cornerRadius: CGFloat, stroke: Color) -> some View {
+        if #available(macOS 26.0, *) {
+            self
+        } else {
+            self.panelSurface(cornerRadius: cornerRadius, stroke: stroke)
+        }
+    }
+
     /// Floating panel surface: Liquid Glass on macOS 26+, translucent material before that.
     @ViewBuilder
     func panelSurface(cornerRadius: CGFloat, stroke: Color) -> some View {

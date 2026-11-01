@@ -227,6 +227,7 @@ final class StatusItemController: NSObject {
     private var screenParametersObserver: Any?
     private var lockedPanelOriginX: CGFloat?
     private var popoverHostingController: NSHostingController<StatusItemPopoverRootView>?
+    private var popoverContainerController: NSViewController?
     private var bannerHostingController: NSHostingController<StatusItemBannerRootView>?
     private var panelStabilizationTask: Task<Void, Never>?
     private var bannerDismissTask: Task<Void, Never>?
@@ -234,6 +235,11 @@ final class StatusItemController: NSObject {
     private let iconOnlyRefreshInterval: TimeInterval = 0.12
     private let speedDisplayRefreshInterval: TimeInterval = 1.0
     private static let popoverContentWidth: CGFloat = T.panelWidth
+    /// Transparent margin around the glass so its shadow is not clipped by the window rectangle.
+    private static var panelShadowMargin: CGFloat {
+        if #available(macOS 26.0, *) { return PanelGlassContainerController.shadowMargin }
+        return 0
+    }
     fileprivate static let bannerShadowBleed: CGFloat = 24
     fileprivate static let bannerContentSize = NSSize(width: 328, height: 68)
     fileprivate static let bannerPanelSize = NSSize(
@@ -346,7 +352,8 @@ final class StatusItemController: NSObject {
         self.panel.isReleasedWhenClosed = false
         self.panel.isOpaque = false
         self.panel.backgroundColor = .clear
-        self.panel.hasShadow = true
+        // macOS 26+: the glass draws its own shadow inside the transparent margin.
+        self.panel.hasShadow = Self.panelShadowMargin == 0
         self.panel.acceptsMouseMovedEvents = true
         self.panel.becomesKeyOnlyIfNeeded = false
         self.panel.hidesOnDeactivate = false
@@ -372,16 +379,21 @@ final class StatusItemController: NSObject {
             let hc = NSHostingController(rootView: self.popoverRootView)
             hc.sizingOptions = [.standardBounds]
             self.popoverHostingController = hc
+            self.popoverContainerController = PanelGlassContainerController.wrapping(hc)
         } else {
             self.popoverHostingController?.rootView = self.popoverRootView
         }
-        self.panel.contentViewController = self.popoverHostingController
+        // Keep the current panel size: a freshly loaded container view has a placeholder size and
+        // the window would otherwise adopt it before the next layout pass.
+        self.popoverContainerController?.view.frame = NSRect(origin: .zero, size: self.panel.frame.size)
+        self.panel.contentViewController = self.popoverContainerController
         self.suppressPanelScrollIndicators()
     }
 
     private func unloadPopoverContent() {
         self.panel.contentViewController = nil
         self.popoverHostingController = nil
+        self.popoverContainerController = nil
     }
 
     private var popoverRootView: StatusItemPopoverRootView {
@@ -584,7 +596,10 @@ final class StatusItemController: NSObject {
     }
 
     private func applyPopoverSize(preferredHeight: CGFloat, preserveHorizontalPosition: Bool) {
-        let targetSize = NSSize(width: Self.popoverContentWidth, height: preferredHeight)
+        let margin = Self.panelShadowMargin
+        let targetSize = NSSize(
+            width: Self.popoverContentWidth + margin * 2,
+            height: preferredHeight + margin * 2)
 
         let widthChanged = abs(panel.frame.width - targetSize.width) > 0.5
         let heightChanged = abs(panel.frame.height - targetSize.height) > 0.5
@@ -654,8 +669,11 @@ final class StatusItemController: NSObject {
     {
         guard let anchorContext = self.resolvedStatusItemAnchorContext(for: button) else { return nil }
 
+        // Placement works on the visible glass; the window extends past it by the shadow margin.
+        let margin = Self.panelShadowMargin
+        let contentSize = NSSize(width: panelSize.width - margin * 2, height: panelSize.height - margin * 2)
         let placement = anchorContext.menuBarDropdownPlacement(
-            panelSize: panelSize,
+            panelSize: contentSize,
             options: MenuBarDropdownPlacementOptions(
                 horizontalPadding: self.panelHorizontalPadding,
                 verticalSpacing: self.panelTopSpacing,
@@ -665,7 +683,7 @@ final class StatusItemController: NSObject {
 
         self.lockedPanelOriginX = placement.lockedOriginX
 
-        return placement.frame.origin
+        return NSPoint(x: placement.frame.origin.x - margin, y: placement.frame.origin.y - margin)
     }
 
     private func resolvedStatusItemAnchorContext(for button: NSStatusBarButton?) -> PanelAnchorContext? {
@@ -757,5 +775,51 @@ final class StatusItemController: NSObject {
                 lockedOriginX: nil,
                 preserveHorizontalPosition: false))
         self.bannerPanel.setFrame(placement.frame, display: true, animate: false)
+    }
+}
+
+/// Hosts the popover inside AppKit's own Liquid Glass on macOS 26+. The glass draws its own soft
+/// shadow, so the window disables the system shadow (which adds a dark outline around borderless
+/// windows) and leaves a transparent margin; without it the window rectangle clips the glass
+/// shadow into dark square corners.
+private final class PanelGlassContainerController: NSViewController {
+    static let shadowMargin: CGFloat = 20
+
+    private let child: NSViewController
+
+    private init(child: NSViewController) {
+        self.child = child
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    static func wrapping(_ child: NSViewController) -> NSViewController {
+        if #available(macOS 26.0, *) {
+            return PanelGlassContainerController(child: child)
+        }
+        return child
+    }
+
+    override func loadView() {
+        guard #available(macOS 26.0, *) else {
+            self.view = NSView()
+            return
+        }
+        let glass = NSGlassEffectView()
+        glass.cornerRadius = MenuBarLayoutTokens.panelCornerRadius
+        glass.style = .regular
+        self.addChild(self.child)
+        self.child.view.autoresizingMask = [.width, .height]
+        glass.contentView = self.child.view
+        let side = Self.shadowMargin * 2 + 100
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: side, height: side))
+        glass.frame = container.bounds.insetBy(dx: Self.shadowMargin, dy: Self.shadowMargin)
+        glass.autoresizingMask = [.width, .height]
+        container.addSubview(glass)
+        self.view = container
     }
 }

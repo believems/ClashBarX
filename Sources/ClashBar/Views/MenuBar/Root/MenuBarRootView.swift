@@ -124,7 +124,7 @@ struct MenuBarRootView: TranslatingView {
             .clipShape(
                 RoundedRectangle(
                     cornerRadius: T.panelCornerRadius, style: .continuous))
-            .panelSurface(cornerRadius: T.panelCornerRadius, stroke: nativeSeparator)
+            .rootPanelSurface(cornerRadius: T.panelCornerRadius, stroke: nativeSeparator)
     }
 
     var panelContent: some View {

@@ -198,7 +198,7 @@
 "ui.language.zh_hans" = "简体中文";
 "ui.language.en" = "English";
 
-"ui.footer.core_mihomo" = "MIHOMO %@";
+"ui.footer.core_mihomo" = "mihomo %@";
 "ui.footer.version" = "v%@";
 "ui.footer.version_update_help" = "Open release notes for v%@";
 "ui.footer.version_update_accessibility" = "Current version v%@. Update available v%@.";
