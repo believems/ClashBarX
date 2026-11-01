@@ -568,7 +568,6 @@ private struct ProxyGroupPopoverNodeItem: View {
             .buttonStyle(PressableButtonStyle())
 
             self.latencyControl
-                .frame(width: 56, alignment: .trailing)
         }
         .frame(height: T.compactRowHeight)
         .padding(.horizontal, T.space4)
@@ -579,23 +578,30 @@ private struct ProxyGroupPopoverNodeItem: View {
         .onHover { self.isHovered = $0 }
     }
 
-    @ViewBuilder
+    /// The latency stays visible; the test action sits in its own slot beside it (shown on hover)
+    /// instead of replacing the number, so you can read the result while re-testing.
     var latencyControl: some View {
-        if self.isHovered {
-            if self.isTesting {
-                LatencyLoadingIndicator()
-            } else {
-                Button {
-                    Task { await self.onTestLatency() }
-                } label: {
-                    Image(systemName: "bolt")
+        HStack(spacing: T.space2) {
+            ZStack {
+                if self.isTesting {
+                    ProgressView()
+                        .controlSize(.mini)
+                } else if self.isHovered {
+                    Button {
+                        Task { await self.onTestLatency() }
+                    } label: {
+                        Image(systemName: "bolt")
+                    }
+                    .buttonStyle(IconButtonStyle(size: 20, showsRestingFill: false))
+                    .help(self.testLatencyLabel)
+                    .accessibilityLabel(self.testLatencyLabel)
                 }
-                .buttonStyle(IconButtonStyle(size: 20))
-                .help(self.testLatencyLabel)
-                .accessibilityLabel(self.testLatencyLabel)
             }
-        } else {
+            .frame(width: 20, height: 20)
+
             self.delayMetricView
+                .opacity(self.isTesting ? 0.45 : 1)
+                .frame(width: 50, alignment: .trailing)
         }
     }
 
@@ -674,10 +680,3 @@ private struct LatencySignalBars: View {
     }
 }
 
-private struct LatencyLoadingIndicator: View {
-    var body: some View {
-        ProgressView()
-            .controlSize(.mini)
-            .frame(width: 30, height: 14, alignment: .center)
-    }
-}
