@@ -172,15 +172,48 @@ extension AppViewModel {
         defer { self.proxyLatencyTesting.remove(key) }
 
         let proxyGroup = self.proxyGroups.first { $0.name == group }
-        let testURL = proxyGroup?.testUrl?.trimmedNonEmpty ?? defaultHealthcheckURL
-        let timeout = proxyGroup?.timeout.flatMap { $0 > 0 ? $0 : nil } ?? defaultHealthcheckTimeoutMilliseconds
+        let provider = self.subscriptionProvider(containing: node)
+        let testURL = proxyGroup?.testUrl?.trimmedNonEmpty
+            ?? provider?.detail.testUrl?.trimmedNonEmpty
+            ?? defaultHealthcheckURL
+        let timeout = proxyGroup?.timeout.flatMap { $0 > 0 ? $0 : nil }
+            ?? provider?.detail.timeout.flatMap { $0 > 0 ? $0 : nil }
+            ?? defaultHealthcheckTimeoutMilliseconds
+
+        // mihomo's /proxies only lists config-level proxies and groups; nodes that come from a
+        // subscription provider return 404 there and must be tested through the provider.
+        let endpoint: Endpoint = if let provider {
+            .proxyProviderProxyHealthcheck(provider: provider.name, proxy: node, url: testURL, timeout: timeout)
+        } else {
+            .proxyDelay(name: node, url: testURL, timeout: timeout)
+        }
 
         await runRefresh {
-            let response: DelayMeasurement = try await self.clientOrThrow().request(
-                .proxyDelay(name: node, url: testURL, timeout: timeout))
-            guard let value = response.value else { return }
-            self.applyMeasuredNodeDelays([node: value])
+            do {
+                let response: DelayMeasurement = try await self.clientOrThrow().request(endpoint)
+                guard let value = response.value else { return }
+                self.applyMeasuredNodeDelays([node: value])
+            } catch let APIError.statusCode(code, _) where Self.delayTestFailureStatusCodes.contains(code) {
+                // The node itself failed the test (unreachable or timed out): show it as a
+                // timeout instead of treating the controller as unhealthy.
+                self.applyMeasuredNodeDelays([node: 0])
+            }
         }
+    }
+
+    /// mihomo answers 503 when the delay test fails and 504 when it times out.
+    private static let delayTestFailureStatusCodes: Set<Int> = [503, 504]
+
+    /// The remote subscription provider that supplies `node`, if any. The built-in "default"
+    /// provider (vehicle type Compatible) wraps config-level proxies, which /proxies already serves.
+    private func subscriptionProvider(containing node: String) -> (name: String, detail: ProviderDetail)? {
+        for (name, detail) in self.proxyProvidersDetail.sorted(by: { $0.key < $1.key }) {
+            guard detail.vehicleType?.caseInsensitiveCompare("Compatible") != .orderedSame else { continue }
+            if detail.proxies?.contains(where: { $0.name == node }) == true {
+                return (name, detail)
+            }
+        }
+        return nil
     }
 
     private func applyMeasuredNodeDelays(_ delays: [String: Int]) {
