@@ -246,7 +246,7 @@ extension ProxyTabView {
         let rowVerticalPadding: CGFloat = 2
         let isLatencyLoading = proxyStore.groupLatencyLoading.contains(group.name)
 
-        return AttachedPopoverMenu { isHovered in
+        return AttachedPopoverMenu(width: T.nodePopoverWidth) { isHovered in
             GeometryReader { geo in
                 let columns = self.proxyGroupMainColumnWidths(
                     totalWidth: geo.size.width,
@@ -538,14 +538,14 @@ private struct ProxyGroupPopoverNodeItem: View {
                             .selected ? self.nativeAccent : self.nativeTertiaryLabel)
                         .frame(width: 11, alignment: .center)
 
-                    Text(self.title)
-                        .font(.app(size: T.FontSize.body, weight: self.selected ? .semibold : .medium))
-                        .foregroundStyle(self.selected ? self.nativePrimaryLabel : self.nativeSecondaryLabel)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .minimumScaleFactor(T.minimumScale)
-
-                    Spacer(minLength: 0)
+                    // Fixed popover width: long names truncate and scroll on hover instead of
+                    // widening the popover (which shifted it sideways while it settled).
+                    MarqueeText(
+                        text: self.title,
+                        font: .app(size: T.FontSize.body, weight: self.selected ? .semibold : .medium),
+                        color: self.selected ? self.nativePrimaryLabel : self.nativeSecondaryLabel,
+                        isActive: self.isHovered)
+                        .layoutPriority(1)
 
                     if let typeText = self.typeText {
                         Text(typeText)

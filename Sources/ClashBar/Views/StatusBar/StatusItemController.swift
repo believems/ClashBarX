@@ -5,7 +5,9 @@ import SwiftUI
 // swiftlint:disable:next type_name
 private typealias T = MenuBarLayoutTokens
 
-private final class FloatingPanel: NSPanel {
+private final class FloatingPanel: NSPanel, VisualInsetReporting {
+    var visualInset: CGFloat = 0
+
     override var canBecomeKey: Bool {
         true
     }
@@ -354,6 +356,7 @@ final class StatusItemController: NSObject {
         self.panel.backgroundColor = .clear
         // macOS 26+: the glass draws its own shadow inside the transparent margin.
         self.panel.hasShadow = Self.panelShadowMargin == 0
+        self.panel.visualInset = Self.panelShadowMargin
         self.panel.acceptsMouseMovedEvents = true
         self.panel.becomesKeyOnlyIfNeeded = false
         self.panel.hidesOnDeactivate = false

@@ -390,7 +390,8 @@ private struct SideAttachedPopoverHost<Content: View>: NSViewRepresentable {
             guard let anchorContext = PanelAnchorContext.resolve(for: anchorView) else { return }
             guard let placement = anchorContext.sideAttachedPlacement(
                 contentSize: fitting,
-                preferredWidth: self.width,
+                // `width` sizes the content; the surface adds `T.space8` padding on each side.
+                preferredWidth: self.width.map { $0 + T.space8 * 2 },
                 maximumHeight: self.maxHeight,
                 screenPadding: 6,
                 edgeOverlap: self.edgeOverlap)

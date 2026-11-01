@@ -19,6 +19,13 @@ struct MenuBarDropdownPlacementOptions {
     let preserveHorizontalPosition: Bool
 }
 
+/// Windows whose visible surface is inset from the window frame (e.g. a transparent shadow margin).
+/// Panels attached to their side should line up with the visible surface, not the window frame.
+@MainActor
+protocol VisualInsetReporting: AnyObject {
+    var visualInset: CGFloat { get }
+}
+
 struct PanelAnchorContext {
     let visibleFrame: CGRect
     let anchorFrameOnScreen: CGRect
@@ -36,13 +43,14 @@ struct PanelAnchorContext {
         let screen = hostWindow.screen ?? NSScreen.main
         guard let screen else { return nil }
 
+        let inset = (hostWindow as? VisualInsetReporting)?.visualInset ?? 0
         let anchorFrameInWindow = anchorView.convert(anchorView.bounds, to: nil)
         let anchorFrameOnScreen = hostWindow.convertToScreen(anchorFrameInWindow)
 
         return PanelAnchorContext(
             visibleFrame: screen.visibleFrame,
             anchorFrameOnScreen: anchorFrameOnScreen,
-            hostWindowFrame: hostWindow.frame)
+            hostWindowFrame: hostWindow.frame.insetBy(dx: inset, dy: inset))
     }
 
     var statusBarBottomY: CGFloat {
