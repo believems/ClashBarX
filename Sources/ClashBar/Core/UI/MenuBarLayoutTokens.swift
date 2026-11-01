@@ -2,8 +2,9 @@ import SwiftUI
 
 enum MenuBarLayoutTokens {
     static let panelWidth: CGFloat = 360
-    /// Content width of the side popover listing a group's nodes; fixed so it never jumps.
-    static let nodePopoverWidth: CGFloat = 300
+    /// Bounds for the node popover, whose width follows the longest node name.
+    static let nodePopoverMinWidth: CGFloat = 260
+    static let nodePopoverMaxWidth: CGFloat = 520
 
     static let space1: CGFloat = 1
     static let space2: CGFloat = 2

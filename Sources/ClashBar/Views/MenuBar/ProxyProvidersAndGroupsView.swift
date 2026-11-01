@@ -246,7 +246,7 @@ extension ProxyTabView {
         let rowVerticalPadding: CGFloat = 2
         let isLatencyLoading = proxyStore.groupLatencyLoading.contains(group.name)
 
-        return AttachedPopoverMenu(width: T.nodePopoverWidth) { isHovered in
+        return AttachedPopoverMenu(width: self.nodePopoverContentWidth(group)) { isHovered in
             GeometryReader { geo in
                 let columns = self.proxyGroupMainColumnWidths(
                     totalWidth: geo.size.width,
@@ -348,6 +348,31 @@ extension ProxyTabView {
                     })
             }
         }
+    }
+
+    /// Width of the node popover, sized up front from the longest node name so the popover opens
+    /// at its final width (a width that settles after opening made it jump sideways).
+    func nodePopoverContentWidth(_ group: ProxyGroup) -> CGFloat {
+        let nameFont = NSFont.systemFont(ofSize: T.FontSize.body, weight: .semibold)
+        let typeFont = NSFont.systemFont(ofSize: T.FontSize.caption, weight: .medium)
+        func textWidth(_ text: String, _ font: NSFont) -> CGFloat {
+            ceil((text as NSString).size(withAttributes: [.font: font]).width)
+        }
+
+        var widest: CGFloat = 0
+        for node in group.all {
+            var rowWidth = textWidth(node, nameFont)
+            if let type = proxyStore.proxyNodeTypes[node].trimmedNonEmpty {
+                // Badge: text + horizontal padding + spacing before it.
+                rowWidth += textWidth(type, typeFont) + T.space4 * 2 + T.space1
+            }
+            widest = max(widest, rowWidth)
+        }
+
+        // Row chrome: padding, selection mark, spacings, latency column and test slot.
+        let chrome: CGFloat = T.space4 * 2 + 11 + T.space1 * 3 + 50 + T.space2 + 20
+        let slack: CGFloat = 12
+        return min(max(widest + chrome + slack, T.nodePopoverMinWidth), T.nodePopoverMaxWidth)
     }
 
     func proxyGroupMainColumnWidths(

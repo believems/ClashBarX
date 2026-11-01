@@ -102,7 +102,7 @@ struct AttachedPopoverMenu<Label: View, Content: View>: View {
                     }
                 }
             }
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.never)
             .frame(width: self.width, alignment: .leading)
             .frame(maxHeight: self.maxHeight)
             .padding(T.space8)
