@@ -41,7 +41,9 @@ extension MenuBarRootView {
         .labelStyle(.titleAndIcon)
         .controlSize(.large)
         .frame(width: contentWidth)
-        .disabled(!self.appViewModel.isModeSwitchEnabled || self.switchingMode != nil)
+        // Taps during an in-flight switch are dropped by the setter guard. Disabling the control
+        // for that window greys every segment for a moment, which reads as the labels flickering.
+        .disabled(!self.appViewModel.isModeSwitchEnabled)
     }
 
     // MARK: - Tabs (accent-tinted pill marks the current page)
