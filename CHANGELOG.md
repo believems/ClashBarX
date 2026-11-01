@@ -1,3 +1,27 @@
+## v0.4.2
+
+![macOS](https://img.shields.io/badge/macOS-Supported-000000?style=flat-square&logo=apple) ![Version](https://img.shields.io/badge/Release-v0.4.2-10B981?style=flat-square) ![Core](https://img.shields.io/badge/Core-Mihomo-6366f1?style=flat-square)
+
+> 本次更新聚焦 **面板观感与节点列表**：macOS 26 及以上的主面板与侧边子菜单改由系统原生 Liquid Glass（`NSGlassEffectView`）承载，去掉了边缘黑框与圆角外的尖角阴影；底栏改为状态栏样式，模式切换换成系统分段控件。同时修复订阅节点无法单独测速的问题，节点子菜单按节点名定宽、打开时不再左右跳动。
+
+### 📝 更新日志 (Changelog)
+
+**🚀 优化改进 (Improvements)**
+
+- ![Optimize](https://img.shields.io/badge/Optimize-3B82F6?style=flat-square) **原生 Liquid Glass**：主面板与侧边子菜单使用 AppKit 原生玻璃，阴影由玻璃自身绘制并留出透明边距，不再出现深色描边与被裁切的尖角。
+- ![Optimize](https://img.shields.io/badge/Optimize-3B82F6?style=flat-square) **底栏重设计**：去掉底框，改为细分隔线加单行状态栏，左侧 mihomo 版本与内核更新，右侧应用版本，有新版本时显示蓝色提示。
+- ![Optimize](https://img.shields.io/badge/Optimize-3B82F6?style=flat-square) **模式切换**：规则 / 全局 / 直连改用系统原生分段控件。
+- ![Optimize](https://img.shields.io/badge/Optimize-3B82F6?style=flat-square) **节点子菜单**：宽度按组内最长节点名计算，节点名完整显示；超长名称悬停时横向滚动；单节点测速按钮移到延迟数字之后，悬停时不再遮挡延迟。
+
+**🐞 修复问题 (Bug Fixes)**
+
+- ![Fix](https://img.shields.io/badge/Fix-EF4444?style=flat-square) **订阅节点单独测速失效**：mihomo 的 `/proxies` 不包含订阅提供者中的节点，改走提供者的 healthcheck 接口；测速失败显示为超时，不再把内核连接标记为异常。
+- ![Fix](https://img.shields.io/badge/Fix-EF4444?style=flat-square) **打开面板时底部闪白**：底栏不再使用会先按浅色外观绘制的窗口背景色。
+- ![Fix](https://img.shields.io/badge/Fix-EF4444?style=flat-square) **切换模式时文字闪烁**：切换期间不再禁用分段控件。
+- ![Fix](https://img.shields.io/badge/Fix-EF4444?style=flat-square) **节点子菜单左右跳动与右侧空白**：宽度在弹出前确定；滚动区域不再为常驻滚动条预留空白；子菜单贴齐主面板玻璃边缘。
+
+---
+
 ## v0.4.1
 
 ![macOS](https://img.shields.io/badge/macOS-Supported-000000?style=flat-square&logo=apple) ![Version](https://img.shields.io/badge/Release-v0.4.1-10B981?style=flat-square) ![Core](https://img.shields.io/badge/Core-Mihomo-6366f1?style=flat-square)
