@@ -13,19 +13,25 @@ extension MenuBarRootView {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // MARK: - Mode switcher (native segmented control)
+    // MARK: - Mode switcher (native buttons: Liquid Glass on macOS 26+, bordered before)
 
     var modeSwitcher: some View {
-        let modes: [CoreMode] = [.rule, .global, .direct]
-        let shown = self.switchingMode ?? self.appViewModel.currentMode
+        HStack(spacing: T.space6) {
+            self.modeButton(tr("ui.mode.rule"), mode: .rule)
+            self.modeButton(tr("ui.mode.global"), mode: .global)
+            self.modeButton(tr("ui.mode.direct"), mode: .direct)
+        }
+        .controlSize(.large)
+        .frame(width: contentWidth)
+        .disabled(!self.appViewModel.isModeSwitchEnabled)
+    }
 
-        return FillSegmentedControl(
-            labels: [tr("ui.mode.rule"), tr("ui.mode.global"), tr("ui.mode.direct")],
-            selectedIndex: modes.firstIndex(of: shown))
-        { index in
-            let mode = modes[index]
-            // Taps during an in-flight switch are dropped here. Disabling the control for that
-            // window would grey every segment for a moment, which reads as the labels flickering.
+    func modeButton(_ title: String, mode: CoreMode) -> some View {
+        let selected = (self.switchingMode ?? self.appViewModel.currentMode) == mode
+
+        return Button {
+            // Taps during an in-flight switch are dropped here instead of disabling the buttons,
+            // which would grey them all for a moment and read as flicker.
             guard self.appViewModel.isModeSwitchEnabled, self.switchingMode == nil,
                   mode != self.appViewModel.currentMode else { return }
 
@@ -34,9 +40,15 @@ extension MenuBarRootView {
                 await self.appViewModel.switchMode(to: mode)
                 self.switchingMode = nil
             }
+        } label: {
+            Text(title)
+                .font(.app(size: T.FontSize.body, weight: selected ? .semibold : .medium))
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
         }
-        .frame(width: contentWidth)
-        .disabled(!self.appViewModel.isModeSwitchEnabled)
+        .buttonBorderShape(.roundedRectangle)
+        .modifier(ModeButtonStyle(selected: selected))
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     // MARK: - Tabs (accent-tinted pill marks the current page)
@@ -105,6 +117,25 @@ private struct TabPillButtonStyle: ButtonStyle {
                 .animation(.easeOut(duration: 0.12), value: pressed)
                 .animation(.easeOut(duration: 0.12), value: self.hovered)
                 .onHover { self.hovered = $0 }
+        }
+    }
+}
+
+/// Selected mode uses the prominent (accent) variant, the others the regular one.
+private struct ModeButtonStyle: ViewModifier {
+    let selected: Bool
+
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            if self.selected {
+                content.buttonStyle(.glassProminent)
+            } else {
+                content.buttonStyle(.glass)
+            }
+        } else if self.selected {
+            content.buttonStyle(.borderedProminent)
+        } else {
+            content.buttonStyle(.bordered)
         }
     }
 }
