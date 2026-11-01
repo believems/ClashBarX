@@ -16,33 +16,26 @@ extension MenuBarRootView {
     // MARK: - Mode switcher (native segmented control)
 
     var modeSwitcher: some View {
-        let selection = Binding<CoreMode>(
-            get: { self.switchingMode ?? self.appViewModel.currentMode },
-            set: { mode in
-                guard self.appViewModel.isModeSwitchEnabled, self.switchingMode == nil,
-                      mode != self.appViewModel.currentMode else { return }
+        let modes: [CoreMode] = [.rule, .global, .direct]
+        let shown = self.switchingMode ?? self.appViewModel.currentMode
 
-                self.switchingMode = mode
-                Task { @MainActor in
-                    await self.appViewModel.switchMode(to: mode)
-                    self.switchingMode = nil
-                }
-            })
+        return FillSegmentedControl(
+            labels: [tr("ui.mode.rule"), tr("ui.mode.global"), tr("ui.mode.direct")],
+            selectedIndex: modes.firstIndex(of: shown))
+        { index in
+            let mode = modes[index]
+            // Taps during an in-flight switch are dropped here. Disabling the control for that
+            // window would grey every segment for a moment, which reads as the labels flickering.
+            guard self.appViewModel.isModeSwitchEnabled, self.switchingMode == nil,
+                  mode != self.appViewModel.currentMode else { return }
 
-        return Picker(selection: selection) {
-            Label(tr("ui.mode.rule"), systemImage: "arrow.triangle.branch").tag(CoreMode.rule)
-            Label(tr("ui.mode.global"), systemImage: "globe").tag(CoreMode.global)
-            Label(tr("ui.mode.direct"), systemImage: "arrow.right").tag(CoreMode.direct)
-        } label: {
-            EmptyView()
+            self.switchingMode = mode
+            Task { @MainActor in
+                await self.appViewModel.switchMode(to: mode)
+                self.switchingMode = nil
+            }
         }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .labelStyle(.titleAndIcon)
-        .controlSize(.large)
         .frame(width: contentWidth)
-        // Taps during an in-flight switch are dropped by the setter guard. Disabling the control
-        // for that window greys every segment for a moment, which reads as the labels flickering.
         .disabled(!self.appViewModel.isModeSwitchEnabled)
     }
 
