@@ -239,8 +239,7 @@ final class StatusItemController: NSObject {
     private static let popoverContentWidth: CGFloat = T.panelWidth
     /// Transparent margin around the glass so its shadow is not clipped by the window rectangle.
     private static var panelShadowMargin: CGFloat {
-        if #available(macOS 26.0, *) { return PanelGlassContainerController.shadowMargin }
-        return 0
+        PanelGlassContainerController.effectiveShadowMargin
     }
     fileprivate static let bannerShadowBleed: CGFloat = 24
     fileprivate static let bannerContentSize = NSSize(width: 328, height: 68)
@@ -382,7 +381,7 @@ final class StatusItemController: NSObject {
             let hc = NSHostingController(rootView: self.popoverRootView)
             hc.sizingOptions = [.standardBounds]
             self.popoverHostingController = hc
-            self.popoverContainerController = PanelGlassContainerController.wrapping(hc)
+            self.popoverContainerController = PanelGlassContainerController.wrapping(hc, cornerRadius: T.panelCornerRadius)
         } else {
             self.popoverHostingController?.rootView = self.popoverRootView
         }
@@ -778,51 +777,5 @@ final class StatusItemController: NSObject {
                 lockedOriginX: nil,
                 preserveHorizontalPosition: false))
         self.bannerPanel.setFrame(placement.frame, display: true, animate: false)
-    }
-}
-
-/// Hosts the popover inside AppKit's own Liquid Glass on macOS 26+. The glass draws its own soft
-/// shadow, so the window disables the system shadow (which adds a dark outline around borderless
-/// windows) and leaves a transparent margin; without it the window rectangle clips the glass
-/// shadow into dark square corners.
-private final class PanelGlassContainerController: NSViewController {
-    static let shadowMargin: CGFloat = 20
-
-    private let child: NSViewController
-
-    private init(child: NSViewController) {
-        self.child = child
-        super.init(nibName: nil, bundle: nil)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    static func wrapping(_ child: NSViewController) -> NSViewController {
-        if #available(macOS 26.0, *) {
-            return PanelGlassContainerController(child: child)
-        }
-        return child
-    }
-
-    override func loadView() {
-        guard #available(macOS 26.0, *) else {
-            self.view = NSView()
-            return
-        }
-        let glass = NSGlassEffectView()
-        glass.cornerRadius = MenuBarLayoutTokens.panelCornerRadius
-        glass.style = .regular
-        self.addChild(self.child)
-        self.child.view.autoresizingMask = [.width, .height]
-        glass.contentView = self.child.view
-        let side = Self.shadowMargin * 2 + 100
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: side, height: side))
-        glass.frame = container.bounds.insetBy(dx: Self.shadowMargin, dy: Self.shadowMargin)
-        glass.autoresizingMask = [.width, .height]
-        container.addSubview(glass)
-        self.view = container
     }
 }

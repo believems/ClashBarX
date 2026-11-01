@@ -545,7 +545,6 @@ private struct ProxyGroupPopoverNodeItem: View {
                         font: .app(size: T.FontSize.body, weight: self.selected ? .semibold : .medium),
                         color: self.selected ? self.nativePrimaryLabel : self.nativeSecondaryLabel,
                         isActive: self.isHovered)
-                        .layoutPriority(1)
 
                     if let typeText = self.typeText {
                         Text(typeText)
@@ -554,7 +553,7 @@ private struct ProxyGroupPopoverNodeItem: View {
                                 .nativeSecondaryLabel
                                 .opacity(0.82))
                             .lineLimit(1)
-                            .truncationMode(.tail)
+                            .fixedSize()
                             .padding(.horizontal, T.space4)
                             .padding(.vertical, T.space1)
                             .background(
@@ -578,10 +577,14 @@ private struct ProxyGroupPopoverNodeItem: View {
         .onHover { self.isHovered = $0 }
     }
 
-    /// The latency stays visible; the test action sits in its own slot beside it (shown on hover)
+    /// The latency stays visible; the test action sits in its own trailing slot (shown on hover)
     /// instead of replacing the number, so you can read the result while re-testing.
     var latencyControl: some View {
         HStack(spacing: T.space2) {
+            self.delayMetricView
+                .opacity(self.isTesting ? 0.45 : 1)
+                .frame(width: 50, alignment: .trailing)
+
             ZStack {
                 if self.isTesting {
                     ProgressView()
@@ -598,10 +601,6 @@ private struct ProxyGroupPopoverNodeItem: View {
                 }
             }
             .frame(width: 20, height: 20)
-
-            self.delayMetricView
-                .opacity(self.isTesting ? 0.45 : 1)
-                .frame(width: 50, alignment: .trailing)
         }
     }
 
