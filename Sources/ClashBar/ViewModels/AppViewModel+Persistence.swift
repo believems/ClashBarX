@@ -45,7 +45,10 @@ extension AppViewModel {
 
     func restoreLastSuccessfulConfigIfAvailable() {
         guard let lastPath = defaults.string(forKey: lastSuccessfulConfigPathKey), !lastPath.isEmpty else { return }
-        let candidate = URL(fileURLWithPath: lastPath)
+        let candidate = workingDirectoryManager.currentURL(forPersistedURL: URL(fileURLWithPath: lastPath))
+        if candidate.path != lastPath {
+            defaults.set(candidate.path, forKey: lastSuccessfulConfigPathKey)
+        }
         guard FileManager.default.fileExists(atPath: candidate.path) else { return }
         guard let matched = configService.availableConfigs.first(where: {
             $0.standardizedFileURL.resolvingSymlinksInPath().path == candidate.standardizedFileURL

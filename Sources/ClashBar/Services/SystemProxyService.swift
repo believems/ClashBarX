@@ -1,9 +1,147 @@
 import Foundation
+import AppKit
 import ProxyHelperShared
 import Security
+import SystemConfiguration
+
+enum SystemProxyStatus: Equatable {
+    case disabled
+    case active
+    case overridden
+    case unknown
+
+    var needsAttention: Bool { self == .overridden || self == .unknown }
+}
+
+struct SystemProxyTarget: Codable, Equatable, Sendable {
+    let host: String
+    let ports: SystemProxyPorts
+}
+
+/// A read-only snapshot; observing proxy changes never launches the privileged helper.
+struct SystemProxySnapshot: Equatable, Sendable {
+    struct Configuration: Equatable, Sendable {
+        struct Endpoint: Equatable, Sendable {
+            let host: String
+            let port: Int
+
+            var display: String { host.contains(":") ? "[\(host)]:\(port)" : "\(host):\(port)" }
+        }
+
+        let http: Endpoint?
+        let https: Endpoint?
+        let socks: Endpoint?
+        let automatic: Bool
+
+        init(dictionary: [String: Any]) {
+            func endpoint(_ enabled: CFString, _ host: CFString, _ port: CFString) -> Endpoint? {
+                guard (dictionary[enabled as String] as? NSNumber)?.boolValue == true else { return nil }
+                return Endpoint(host: dictionary[host as String] as? String ?? "",
+                                port: (dictionary[port as String] as? NSNumber)?.intValue ?? 0)
+            }
+            self.http = endpoint(kSCPropNetProxiesHTTPEnable, kSCPropNetProxiesHTTPProxy, kSCPropNetProxiesHTTPPort)
+            self.https = endpoint(kSCPropNetProxiesHTTPSEnable, kSCPropNetProxiesHTTPSProxy, kSCPropNetProxiesHTTPSPort)
+            self.socks = endpoint(kSCPropNetProxiesSOCKSEnable, kSCPropNetProxiesSOCKSProxy, kSCPropNetProxiesSOCKSPort)
+            self.automatic = [kSCPropNetProxiesProxyAutoConfigEnable, kSCPropNetProxiesProxyAutoDiscoveryEnable]
+                .contains { (dictionary[$0 as String] as? NSNumber)?.boolValue == true }
+        }
+
+        var isEnabled: Bool { self.automatic || self.http != nil || self.https != nil || self.socks != nil }
+
+        func matches(_ target: SystemProxyTarget) -> Bool {
+            func normalized(_ host: String) -> String {
+                let host = host.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                if host == "localhost" { return "127.0.0.1" }
+                return host == "[::1]" ? "::1" : host
+            }
+            func matches(_ endpoint: Endpoint?, _ port: Int?) -> Bool {
+                guard let port else { return endpoint == nil }
+                guard let endpoint else { return false }
+                return endpoint.port == port && normalized(endpoint.host) == normalized(target.host)
+            }
+            return !self.automatic && matches(self.http, target.ports.httpPort)
+                && matches(self.https, target.ports.httpsPort) && matches(self.socks, target.ports.socksPort)
+        }
+    }
+
+    let configurations: [Configuration]
+
+    var isEnabled: Bool { self.configurations.contains(where: \.isEnabled) }
+    var hasAutomaticProxy: Bool { self.configurations.contains(where: \.automatic) }
+    var activeDisplays: [String] {
+        Array(Set(self.configurations.flatMap { [$0.http, $0.https, $0.socks].compactMap { $0?.display } })).sorted()
+    }
+
+    func matches(_ target: SystemProxyTarget) -> Bool {
+        !self.configurations.isEmpty && self.configurations.allSatisfy { $0.matches(target) }
+    }
+
+    static func read() throws -> SystemProxySnapshot {
+        guard let preferences = SCPreferencesCreate(nil, "ClashBar proxy status" as CFString, nil),
+              let currentSet = SCNetworkSetCopyCurrent(preferences),
+              let services = SCNetworkSetCopyServices(currentSet) as? [SCNetworkService]
+        else { throw SystemProxyServiceError.configurationUnavailable }
+
+        var configurations = services.filter { SCNetworkServiceGetEnabled($0) }.compactMap { service -> Configuration? in
+            guard let proxy = SCNetworkServiceCopyProtocol(service, kSCNetworkProtocolTypeProxies) else { return nil }
+            return Configuration(dictionary: SCNetworkProtocolGetConfiguration(proxy) as? [String: Any] ?? [:])
+        }
+        guard !configurations.isEmpty else { throw SystemProxyServiceError.configurationUnavailable }
+        // Also check the effective configuration, including transient changes by VPNs/tools.
+        if let store = SCDynamicStoreCreate(nil, "ClashBar proxy status" as CFString, nil, nil),
+           ["IPv4", "IPv6"].contains(where: {
+               (SCDynamicStoreCopyValue(store, "State:/Network/Global/\($0)" as CFString) as? [String: Any])?["PrimaryService"] != nil
+           }),
+           let effective = SCDynamicStoreCopyProxies(store) as? [String: Any]
+        {
+            configurations.append(Configuration(dictionary: effective))
+        }
+        return SystemProxySnapshot(configurations: configurations)
+    }
+}
+
+@MainActor
+final class SystemProxyMonitor {
+    private var store: SCDynamicStore?
+    private var wakeObserver: (any NSObjectProtocol)?
+    private var onChange: (() -> Void)?
+
+    func start(onChange: @escaping () -> Void) {
+        self.stop()
+        self.onChange = onChange
+        var context = SCDynamicStoreContext(version: 0, info: Unmanaged.passUnretained(self).toOpaque(),
+                                           retain: nil, release: nil, copyDescription: nil)
+        self.store = SCDynamicStoreCreate(nil, "ClashBar proxy monitor" as CFString, { _, _, info in
+            guard let info else { return }
+            MainActor.assumeIsolated {
+                Unmanaged<SystemProxyMonitor>.fromOpaque(info).takeUnretainedValue().onChange?()
+            }
+        }, &context)
+        if let store {
+            let keys = ["State:/Network/Global/Proxies", "State:/Network/Global/IPv4", "State:/Network/Global/IPv6"]
+            let patterns = ["Setup:/Network/Service/.*/Proxies", "State:/Network/Service/.*/Proxies", "Setup:/Network/Global/.*"]
+            SCDynamicStoreSetNotificationKeys(store, keys as CFArray, patterns as CFArray)
+            SCDynamicStoreSetDispatchQueue(store, .main)
+        }
+        self.wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in MainActor.assumeIsolated { self?.onChange?() } }
+    }
+
+    func stop() {
+        if let store { SCDynamicStoreSetDispatchQueue(store, nil) }
+        self.store = nil
+        if let wakeObserver { NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver) }
+        self.wakeObserver = nil
+        self.onChange = nil
+    }
+
+    isolated deinit { self.stop() }
+}
 
 enum SystemProxyHelperFailureReason: String, Equatable, Sendable {
     case helperNotRegistered
+    case helperNeedsUpdate
     case helperStartTimedOut
     case helperConnectionFailed
     case helperOperationFailed
@@ -16,17 +154,21 @@ enum SystemProxyHelperFailureReason: String, Equatable, Sendable {
 
 struct SystemProxyHelperHealthSnapshot: Equatable, Sendable {
     let helperInstalled: Bool
-    let helperReachable: Bool
+    let processRunning: Bool
+    let installedVersion: Int?
+    let expectedVersion: Int
     let failureReason: SystemProxyHelperFailureReason?
     let rawMessage: String?
 }
 
 enum SystemProxyServiceError: LocalizedError {
+    case configurationUnavailable
     case invalidHost
     case invalidPort
     case helperNotBundled
     case helperRequiresInstallToApplications
     case helperNotRegistered
+    case helperNeedsUpdate(installed: Int, expected: Int)
     case helperStartTimedOut
     case helperAuthorizationCancelled
     case helperInstallFailed(String)
@@ -35,6 +177,8 @@ enum SystemProxyServiceError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
+        case .configurationUnavailable:
+            "Unable to read the current macOS proxy configuration."
         case .invalidHost:
             "Invalid proxy host."
         case .invalidPort:
@@ -46,8 +190,11 @@ enum SystemProxyServiceError: LocalizedError {
                 "Move ClashBar.app to /Applications and reopen it."
         case .helperNotRegistered:
             "Privileged helper is not installed."
+        case let .helperNeedsUpdate(installed, expected):
+            "Privileged helper version is outdated (installed v\(installed), expected v\(expected))."
         case .helperStartTimedOut:
-            "Privileged helper did not respond. Turn on system proxy again to retry."
+            "Privileged helper did not start. " +
+                "Allow it in System Settings > General > Login Items if macOS asks, then try again."
         case .helperAuthorizationCancelled:
             "Administrator authorization was cancelled."
         case let .helperInstallFailed(message):
@@ -86,17 +233,32 @@ private final class ContinuationBox<Value: Sendable>: @unchecked Sendable {
     }
 }
 
-actor SystemProxyService {
+protocol SystemProxyServicing: Sendable {
+    func readSnapshot() throws -> SystemProxySnapshot
+    func apply(enabled: Bool, host: String, ports: SystemProxyPorts) async throws
+    func isEnabled() async throws -> Bool
+    func readActiveDisplay() async throws -> String?
+    func readExceptionsList() async throws -> [String]
+    func setExceptionsList(_ exceptions: [String]) async throws
+    func installOrUpdateHelper() async throws
+    func readHelperHealthSnapshot() async -> SystemProxyHelperHealthSnapshot
+    func isConfigured(host: String, ports: SystemProxyPorts) async throws -> Bool
+    func clearBlocking(timeout: TimeInterval)
+}
+
+struct SystemProxyService: SystemProxyServicing {
     private let helperResponseTimeoutNanoseconds: UInt64 = 4_000_000_000
     private let helperLaunchRetryDelayNanoseconds: UInt64 = 250_000_000
-    private var helperPreparation: Task<Void, Error>?
+    private let helperLaunchRetryAttempts = 4
+
+    func readSnapshot() throws -> SystemProxySnapshot { try SystemProxySnapshot.read() }
 
     func apply(enabled: Bool, host: String, ports: SystemProxyPorts) async throws {
         try self.validateHost(host)
+        try await self.ensureHelperReadyForUse()
 
         if enabled {
             let resolvedPorts = try self.validateAndResolvePorts(ports, requiresEnabledPort: true)
-            try await self.prepareHelperForMutation()
             try await self.invokeMutation { helper, completion in
                 helper.setSystemProxy(
                     host: host,
@@ -106,7 +268,6 @@ actor SystemProxyService {
                     completion: completion)
             }
         } else {
-            try await self.prepareHelperForMutation()
             try await self.invokeMutation { helper, completion in
                 helper.clearSystemProxy(completion: completion)
             }
@@ -114,12 +275,12 @@ actor SystemProxyService {
     }
 
     func isEnabled() async throws -> Bool {
-        try self.requireInstalledHelper()
+        try await self.ensureHelperReadyForUse()
         return try await self.invokeStateQuery()
     }
 
     func readActiveDisplay() async throws -> String? {
-        try self.requireInstalledHelper()
+        try await self.ensureHelperReadyForUse()
         guard let target = try await self.invokeActiveTargetQuery() else {
             return nil
         }
@@ -127,41 +288,69 @@ actor SystemProxyService {
     }
 
     func readExceptionsList() async throws -> [String] {
-        try self.requireInstalledHelper()
+        try await self.ensureHelperReadyForUse()
         return try await self.invokeExceptionsQuery()
     }
 
     func setExceptionsList(_ exceptions: [String]) async throws {
-        try await self.prepareHelperForMutation()
+        try await self.ensureHelperReadyForUse()
         let serialized = self.serializeExceptions(exceptions)
         try await self.invokeMutation { helper, completion in
             helper.setSystemProxyExceptions(serializedExceptions: serialized, completion: completion)
         }
     }
 
-    func readHelperHealthSnapshot() async -> SystemProxyHelperHealthSnapshot {
+    func installOrUpdateHelper() async throws {
+        try self.validateHelperEnvironment()
+        try await ProxyHelperInstaller.installBundledHelper()
         guard ProxyHelperInstaller.installedHelperIsCurrent() else {
-            var error: Error = SystemProxyServiceError.helperNotRegistered
-            do {
-                try self.validateHelperEnvironment()
-            } catch let environmentError {
-                error = environmentError
+            throw SystemProxyServiceError.helperInstallFailed("Helper version was not recorded.")
+        }
+        guard try await self.triggerHelperDemandLaunchAndWait() else {
+            throw SystemProxyServiceError.helperStartTimedOut
+        }
+    }
+
+    func readHelperHealthSnapshot() async -> SystemProxyHelperHealthSnapshot {
+        var processRunning = (try? self.isHelperProcessRunning()) ?? false
+        let installedVersion = ProxyHelperInstaller.installedHelperVersion()
+        guard ProxyHelperInstaller.installedHelperIsCurrent() else {
+            var error: Error
+            if let installedVersion,
+               installedVersion != ProxyHelperConstants.helperVersion
+            {
+                error = SystemProxyServiceError.helperNeedsUpdate(
+                    installed: installedVersion,
+                    expected: ProxyHelperConstants.helperVersion)
+            } else {
+                error = SystemProxyServiceError.helperNotRegistered
+                do {
+                    try self.validateHelperEnvironment()
+                } catch let environmentError {
+                    error = environmentError
+                }
             }
-            return self.healthSnapshot(helperInstalled: false, helperReachable: false, error: error)
+            return self.healthSnapshot(
+                helperInstalled: false,
+                processRunning: processRunning,
+                installedVersion: installedVersion,
+                error: error)
         }
 
-        do {
-            try await self.invokeHelperPing()
-            return self.healthSnapshot(helperInstalled: true, helperReachable: true, error: nil)
-        } catch {
-            return self.healthSnapshot(helperInstalled: true, helperReachable: false, error: error)
+        if !processRunning {
+            processRunning = await (try? self.triggerHelperDemandLaunchAndWait()) ?? false
         }
+        return self.healthSnapshot(
+            helperInstalled: true,
+            processRunning: processRunning,
+            installedVersion: installedVersion,
+            error: processRunning ? nil : SystemProxyServiceError.helperStartTimedOut)
     }
 
     func isConfigured(host: String, ports: SystemProxyPorts) async throws -> Bool {
         try self.validateHost(host)
         let resolvedPorts = try self.validateAndResolvePorts(ports, requiresEnabledPort: true)
-        try self.requireInstalledHelper()
+        try await self.ensureHelperReadyForUse()
         return try await self.invokeBooleanQuery { helper, completion in
             helper.isSystemProxyConfigured(
                 host: host,
@@ -203,56 +392,39 @@ actor SystemProxyService {
     }
 
     private func validateHelperEnvironment() throws {
-        guard self.isHelperBundledInMainApp() else {
+        guard ProxyHelperInstaller.helperSourceAvailable() else {
             throw SystemProxyServiceError.helperNotBundled
         }
-        guard self.isRunningFromApplicationsDirectory() else {
+        guard self.isRunningFromApplicationsDirectory() || self.isDevelopmentBuild() else {
             throw SystemProxyServiceError.helperRequiresInstallToApplications
         }
         try self.validateHelperSigningRequirements()
     }
 
-    private func requireInstalledHelper() throws {
+    private func ensureHelperReadyForUse() async throws {
         guard ProxyHelperInstaller.installedHelperIsCurrent() else {
+            if let installedVersion = ProxyHelperInstaller.installedHelperVersion(),
+               installedVersion != ProxyHelperConstants.helperVersion
+            {
+                throw SystemProxyServiceError.helperNeedsUpdate(
+                    installed: installedVersion,
+                    expected: ProxyHelperConstants.helperVersion)
+            }
             throw SystemProxyServiceError.helperNotRegistered
         }
     }
 
-    private func prepareHelperForMutation() async throws {
-        if let helperPreparation = self.helperPreparation {
-            return try await helperPreparation.value
-        }
-
-        let preparation = Task {
-            if ProxyHelperInstaller.installedHelperIsCurrent() {
-                do {
-                    try await self.invokeHelperPing()
-                    return
-                } catch {
-                    guard self.isHelperConnectionFailure(error) else { throw error }
-                }
-            }
-
-            try self.validateHelperEnvironment()
-            try await ProxyHelperInstaller.installBundledHelper()
-            guard ProxyHelperInstaller.installedHelperIsCurrent() else {
-                throw SystemProxyServiceError.helperInstallFailed("Helper version was not recorded.")
-            }
-            try await self.invokeHelperPing()
-        }
-        self.helperPreparation = preparation
-        defer { self.helperPreparation = nil }
-        try await preparation.value
-    }
-
     private func healthSnapshot(
         helperInstalled: Bool,
-        helperReachable: Bool,
+        processRunning: Bool,
+        installedVersion: Int?,
         error: Error?) -> SystemProxyHelperHealthSnapshot
     {
         SystemProxyHelperHealthSnapshot(
             helperInstalled: helperInstalled,
-            helperReachable: helperReachable,
+            processRunning: processRunning,
+            installedVersion: installedVersion,
+            expectedVersion: ProxyHelperConstants.helperVersion,
             failureReason: error.map { self.helperFailureReason(for: $0) },
             rawMessage: error.map { self.helperFailureMessage($0) })
     }
@@ -263,12 +435,16 @@ actor SystemProxyService {
         }
 
         switch serviceError {
+        case .configurationUnavailable:
+            return .unknown
         case .helperNotBundled:
             return .helperNotBundled
         case .helperRequiresInstallToApplications:
             return .appNotInApplications
         case .helperNotRegistered:
             return .helperNotRegistered
+        case .helperNeedsUpdate:
+            return .helperNeedsUpdate
         case .helperStartTimedOut:
             return .helperStartTimedOut
         case .helperAuthorizationCancelled:
@@ -284,13 +460,6 @@ actor SystemProxyService {
         }
     }
 
-    private func isHelperBundledInMainApp() -> Bool {
-        let bundleURL = Bundle.main.bundleURL
-        return [ProxyHelperConstants.helperBundlePlist, ProxyHelperConstants.helperBundleProgram].allSatisfy {
-            FileManager.default.fileExists(atPath: bundleURL.appendingPathComponent($0).path)
-        }
-    }
-
     private func isRunningFromApplicationsDirectory() -> Bool {
         let bundlePath = Bundle.main.bundleURL
             .resolvingSymlinksInPath()
@@ -299,8 +468,33 @@ actor SystemProxyService {
         return bundlePath.hasPrefix("/Applications/") && bundlePath.hasSuffix(".app")
     }
 
+    private func isDevelopmentBuild() -> Bool {
+        return ProxyHelperInstaller.developmentHelperSourceAvailable()
+    }
+
+    private func triggerHelperDemandLaunchAndWait() async throws -> Bool {
+        do {
+            try await self.invokeHelperPing()
+        } catch {
+            guard self.isHelperConnectionFailure(error) else {
+                throw error
+            }
+        }
+
+        for attempt in 0..<self.helperLaunchRetryAttempts {
+            if try self.isHelperProcessRunning() {
+                return true
+            }
+            if attempt < self.helperLaunchRetryAttempts - 1 {
+                try await Task.sleep(nanoseconds: self.helperLaunchRetryDelayNanoseconds)
+            }
+        }
+
+        return false
+    }
+
     private func invokeHelperPing() async throws {
-        try await self.invokeHelper { helper, completion in
+        try await self.invokeHelperOnce { helper, completion in
             helper.ping { success, message in
                 completion(Self.mapHelperResult(success: success, message: message, value: ()))
             }
@@ -316,6 +510,20 @@ actor SystemProxyService {
             return .success(value())
         }
         return .failure(SystemProxyServiceError.helperOperationFailed(message ?? "Unknown helper error."))
+    }
+
+    private func isHelperProcessRunning() throws -> Bool {
+        let result = try self.runProcessSynchronously(
+            executable: "/usr/bin/pgrep",
+            arguments: ["-x", ProxyHelperConstants.machServiceName])
+        switch result.exitCode {
+        case 0:
+            return true
+        case 1:
+            return false
+        default:
+            throw SystemProxyServiceError.helperOperationFailed(result.combinedOutput)
+        }
     }
 
     private func invokeStateQuery() async throws -> Bool {
@@ -409,10 +617,45 @@ actor SystemProxyService {
     }
 
     private func isHelperConnectionFailure(_ error: Error) -> Bool {
-        switch error as? SystemProxyServiceError {
-        case .helperConnectionFailed, .helperStartTimedOut: true
-        default: false
+        if let serviceError = error as? SystemProxyServiceError,
+           case .helperConnectionFailed = serviceError
+        {
+            return true
         }
+        return false
+    }
+
+    private struct ProcessResult {
+        let exitCode: Int32
+        let stdout: String
+        let stderr: String
+
+        var combinedOutput: String {
+            [self.stderr, self.stdout]
+                .first(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? "Unknown command error."
+        }
+    }
+
+    private func runProcessSynchronously(executable: String, arguments: [String]) throws -> ProcessResult {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            throw SystemProxyServiceError.helperOperationFailed(error.localizedDescription)
+        }
+
+        let stdout = String(data: stdoutPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        let stderr = String(data: stderrPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        return ProcessResult(exitCode: process.terminationStatus, stdout: stdout, stderr: stderr)
     }
 
     private func invokeHelper<Value: Sendable>(
@@ -423,7 +666,7 @@ actor SystemProxyService {
             return try await self.invokeHelperOnce(invoke)
         } catch {
             guard self.isHelperConnectionFailure(error) else { throw error }
-            try await Task.sleep(nanoseconds: self.helperLaunchRetryDelayNanoseconds)
+            _ = try? await self.triggerHelperDemandLaunchAndWait()
             return try await self.invokeHelperOnce(invoke)
         }
     }
@@ -436,8 +679,10 @@ actor SystemProxyService {
             let connection = self.makeConnection()
             let box = ContinuationBox<Value>(continuation)
             let timeoutWorkItem = DispatchWorkItem {
-                box.resume(with: .failure(SystemProxyServiceError.helperStartTimedOut))
                 connection.invalidate()
+                box.resume(
+                    with: .failure(
+                        SystemProxyServiceError.helperConnectionFailed("Helper response timed out.")))
             }
             let timeoutInterval = DispatchTimeInterval.nanoseconds(Int(self.helperResponseTimeoutNanoseconds))
             DispatchQueue.global(qos: .userInitiated).asyncAfter(
@@ -465,13 +710,7 @@ actor SystemProxyService {
         }
     }
 
-    /// Fire-and-forget variant used on the termination path.
-    ///
-    /// Blocks the caller only for `timeout`, and the timeout must stay short:
-    /// this runs on the main thread after the app has been asked to quit, where
-    /// a long wait is visible to the user as a hung quit. The XPC call keeps
-    /// running on a background queue so the helper still receives the clear.
-    nonisolated func clearBlocking(timeout: TimeInterval = 0.35) {
+    func clearBlocking(timeout: TimeInterval = 2.0) {
         let semaphore = DispatchSemaphore(value: 0)
 
         DispatchQueue.global(qos: .userInitiated).async { [self] in
@@ -494,7 +733,7 @@ actor SystemProxyService {
         _ = semaphore.wait(timeout: .now() + timeout)
     }
 
-    private nonisolated func makeConnection() -> NSXPCConnection {
+    private func makeConnection() -> NSXPCConnection {
         let connection = NSXPCConnection(
             machServiceName: ProxyHelperConstants.machServiceName,
             options: .privileged)
@@ -508,7 +747,9 @@ actor SystemProxyService {
     }
 
     private func validateHelperSigningRequirements() throws {
-        let helperURL = Bundle.main.bundleURL.appendingPathComponent(ProxyHelperConstants.helperBundleProgram)
+        guard let helperURL = ProxyHelperInstaller.helperBinaryURL() else {
+            throw SystemProxyServiceError.helperNotBundled
+        }
         let appTeam = self.signingTeamIdentifier(at: Bundle.main.bundleURL)
         let helperTeam = self.signingTeamIdentifier(at: helperURL)
         guard appTeam == helperTeam else {
@@ -517,7 +758,7 @@ actor SystemProxyService {
         }
     }
 
-    private nonisolated func signingTeamIdentifier(at url: URL) -> String? {
+    private func signingTeamIdentifier(at url: URL) -> String? {
         var staticCode: SecStaticCode?
         guard SecStaticCodeCreateWithPath(url as CFURL, SecCSFlags(), &staticCode) == errSecSuccess,
               let staticCode

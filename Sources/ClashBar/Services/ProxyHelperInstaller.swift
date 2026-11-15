@@ -4,11 +4,26 @@ import ProxyHelperShared
 import ServiceManagement
 
 enum ProxyHelperInstaller {
+    private struct HelperSource {
+        let binaryURL: URL
+        let plistURL: URL?
+    }
+
+    static func installedHelperVersion() -> Int? {
+        guard let raw = try? String(
+            contentsOfFile: ProxyHelperConstants.installedVersionPath,
+            encoding: .utf8),
+            let version = Int(raw.trimmingCharacters(in: .whitespacesAndNewlines))
+        else {
+            return nil
+        }
+        return version
+    }
+
     static func installedHelperIsCurrent() -> Bool {
-        let recorded = try? String(contentsOfFile: ProxyHelperConstants.installedVersionPath, encoding: .utf8)
         return FileManager.default.isExecutableFile(atPath: ProxyHelperConstants.installedHelperPath)
             && FileManager.default.fileExists(atPath: ProxyHelperConstants.installedPlistPath)
-            && recorded?.trimmingCharacters(in: .whitespacesAndNewlines) == String(ProxyHelperConstants.helperVersion)
+            && self.installedHelperVersion() == ProxyHelperConstants.helperVersion
             && !self.hasQuarantine(atPath: ProxyHelperConstants.installedHelperPath)
             && !self.hasQuarantine(atPath: ProxyHelperConstants.installedPlistPath)
     }
@@ -17,14 +32,54 @@ enum ProxyHelperInstaller {
         getxattr(path, "com.apple.quarantine", nil, 0, 0, 0) >= 0
     }
 
-    static func installBundledHelper() async throws {
-        let bundleURL = Bundle.main.bundleURL
-        let command = self.installShellCommand(
-            sourceBinary: bundleURL.appendingPathComponent(ProxyHelperConstants.helperBundleProgram).path,
-            sourcePlist: bundleURL.appendingPathComponent(ProxyHelperConstants.helperBundlePlist).path)
+    static func helperSourceAvailable() -> Bool {
+        self.resolveHelperSource() != nil
+    }
 
-        // The old registration can outlive the app that created it. The privileged
-        // install also removes any job still loaded under that label.
+    static func developmentHelperSourceAvailable() -> Bool {
+        self.resolveDevelopmentHelperSource() != nil
+    }
+
+    static func helperBinaryURL() -> URL? {
+        self.resolveHelperSource()?.binaryURL
+    }
+
+    static func helperBinaryURL(
+        bundleURL: URL,
+        executableURL: URL?) -> URL?
+    {
+        self.resolveHelperSource(
+            bundleURL: bundleURL,
+            executableURL: executableURL)?.binaryURL
+    }
+
+    static func installBundledHelper() async throws {
+        guard let source = self.resolveHelperSource() else {
+            throw SystemProxyServiceError.helperNotBundled
+        }
+
+        let temporaryPlistURL: URL?
+        let plistURL: URL
+        if let sourcePlistURL = source.plistURL {
+            temporaryPlistURL = nil
+            plistURL = sourcePlistURL
+        } else {
+            let generatedPlistURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("ClashBar-Helper-\(UUID().uuidString).plist")
+            try self.writeDevelopmentHelperPlist(to: generatedPlistURL)
+            temporaryPlistURL = generatedPlistURL
+            plistURL = generatedPlistURL
+        }
+        defer {
+            if let temporaryPlistURL {
+                try? FileManager.default.removeItem(at: temporaryPlistURL)
+            }
+        }
+
+        let command = self.installShellCommand(
+            sourceBinary: source.binaryURL.path,
+            sourcePlist: plistURL.path)
+
         try? await SMAppService.daemon(plistName: ProxyHelperConstants.daemonPlistName).unregister()
         try await Task.detached(priority: .userInitiated) {
             try AdministratorShell.run(
@@ -32,6 +87,70 @@ enum ProxyHelperInstaller {
                 cancelled: SystemProxyServiceError.helperAuthorizationCancelled,
                 failed: SystemProxyServiceError.helperInstallFailed)
         }.value
+    }
+
+    private static func resolveHelperSource(
+        bundleURL: URL = Bundle.main.bundleURL,
+        executableURL: URL? = Bundle.main.executableURL) -> HelperSource?
+    {
+        let bundledBinaryURL = bundleURL.appendingPathComponent(ProxyHelperConstants.helperBundleProgram)
+        let bundledPlistURL = bundleURL.appendingPathComponent(ProxyHelperConstants.helperBundlePlist)
+        if FileManager.default.isExecutableFile(atPath: bundledBinaryURL.path),
+           FileManager.default.fileExists(atPath: bundledPlistURL.path)
+        {
+            return HelperSource(binaryURL: bundledBinaryURL, plistURL: bundledPlistURL)
+        }
+
+        guard bundleURL.pathExtension != "app" else { return nil }
+        return self.resolveDevelopmentHelperSource(
+            bundleURL: bundleURL,
+            executableURL: executableURL)
+    }
+
+    private static func resolveDevelopmentHelperSource(
+        bundleURL: URL = Bundle.main.bundleURL,
+        executableURL: URL? = Bundle.main.executableURL) -> HelperSource?
+    {
+        if bundleURL.pathExtension == "app" {
+            let productsDirectory = bundleURL.deletingLastPathComponent()
+            guard ["Debug", "Release"].contains(productsDirectory.lastPathComponent),
+                  productsDirectory.deletingLastPathComponent().lastPathComponent == "Products"
+            else { return nil }
+            let binaryURL = bundleURL.appendingPathComponent(ProxyHelperConstants.helperBundleProgram)
+            let plistURL = bundleURL.appendingPathComponent(ProxyHelperConstants.helperBundlePlist)
+            guard FileManager.default.isExecutableFile(atPath: binaryURL.path),
+                  FileManager.default.fileExists(atPath: plistURL.path)
+            else { return nil }
+            return HelperSource(binaryURL: binaryURL, plistURL: plistURL)
+        }
+
+        guard let executableDirectory = executableURL?.deletingLastPathComponent(),
+              ["debug", "release"].contains(executableDirectory.lastPathComponent.lowercased())
+        else { return nil }
+        let binaryURL = executableDirectory.appendingPathComponent("ClashBarProxyHelper")
+        guard FileManager.default.isExecutableFile(atPath: binaryURL.path) else { return nil }
+        return HelperSource(binaryURL: binaryURL, plistURL: nil)
+    }
+
+    private static func writeDevelopmentHelperPlist(to url: URL) throws {
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>Label</key>
+            <string>\(ProxyHelperConstants.machServiceName)</string>
+            <key>MachServices</key>
+            <dict>
+                <key>\(ProxyHelperConstants.machServiceName)</key>
+                <true/>
+            </dict>
+            <key>Program</key>
+            <string>\(ProxyHelperConstants.installedHelperPath)</string>
+        </dict>
+        </plist>
+        """
+        try plist.write(to: url, atomically: true, encoding: .utf8)
     }
 
     private static func installShellCommand(sourceBinary: String, sourcePlist: String) -> String {
@@ -44,14 +163,9 @@ enum ProxyHelperInstaller {
 
         return """
         set -e
-        unload_helper() {
-            if /bin/launchctl print system/\(label) >/dev/null 2>&1; then
-                /bin/launchctl bootout system/\(label)
-            fi
-        }
-        unload_helper
         /bin/mkdir -p /Library/PrivilegedHelperTools /Library/LaunchDaemons
         /bin/rm -f \(versionFile)
+        /bin/launchctl bootout system/\(label) >/dev/null 2>&1 || true
         /bin/rm -f \(destBinary)
         /bin/cp -X \(binary) \(destBinary)
         /usr/sbin/chown root:wheel \(destBinary)
@@ -72,12 +186,13 @@ enum ProxyHelperInstaller {
             echo "Failed to remove quarantine attribute from helper plist." >&2
             exit 1
         fi
-        /bin/launchctl enable system/\(label)
+        /bin/launchctl enable system/\(label) >/dev/null 2>&1 || true
         if ! /bin/launchctl bootstrap system \(destPlist) 2>/dev/null; then
             /bin/sleep 0.1
-            unload_helper
+            /bin/launchctl bootout system/\(label) >/dev/null 2>&1 || true
             /bin/launchctl bootstrap system \(destPlist)
         fi
+        /bin/launchctl kickstart -k system/\(label)
         echo \(ProxyHelperConstants.helperVersion) > \(versionFile)
         """
     }
