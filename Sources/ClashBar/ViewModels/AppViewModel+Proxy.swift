@@ -132,19 +132,39 @@ extension AppViewModel {
     }
 
     func refreshGroupLatency(_ group: ProxyGroup) async {
+        guard !groupLatencyLoading.contains(group.name) else { return }
         groupLatencyLoading.insert(group.name)
         defer { groupLatencyLoading.remove(group.name) }
 
         let testURL = group.testUrl?.trimmedNonEmpty ?? defaultHealthcheckURL
         let timeout = group.timeout.flatMap { $0 > 0 ? $0 : nil } ?? defaultHealthcheckTimeoutMilliseconds
         await runRefresh {
-            let response: GroupDelayMeasurement = try await self.clientOrThrow().request(
-                .groupDelay(name: group.name, url: testURL, timeout: timeout))
-            self.applyMeasuredNodeDelays(response.values)
+            do {
+                let response: GroupDelayMeasurement = try await self.clientOrThrow().request(
+                    .groupDelay(name: group.name, url: testURL, timeout: timeout))
+                self.applyMeasuredNodeDelays(Self.groupDelayResult(members: group.all, measured: response.values))
+            } catch let APIError.statusCode(code, _) where Self.delayTestFailureStatusCodes.contains(code) {
+                // Every member failed the test: record them all as timeouts.
+                self.applyMeasuredNodeDelays(Self.groupDelayResult(members: group.all, measured: [:]))
+            }
         }
     }
 
+    /// mihomo's group delay endpoint only reports members that passed the test. Record the
+    /// missing ones as timeouts so a failed node never keeps showing its previous latency.
+    private static func groupDelayResult(members: [String], measured: [String: Int]) -> [String: Int] {
+        var result = measured
+        for member in members where result[member] == nil {
+            result[member] = 0
+        }
+        return result
+    }
+
     func refreshAllGroupLatencies(includeHiddenGroups: Bool = false) async {
+        guard !self.isTestingAllGroupLatencies else { return }
+        self.isTestingAllGroupLatencies = true
+        defer { self.isTestingAllGroupLatencies = false }
+
         let modeScopedGroups = self.currentMode == .global
             ? self.proxyGroups
             : self.proxyGroups.filter { $0.name.caseInsensitiveCompare("GLOBAL") != .orderedSame }
@@ -160,8 +180,16 @@ extension AppViewModel {
         }
     }
 
+    /// True while `node` is being measured, either on its own or as a member of any group test
+    /// in flight, so its row can mark the shown latency as the previous result.
     func isProxyLatencyTesting(group: String, node: String) -> Bool {
-        self.proxyLatencyTesting.contains(ProxyLatencyTestKey(group: group, node: node))
+        if self.proxyLatencyTesting.contains(ProxyLatencyTestKey(group: group, node: node)) {
+            return true
+        }
+        guard !self.groupLatencyLoading.isEmpty else { return false }
+        return self.proxyGroups.contains { candidate in
+            self.groupLatencyLoading.contains(candidate.name) && candidate.all.contains(node)
+        }
     }
 
     func refreshProxyLatency(group: String, node: String) async {

@@ -81,6 +81,11 @@ final class AppViewModel: ObservableObject {
         set { self.proxyStore.groupLatencyLoading = newValue }
     }
 
+    var isTestingAllGroupLatencies: Bool {
+        get { self.proxyStore.isTestingAllGroupLatencies }
+        set { self.proxyStore.isTestingAllGroupLatencies = newValue }
+    }
+
     var proxyLatencyTesting: Set<ProxyLatencyTestKey> {
         get { self.proxyStore.proxyLatencyTesting }
         set { self.proxyStore.proxyLatencyTesting = newValue }

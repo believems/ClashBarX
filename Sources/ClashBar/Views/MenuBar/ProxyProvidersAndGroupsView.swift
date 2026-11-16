@@ -208,6 +208,7 @@ extension ProxyTabView {
                     self.compactTopIcon(
                         "bolt",
                         label: tr("ui.action.test_latency"),
+                        isLoading: proxyStore.isTestingAllGroupLatencies,
                         size: 22)
                     {
                         await appViewModel.refreshAllGroupLatencies(includeHiddenGroups: !hideHiddenProxyGroups)
@@ -286,6 +287,8 @@ extension ProxyTabView {
                                 .minimumScaleFactor(T.minimumScale)
                         }
                     }
+                    // Dimmed while re-testing: the number shown is the previous result.
+                    .opacity(isLatencyLoading ? 0.45 : 1)
                     .frame(width: columns.delay, alignment: .trailing)
 
                     // Chevron at rest hints "opens node list"; hovering swaps in the latency test action.
