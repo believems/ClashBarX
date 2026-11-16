@@ -1,3 +1,21 @@
+## v0.4.5
+
+![macOS](https://img.shields.io/badge/macOS-Supported-000000?style=flat-square&logo=apple) ![Version](https://img.shields.io/badge/Release-v0.4.5-10B981?style=flat-square) ![Core](https://img.shields.io/badge/Core-Mihomo-6366f1?style=flat-square)
+
+> 本次更新优化一键测速：测速过程中旧延迟会变淡显示，测完恢复正常亮度，一眼就能区分本轮结果和上一轮结果；测不通的节点也不再残留旧延迟。
+
+### 📝 更新日志 (Changelog)
+
+**🚀 优化改进 (Improvements)**
+
+- ![Optimize](https://img.shields.io/badge/Optimize-3B82F6?style=flat-square) **测速中状态**：一键测速按钮在测速期间转圈并防止重复触发；组测速时，组行和该组成员节点的延迟变淡并显示测速中状态，测完恢复。
+
+**🐞 修复问题 (Bug Fixes)**
+
+- ![Fix](https://img.shields.io/badge/Fix-EF4444?style=flat-square) **测失败的节点残留旧延迟**：mihomo 组测速接口只返回测通的节点，测不通的节点原先会继续显示上次的延迟；现在统一显示为超时。
+
+---
+
 ## v0.4.4
 
 ![macOS](https://img.shields.io/badge/macOS-Supported-000000?style=flat-square&logo=apple) ![Version](https://img.shields.io/badge/Release-v0.4.4-10B981?style=flat-square) ![Core](https://img.shields.io/badge/Core-Mihomo-6366f1?style=flat-square)
