@@ -525,7 +525,13 @@ struct SystemProxyService {
         }
     }
 
-    func clearBlocking(timeout: TimeInterval = 2.0) {
+    /// Fire-and-forget variant used on the termination path.
+    ///
+    /// Blocks the caller only for `timeout`, and the timeout must stay short:
+    /// this runs on the main thread after the app has been asked to quit, where
+    /// a long wait is visible to the user as a hung quit. The XPC call keeps
+    /// running on a background queue so the helper still receives the clear.
+    func clearBlocking(timeout: TimeInterval = 0.35) {
         let semaphore = DispatchSemaphore(value: 0)
 
         DispatchQueue.global(qos: .userInitiated).async { [self] in

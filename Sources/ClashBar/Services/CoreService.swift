@@ -187,6 +187,18 @@ final class MihomoProcessManager: MihomoControlling, @unchecked Sendable {
         try? self.resolveMihomoBinary()
     }
 
+    /// Off-main-thread variant of `detectedBinaryPath`.
+    ///
+    /// Resolution can copy bundled assets and run `gunzip`, which on first launch
+    /// takes long enough to be visible if performed on the main actor.
+    func detectedBinaryPathAsync() async -> String? {
+        await withCheckedContinuation { continuation in
+            self.validationQueue.async {
+                continuation.resume(returning: try? self.resolveMihomoBinary())
+            }
+        }
+    }
+
     var isRunning: Bool {
         self.lock.withLock {
             self.process?.isRunning == true
@@ -377,6 +389,39 @@ final class MihomoProcessManager: MihomoControlling, @unchecked Sendable {
         self.onLog?("[mihomo stop] force kill pid=\(running.processIdentifier)")
         _ = Darwin.kill(running.processIdentifier, SIGKILL)
         _ = self.waitForProcessExit(running, timeout: 1.0)
+        self.handleProcessTermination(running, code: running.terminationStatus)
+    }
+
+    func stopImmediately() {
+        let running: Process? = self.lock.withLock {
+            self.intentionalStop = true
+            return self.process
+        }
+
+        guard let running, running.isRunning else {
+            self.lock.withLock {
+                self.status = .stopped
+                self.intentionalStop = false
+                self.releasePipeHandlesLocked()
+            }
+            return
+        }
+
+        self.onLog?("[mihomo stop] terminate signal sent pid=\(running.processIdentifier)")
+        running.terminate()
+
+        // Bounded shutdown: give mihomo a short grace period to exit, then force
+        // kill so the child is never orphaned when the app goes away. This runs
+        // on the main thread during quit, hence the much tighter budget than
+        // the regular stop() path (2s + 1s).
+        if self.waitForProcessExit(running, timeout: 0.4) {
+            self.handleProcessTermination(running, code: running.terminationStatus)
+            return
+        }
+
+        self.onLog?("[mihomo stop] force kill pid=\(running.processIdentifier)")
+        _ = Darwin.kill(running.processIdentifier, SIGKILL)
+        _ = self.waitForProcessExit(running, timeout: 0.2)
         self.handleProcessTermination(running, code: running.terminationStatus)
     }
 

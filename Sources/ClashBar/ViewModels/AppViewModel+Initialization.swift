@@ -3,7 +3,6 @@ import Foundation
 @MainActor
 extension AppViewModel {
     func configureManagedProcessCallbacks() {
-        self.mihomoBinaryPath = self.processManager.detectedBinaryPath ?? "-"
         if let managedProcess = self.processManager as? MihomoProcessManager {
             managedProcess.onLog = { [weak self] line in
                 Task { @MainActor in
@@ -30,6 +29,16 @@ extension AppViewModel {
                 }
             }
         }
+    }
+
+    func resolveMihomoBinaryPathInBackground() async {
+        guard let managedProcess = self.processManager as? MihomoProcessManager else {
+            self.mihomoBinaryPath = self.processManager.detectedBinaryPath ?? "-"
+            return
+        }
+
+        let resolved = await managedProcess.detectedBinaryPathAsync()
+        self.mihomoBinaryPath = resolved ?? "-"
     }
 
     func bootstrapDirectoriesAndLogs() {
@@ -74,6 +83,7 @@ extension AppViewModel {
 
         self.startupRefreshTask = Task { [weak self] in
             guard let self else { return }
+            await self.resolveMihomoBinaryPathInBackground()
             await self.refreshFromAPI(includeSlowCalls: true)
             await self.applyPendingAppLaunchSettingsOverlayIfNeeded()
             self.seedCoreFeatureRecoveryFromPersistedQuitState()

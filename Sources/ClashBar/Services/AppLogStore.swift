@@ -59,6 +59,18 @@ final class AppLogStore: @unchecked Sendable {
         self.ioQueue.sync {}
     }
 
+    /// Bounded flush for the termination path: the app is already quitting, so a
+    /// stuck disk write must not hold the main thread hostage. Returns `false`
+    /// when the pending work did not drain within `timeout`.
+    @discardableResult
+    func flush(timeout: TimeInterval) -> Bool {
+        let semaphore = DispatchSemaphore(value: 0)
+        self.ioQueue.async {
+            semaphore.signal()
+        }
+        return semaphore.wait(timeout: .now() + timeout) == .success
+    }
+
     private func appendOnQueue(records: [(timestamp: Date, level: String, message: String)]) {
         let content = records.map {
             "[\(self.timestampFormatter.string(from: $0.timestamp))] [\($0.level.uppercased())] \($0.message)\n"

@@ -194,7 +194,7 @@ extension AppViewModel {
 
     func shutdownForTermination() {
         self.prepareForTermination()
-        self.systemProxyService.clearBlocking(timeout: 2.0)
+        self.systemProxyService.clearBlocking(timeout: 0.35)
         if processManager.isRunning {
             self.processManager.stopImmediately()
         }
@@ -224,6 +224,7 @@ extension AppViewModel {
         self.autoStartTask = nil
         self.proxyPortsAutoSaveTask?.cancel()
         self.proxyPortsAutoSaveTask = nil
+        self.proxyPortsAutoSavePending = false
         self.settingsFeedbackClearTask?.cancel()
         self.settingsFeedbackClearTask = nil
         self.coreUpgradeFeedbackClearTask?.cancel()
@@ -236,8 +237,10 @@ extension AppViewModel {
         self.defaults.set(self.isSystemProxyEnabled, forKey: self.systemProxyEnabledOnQuitKey)
         self.cancelOwnedTasks()
         self.flushPendingMihomoLogsIfNeeded()
-        self.clashbarLogStore?.flush()
-        self.mihomoLogStore?.flush()
+        // Bounded so a stalled disk write cannot hang the quit.
+        let timeout: TimeInterval = 0.4
+        self.clashbarLogStore?.flush(timeout: timeout)
+        self.mihomoLogStore?.flush(timeout: timeout)
     }
 
     func applyAppAppearance() {

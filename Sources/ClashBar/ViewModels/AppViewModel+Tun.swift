@@ -169,12 +169,6 @@ extension AppViewModel {
     }
 
     func resolvedMihomoBinaryPath() -> String? {
-        if let detected = processManager.detectedBinaryPath,
-           !detected.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        {
-            return detected
-        }
-
         let current = mihomoBinaryPath.trimmingCharacters(in: .whitespacesAndNewlines)
         if current.isEmpty || current == "-" {
             return nil
@@ -182,8 +176,17 @@ extension AppViewModel {
         return current
     }
 
+    /// Resolves the core binary without blocking the main actor.
+    /// Resolution may copy or decompress bundled assets on first launch.
+    func resolvedMihomoBinaryPathAsync() async -> String? {
+        if let managedProcess = self.processManager as? MihomoProcessManager {
+            return await managedProcess.detectedBinaryPathAsync()
+        }
+        return self.processManager.detectedBinaryPath ?? self.resolvedMihomoBinaryPath()
+    }
+
     func ensureTunPermissions(requestIfMissing: Bool) async throws {
-        guard let binaryPath = resolvedMihomoBinaryPath() else {
+        guard let binaryPath = await self.resolvedMihomoBinaryPathAsync() else {
             throw TunPermissionServiceError.coreBinaryNotFound
         }
 
