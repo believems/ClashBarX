@@ -3,6 +3,8 @@
 
 # generated content
 .source
+# generated from repo-root CHANGELOG.md by scripts/parse-changelog.mjs
+/src/data/changelog.generated.json
 
 # test & build
 /coverage

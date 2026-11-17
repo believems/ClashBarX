@@ -5,7 +5,7 @@
  * Soft-fail: always writes a JSON file so the docs build can proceed.
  * On parse/IO failure: { ok: false, error, releases: [] }.
  */
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -15,6 +15,20 @@ const repoRoot = path.resolve(docsRoot, '..');
 const sourcePath = path.join(repoRoot, 'CHANGELOG.md');
 const outDir = path.join(docsRoot, 'src', 'data');
 const outPath = path.join(outDir, 'changelog.generated.json');
+
+/**
+ * Stable timestamp derived from the source file so repeated runs over an
+ * unchanged CHANGELOG.md produce byte-identical output.
+ * @returns {Promise<string>}
+ */
+async function sourceTimestamp() {
+  try {
+    const info = await stat(sourcePath);
+    return info.mtime.toISOString();
+  } catch {
+    return new Date(0).toISOString();
+  }
+}
 
 /** @typedef {'feature' | 'improve' | 'fix'} CategoryKey */
 
@@ -39,9 +53,10 @@ const EMPTY_ITEM_RE = /暂无内容/;
 
 /**
  * @param {string} markdown
+ * @param {string} generatedAt
  * @returns {import('../src/lib/changelog').ChangelogData}
  */
-function parseChangelog(markdown) {
+function parseChangelog(markdown, generatedAt) {
   const lines = markdown.replace(/\r\n/g, '\n').split('\n');
   /** @type {import('../src/lib/changelog').ChangelogRelease[]} */
   const releases = [];
@@ -167,7 +182,7 @@ function parseChangelog(markdown) {
   return {
     ok: true,
     releases: nonEmpty,
-    generatedAt: new Date().toISOString(),
+    generatedAt,
     source: 'CHANGELOG.md',
   };
 }
@@ -200,16 +215,18 @@ async function writeOutput(data) {
 }
 
 async function main() {
+  const generatedAt = await sourceTimestamp();
+
   try {
     const markdown = await readFile(sourcePath, 'utf8');
-    const data = parseChangelog(markdown);
+    const data = parseChangelog(markdown, generatedAt);
 
     if (data.releases.length === 0) {
       await writeOutput({
         ok: false,
         error: 'CHANGELOG.md 未解析到任何版本条目',
         releases: [],
-        generatedAt: new Date().toISOString(),
+        generatedAt,
         source: 'CHANGELOG.md',
       });
       console.warn(
@@ -228,7 +245,7 @@ async function main() {
       ok: false,
       error: message,
       releases: [],
-      generatedAt: new Date().toISOString(),
+      generatedAt,
       source: 'CHANGELOG.md',
     });
     console.warn(`[parse-changelog] soft-fail: ${message}`);
