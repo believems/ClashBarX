@@ -93,17 +93,8 @@ jobs:
 
               bump="${INPUT_BUMP:-auto}"
               if [[ "$bump" == "auto" || -z "$bump" ]]; then
-                commit_lines="$(git log --format='%s%n%b' $range)"
-                bump=""
-                if grep -Eq 'BREAKING CHANGE|^[^[:space:]]+(\([^)]+\))?!:' <<< "$commit_lines"; then
-                  bump="major"
-                elif grep -Eq '^feat(\([^)]+\))?:' <<< "$commit_lines"; then
-                  bump="minor"
-                elif grep -Eq '^(fix|perf|refactor|build|ci|revert|chore|docs|style|test)(\([^)]+\))?:' <<< "$commit_lines"; then
-                  bump="patch"
-                fi
-
-                if [[ -z "$bump" ]]; then
+                chmod +x Scripts/resolve_version_bump.sh
+                if ! bump="$(git log --format='%s%n%b' $range | Scripts/resolve_version_bump.sh)"; then
                   echo "No releasable commits found since ${last_tag:-repository start}. Set bump manually." >&2
                   exit 1
                 fi

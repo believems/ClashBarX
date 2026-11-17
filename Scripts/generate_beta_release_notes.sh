@@ -10,7 +10,7 @@ fi
 tag="$1"
 version="$2"
 output_path="${3:-release.md}"
-source_branch="${SOURCE_BRANCH:-beta}"
+source_branch="${SOURCE_BRANCH:-${GITHUB_REF_NAME:-alpha}}"
 
 if [[ -z "${GITHUB_REPOSITORY:-}" ]]; then
   echo "GITHUB_REPOSITORY is required" >&2

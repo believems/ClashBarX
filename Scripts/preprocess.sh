@@ -156,11 +156,20 @@ prepare_icon() {
   iconset_dir="${iconset_work_dir}.iconset"
   mv "$iconset_work_dir" "$iconset_dir"
 
+  # Source artwork is 512x512, so @2x variants are only emitted up to 512
+  # (16/32/128/256 -> 32/64/256/512). Rendering 1024px from a 512px source
+  # would only add upscaled, blurry data to the .icns.
+  local source_pixels
+  source_pixels="$(sips -g pixelWidth "$ICON_SOURCE" 2>/dev/null | awk '/pixelWidth/ {print $2}')"
+  source_pixels="${source_pixels:-512}"
+
   for size in 16 32 128 256 512; do
     sips -z "$size" "$size" "$ICON_SOURCE" --out "$iconset_dir/icon_${size}x${size}.png" >/dev/null
-    # local double_size
-    # double_size=$((size * 2))
-    # sips -z "$double_size" "$double_size" "$ICON_SOURCE" --out "$iconset_dir/icon_${size}x${size}@2x.png" >/dev/null
+    double_size=$((size * 2))
+    if [ "$double_size" -le "$source_pixels" ]; then
+      sips -z "$double_size" "$double_size" "$ICON_SOURCE" \
+        --out "$iconset_dir/icon_${size}x${size}@2x.png" >/dev/null
+    fi
   done
 
   if iconutil --convert icns "$iconset_dir" --output "$PREPROCESSED_ICON_PATH"; then
