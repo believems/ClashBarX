@@ -179,3 +179,12 @@ final class ScriptToolingTests: XCTestCase {
         return try XCTUnwrap(digits.first, "could not read pixelWidth from: \(result.stdout)")
     }
 }
+
+extension ScriptToolingTests {
+    func testSyncUpstreamScriptParses() throws {
+        let result = try self.run(
+            "/bin/bash",
+            ["-n", self.repoRoot.appendingPathComponent("Scripts/sync_upstream.sh").path])
+        XCTAssertEqual(result.status, 0, result.stderr)
+    }
+}
