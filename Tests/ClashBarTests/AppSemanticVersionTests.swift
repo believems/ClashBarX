@@ -1,0 +1,54 @@
+import XCTest
+@testable import ClashBar
+
+final class AppSemanticVersionTests: XCTestCase {
+    func testParsesPrefixedAndBareVersions() {
+        XCTAssertEqual(AppSemanticVersion("v1.19.31")?.displayString, "1.19.31")
+        XCTAssertEqual(AppSemanticVersion("1.19.31")?.displayString, "1.19.31")
+        XCTAssertEqual(AppSemanticVersion("Mihomo Meta v1.19.31")?.displayString, "1.19.31")
+    }
+
+    /// Hyphenated build labels are treated as prerelease suffixes and dropped, so
+    /// the version must still be found when it appears after the hyphen.
+    func testHyphenatedLabelsAreNotParsedAsVersions() {
+        XCTAssertNil(AppSemanticVersion("alpha-git-abc123"))
+        XCTAssertNil(AppSemanticVersion("meta-v1.2.3"))
+    }
+
+    func testStripsPrereleaseAndBuildMetadata() {
+        XCTAssertEqual(AppSemanticVersion("v1.2.3-beta.1")?.displayString, "1.2.3")
+        XCTAssertEqual(AppSemanticVersion("v1.2.3+build.9")?.displayString, "1.2.3")
+    }
+
+    func testRejectsVersionsWithoutDigits() {
+        XCTAssertNil(AppSemanticVersion(""))
+        XCTAssertNil(AppSemanticVersion("alpha"))
+    }
+
+    func testComparableAcrossDifferentComponentCounts() {
+        XCTAssertLessThan(AppSemanticVersion("1.19.9")!, AppSemanticVersion("1.19.31")!)
+        XCTAssertLessThan(AppSemanticVersion("1.19")!, AppSemanticVersion("1.19.1")!)
+        XCTAssertFalse(AppSemanticVersion("1.2")! < AppSemanticVersion("1.2.0")!)
+    }
+
+    func testIsNewerReleaseIgnoresLeadingV() {
+        XCTAssertTrue(AppSemanticVersion.isNewerRelease(tagName: "v0.3.7", than: "0.3.6"))
+        XCTAssertFalse(AppSemanticVersion.isNewerRelease(tagName: "v0.3.6", than: "0.3.6"))
+        XCTAssertFalse(AppSemanticVersion.isNewerRelease(tagName: "v0.3.5", than: "0.3.6"))
+    }
+
+    func testNormalizedDisplayVersionFallsBackWhenUnparsable() {
+        XCTAssertEqual(AppSemanticVersion.normalizedDisplayVersion(from: "v1.2.3"), "1.2.3")
+        XCTAssertEqual(AppSemanticVersion.normalizedDisplayVersion(from: " alpha "), "alpha")
+    }
+
+    /// Guards the TUN `mips` stack gate: the runtime compares the core version
+    /// string against this minimum, so the comparison must be numeric.
+    @MainActor
+    func testMipsStackMinimumGate() {
+        let minimum = AppSemanticVersion(AppViewModel.mipsStackMinimumCoreVersion)!
+        XCTAssertTrue(AppSemanticVersion("v1.19.31")! >= minimum)
+        XCTAssertTrue(AppSemanticVersion("v1.20.0")! >= minimum)
+        XCTAssertFalse(AppSemanticVersion("v1.19.30")! >= minimum)
+    }
+}

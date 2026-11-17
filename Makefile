@@ -17,7 +17,7 @@ WITH_CORE ?= 0
 RELEASE_OPTIMIZE_FOR_SIZE ?= 1
 STRIP_BINARIES ?= 1
 
-.PHONY: help build dist dmg clean
+.PHONY: help build dist dmg clean test
 
 help:
 	@printf "%s\n" \
@@ -25,6 +25,7 @@ help:
 		"" \
 		"Targets:" \
 		"  make build        Build dist/$(APP_NAME).app (default: no core)" \
+		"  make test         Run the Swift test suite" \
 		"  make dist         Build app + dmg (default: no core)" \
 		"  make dmg          Build dmg from existing dist/$(APP_NAME).app" \
 		"  make clean        Remove .build, dist, .swiftpm and Packages" \
@@ -41,6 +42,9 @@ help:
 format:
 	swiftformat . --config .swiftformat 
 	swiftlint lint --config .swiftlint.yml
+
+test:
+	swift test
 
 build:
 	APP_NAME="$(APP_NAME)" \
