@@ -77,7 +77,7 @@ extension AppViewModel {
         guard isPanelPresented != presented else { return }
         isPanelPresented = presented
         if !presented {
-            cancelProxyPortsAutoSave()
+            self.flushProxyPortsAutoSaveIfNeeded()
             self.resetTrafficTotalsForHiddenPanel()
             self.releasePanelCachedData()
         }

@@ -23,7 +23,7 @@ struct LogsTabView: TranslatingView {
         let logs = self.viewModel.visibleLogs
 
         return VStack(alignment: .leading, spacing: T.space6) {
-            self.logsControlCard(filteredCount: logs.count)
+            self.logsControlCard(filteredCount: self.viewModel.matchedCount)
 
             if logs.isEmpty {
                 emptyCard(self.tr("ui.empty.logs"))

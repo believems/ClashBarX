@@ -81,6 +81,10 @@ extension AppViewModel {
     }
 
     func applyProxyPorts(autoSaved: Bool = false) async {
+        if autoSaved, !ProxyPortsDraft.isAutoSavable(self.proxyPortFields) {
+            return
+        }
+
         guard let body = self.validatedPortPatchBody(
             fields: self.proxyPortFields,
             errorMessageKey: "app.settings.error.port_range",
@@ -94,8 +98,12 @@ extension AppViewModel {
 
     func scheduleProxyPortsAutoSaveIfNeeded() {
         guard !suppressSettingsPersistence else { return }
-        guard settingsSyncingKey == nil else { return }
+        guard settingsSyncingKey == nil else {
+            self.proxyPortsAutoSavePending = true
+            return
+        }
 
+        self.proxyPortsAutoSavePending = false
         proxyPortsAutoSaveTask?.cancel()
         proxyPortsAutoSaveTask = Task { [weak self] in
             do {
@@ -114,8 +122,35 @@ extension AppViewModel {
     }
 
     func cancelProxyPortsAutoSave() {
+        self.cancelProxyPortsAutoSaveTask()
+        self.proxyPortsAutoSavePending = false
+    }
+
+    func cancelProxyPortsAutoSaveTask() {
         proxyPortsAutoSaveTask?.cancel()
         proxyPortsAutoSaveTask = nil
+    }
+
+    func flushProxyPortsAutoSaveIfNeeded() {
+        guard self.proxyPortsAutoSaveTask != nil || self.proxyPortsAutoSavePending else { return }
+        self.cancelProxyPortsAutoSave()
+
+        Task { [weak self] in
+            guard let self else { return }
+            await self.applyProxyPorts(autoSaved: true)
+        }
+    }
+
+    func retryPendingProxyPortsAutoSaveIfNeeded() {
+        guard self.proxyPortsAutoSavePending else { return }
+        // Reconciliation writes the applied ports back into the UI, which can
+        // re-trigger onChange. Only retry while the edited ports still differ
+        // from the last applied snapshot, otherwise this would never settle.
+        guard ProxyPortsDraft.differs(self.proxyPortFields, from: self.lastSyncedEditableSettings) else {
+            self.proxyPortsAutoSavePending = false
+            return
+        }
+        self.scheduleProxyPortsAutoSaveIfNeeded()
     }
 
     func syncEditableSettings(from config: ConfigSnapshot) {

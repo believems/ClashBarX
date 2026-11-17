@@ -49,13 +49,16 @@ extension AppViewModel {
         successMessage: String,
         syncSystemProxyPort: Bool = true) async -> Bool
     {
-        self.cancelProxyPortsAutoSave()
+        self.cancelProxyPortsAutoSaveTask()
         settingsFeedbackClearTask?.cancel()
         settingsFeedbackClearTask = nil
         settingsSyncingKey = syncingKey
         settingsErrorMessage = nil
         settingsSavedMessage = nil
-        defer { settingsSyncingKey = nil }
+        defer {
+            settingsSyncingKey = nil
+            self.retryPendingProxyPortsAutoSaveIfNeeded()
+        }
         let shouldSyncSystemProxyPort = syncSystemProxyPort && !self.isRemoteTarget && body.keys.contains { key in
             key == "mixed-port" || key == "port" || key == "socks-port"
         }

@@ -7,6 +7,9 @@ final class LogsViewModel: ObservableObject {
     @Published var selectedLevels: Set<LogLevelFilter> = []
     @Published var searchText: String = ""
     @Published private(set) var visibleLogs: [AppErrorLogEntry] = []
+    @Published private(set) var matchedCount: Int = 0
+
+    private static let renderLimit = 120
 
     init() {}
 
@@ -24,15 +27,15 @@ final class LogsViewModel: ObservableObject {
         normalizedLevel: @escaping (String) -> String,
         levelFilter: @escaping (String) -> LogLevelFilter)
     {
-        let source = logs.prefix(120)
         let trimmedKeyword = self.searchText.trimmed
         let isShowingAllSources = self.selectedSources.isEmpty
         let isShowingAllLevels = self.selectedLevels.isEmpty
+        let isShowingAll = trimmedKeyword.isEmpty && isShowingAllSources && isShowingAllLevels
 
-        let nextLogs: [AppErrorLogEntry] = if trimmedKeyword.isEmpty, isShowingAllSources, isShowingAllLevels {
-            Array(source)
+        let matched: [AppErrorLogEntry] = if isShowingAll {
+            logs
         } else {
-            source.filter { log in
+            logs.filter { log in
                 guard isShowingAllSources || self.selectedSources.contains(log.source) else { return false }
                 guard trimmedKeyword.isEmpty || searchTextContent(log).localizedStandardContains(trimmedKeyword)
                 else {
@@ -43,6 +46,11 @@ final class LogsViewModel: ObservableObject {
             }
         }
 
+        let nextLogs = Array(matched.prefix(Self.renderLimit))
+
+        if self.matchedCount != matched.count {
+            self.matchedCount = matched.count
+        }
         guard nextLogs != self.visibleLogs else { return }
         self.visibleLogs = nextLogs
     }
