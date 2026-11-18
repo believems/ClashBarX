@@ -619,13 +619,17 @@ extension AppViewModel {
         }
     }
 
-    func runNoResponseAction(_ name: String, operation: () async throws -> Void) async {
+    /// Runs `operation`, logs the outcome and returns whether it succeeded.
+    @discardableResult
+    func runNoResponseAction(_ name: String, operation: () async throws -> Void) async -> Bool {
         do {
             ensureAPIClient()
             try await operation()
             appendLog(level: "info", message: tr("log.action.success", name))
+            return true
         } catch {
             appendLog(level: "error", message: tr("log.action.failed", name, error.localizedDescription))
+            return false
         }
     }
 }

@@ -512,6 +512,12 @@ struct SystemTabView: TranslatingView {
                         isOn: item.isOn,
                         isDisabled: self.appViewModel.isCoreSettingSyncing)
                 }
+                // Stored by the app, but it closes connections on whichever core is active, so it
+                // sits with the core settings rather than the local-only ones.
+                self.settingsToggleRow(
+                    self.tr("ui.settings.close_connections_on_proxy_switch"),
+                    symbol: "bolt.horizontal.circle",
+                    isOn: self.$appViewModel.closeConnectionsOnProxySwitch)
             }
 
             self.settingsSection(

@@ -176,6 +176,10 @@ enum Endpoint {
             max(5, TimeInterval(timeout) / 1000.0 + 2)
         case .upgradeCore, .upgradeGeo:
             60
+        case .switchProxy:
+            // Selecting a dead node in a fallback group makes mihomo re-test it synchronously
+            // (up to 5s) before answering.
+            10
         default:
             2
         }

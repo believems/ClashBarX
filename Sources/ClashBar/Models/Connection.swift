@@ -37,6 +37,57 @@ struct ConnectionsSnapshot: Decodable, Equatable {
     }
 }
 
+/// Every live connection's id, type and proxy chain, without the retention cap of
+/// `ConnectionsSnapshot`.
+struct ConnectionRoutesSnapshot: Decodable {
+    struct Route: Decodable {
+        let id: String
+        /// Leaf first: the dialed node, then each enclosing group up to the matched one.
+        let chains: [String]
+        let type: String?
+
+        private enum CodingKeys: String, CodingKey {
+            case id
+            case chains
+            case metadata
+        }
+
+        private enum MetadataKeys: String, CodingKey {
+            case type
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            self.id = try container.decode(String.self, forKey: .id)
+            self.chains = try container.decodeIfPresent([String].self, forKey: .chains) ?? []
+            let metadata = try? container.nestedContainer(keyedBy: MetadataKeys.self, forKey: .metadata)
+            self.type = try? metadata?.decodeIfPresent(String.self, forKey: .type)
+        }
+
+        /// True when the connection passes through `group` and that group handed it to a member
+        /// other than `selection`. mihomo's own connections (core upgrade, GEO and provider
+        /// downloads) are never reported, since they are not retried after being closed.
+        func isPinned(through group: String, toOtherThan selection: String) -> Bool {
+            guard self.type != "Inner",
+                  let index = self.chains.firstIndex(of: group),
+                  index > 0
+            else { return false }
+            return self.chains[index - 1] != selection
+        }
+    }
+
+    let connections: [Route]
+
+    private enum CodingKeys: String, CodingKey {
+        case connections
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.connections = try container.decodeIfPresent([Route].self, forKey: .connections) ?? []
+    }
+}
+
 struct ConnectionSummary: Codable, Equatable, Identifiable {
     let id: String
     let upload: Int64?

@@ -125,9 +125,95 @@ extension AppViewModel {
     }
 
     func switchProxy(group: String, target: String) async {
-        await runNoResponseAction(tr("log.action_name.switch_proxy", group, target)) {
-            try await self.clientOrThrow().requestNoResponse(.switchProxy(name: group, target: target))
+        let controllerAtStart = self.controller
+        let previous = self.proxyGroups.first { $0.name == group }?.now
+        let switched = await runNoResponseAction(tr("log.action_name.switch_proxy", group, target)) {
+            do {
+                try await self.clientOrThrow().requestNoResponse(.switchProxy(name: group, target: target))
+            } catch let error as URLError where error.code == .timedOut {
+                // A timeout does not mean the core rejected the switch; it may have applied it
+                // after a slow re-test. Go by the group's actual selection instead.
+                await self.refreshProxyGroups()
+                guard self.proxyGroups.first(where: { $0.name == group })?.now == target else { throw error }
+                return
+            }
             await self.refreshProxyGroups()
+        }
+        guard switched, self.closeConnectionsOnProxySwitch else { return }
+
+        // Close against what the core actually selected: url-test and fallback groups can keep their
+        // current node when the requested one is dead. If the refreshed selection still equals the
+        // pre-switch one, either nothing changed or the refresh failed; skipping is safe both ways.
+        let selection = self.proxyGroups.first { $0.name == group }?.now ?? target
+        guard selection == target || selection != previous else { return }
+
+        await self.closeConnections(through: group, notOn: selection, controller: controllerAtStart)
+
+        // mihomo lists a connection only once its dial succeeds, so connections that were still
+        // dialing the old node at switch time show up later. Sweep once more after they settle.
+        try? await Task.sleep(nanoseconds: Self.proxySwitchFollowUpSweepDelayNanoseconds)
+        guard self.closeConnectionsOnProxySwitch,
+              self.proxyGroups.first(where: { $0.name == group })?.now == selection
+        else { return }
+        await self.closeConnections(through: group, notOn: selection, controller: controllerAtStart)
+    }
+
+    private static let proxySwitchFollowUpSweepDelayNanoseconds: UInt64 = 2_000_000_000
+    private static let maxConcurrentConnectionCloses = 4
+
+    /// Closes the connections that pass through `group` on a hop other than `selection`, i.e. the
+    /// ones still pinned to the previously selected node. Does nothing if the active controller
+    /// changed since the switch started, so a machine switch mid-flight never hits the wrong core.
+    private func closeConnections(through group: String, notOn selection: String, controller: String) async {
+        guard self.controller == controller else { return }
+        let actionName = tr("log.action_name.close_group_connections", group)
+
+        let client: MihomoAPIService
+        let ids: [String]
+        do {
+            client = try self.clientOrThrow()
+            let snapshot: ConnectionRoutesSnapshot = try await client.request(.connections(interval: nil))
+            ids = snapshot.connections
+                .filter { $0.isPinned(through: group, toOtherThan: selection) }
+                .map(\.id)
+        } catch {
+            appendLog(level: "error", message: tr("log.action.failed", actionName, error.localizedDescription))
+            return
+        }
+        guard !ids.isEmpty, self.controller == controller else { return }
+
+        await self.runConnectionMutation(actionName: actionName) {
+            let failures = await Self.closeConnections(ids, using: client)
+            if failures > 0 {
+                throw ConnectionCloseError(
+                    errorDescription: self.tr("log.connection.close_partial_failure", failures, ids.count))
+            }
+        }
+    }
+
+    /// Closes `ids` with at most `maxConcurrentConnectionCloses` requests in flight, so a large batch
+    /// does not queue behind URLSession's per-host limit and time out. Returns the failure count.
+    private static func closeConnections(_ ids: [String], using client: MihomoAPIService) async -> Int {
+        await withTaskGroup(of: Bool.self) { taskGroup in
+            var pending = ids.makeIterator()
+            func enqueueNext() {
+                guard let id = pending.next() else { return }
+                taskGroup.addTask {
+                    (try? await client.requestNoResponse(.closeConnection(id: id))) != nil
+                }
+            }
+
+            for _ in 0..<Self.maxConcurrentConnectionCloses {
+                enqueueNext()
+            }
+            var failures = 0
+            while let succeeded = await taskGroup.next() {
+                if !succeeded {
+                    failures += 1
+                }
+                enqueueNext()
+            }
+            return failures
         }
     }
 
@@ -488,7 +574,15 @@ extension AppViewModel {
     private func runConnectionMutation(actionName: String, operation: @escaping () async throws -> Void) async {
         await runNoResponseAction(actionName) {
             try await operation()
-            await self.refreshConnections()
+            // A live connections stream reports the change on its next tick; only start one if
+            // none is running, instead of tearing down and reopening the WebSocket.
+            if self.webSocketTask(for: .connections) == nil {
+                await self.refreshConnections()
+            }
         }
     }
+}
+
+private struct ConnectionCloseError: LocalizedError {
+    let errorDescription: String?
 }

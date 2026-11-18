@@ -163,6 +163,7 @@
 "ui.network.sort.direction.ascending" = "升序：从低到高 / 从旧到新";
 
 "ui.settings.auto_start_core" = "内核自启";
+"ui.settings.close_connections_on_proxy_switch" = "切换节点时断开旧连接";
 "ui.settings.launch_at_login" = "开机自启";
 "ui.settings.menu_bar_style" = "状态栏样式";
 "ui.settings.language" = "界面语言";
@@ -394,6 +395,8 @@
 "log.action_name.update_rule_provider" = "更新规则提供者 %@";
 "log.action_name.update_proxy_provider" = "更新代理提供者 %@";
 "log.action_name.close_all_connections" = "关闭全部连接";
+"log.action_name.close_group_connections" = "断开经由 %@ 的连接";
+"log.connection.close_partial_failure" = "%d/%d 个连接断开失败";
 "log.action_name.close_connection" = "关闭连接 %@";
 "log.action_name.flush_fakeip_cache" = "清理 FakeIP 缓存";
 "log.action_name.flush_dns_cache" = "清理 DNS 缓存";

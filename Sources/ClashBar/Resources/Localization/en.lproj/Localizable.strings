@@ -161,6 +161,7 @@
 "ui.network.sort.direction.ascending" = "Ascending: low to high / oldest first";
 
 "ui.settings.auto_start_core" = "Auto Start Core";
+"ui.settings.close_connections_on_proxy_switch" = "Close Connections on Proxy Switch";
 "ui.settings.launch_at_login" = "Start at Login";
 "ui.settings.menu_bar_style" = "Menu Bar Style";
 "ui.settings.language" = "UI Language";
@@ -392,6 +393,8 @@
 "log.action_name.update_rule_provider" = "Update rule provider %@";
 "log.action_name.update_proxy_provider" = "Update proxy provider %@";
 "log.action_name.close_all_connections" = "Close all connections";
+"log.action_name.close_group_connections" = "Close connections via %@";
+"log.connection.close_partial_failure" = "%d of %d connections could not be closed";
 "log.action_name.close_connection" = "Close connection %@";
 "log.action_name.flush_fakeip_cache" = "Flush FakeIP cache";
 "log.action_name.flush_dns_cache" = "Flush DNS cache";
