@@ -1,3 +1,21 @@
+## v0.4.6
+
+![macOS](https://img.shields.io/badge/macOS-Supported-000000?style=flat-square&logo=apple) ![Version](https://img.shields.io/badge/Release-v0.4.6-10B981?style=flat-square) ![Core](https://img.shields.io/badge/Core-Mihomo-6366f1?style=flat-square)
+
+> 本次更新新增「切换节点时断开旧连接」：网络不好换节点时，已经建立在旧节点上的连接会被断开并通过新节点重连，切换立刻生效，不用再手动关连接。
+
+### 📝 更新日志 (Changelog)
+
+**✨ 新功能 (Features)**
+
+- ![New](https://img.shields.io/badge/New-10B981?style=flat-square) **切换节点时断开旧连接**：在「核心设置」中开启后（默认关闭），切换策略组节点时只断开仍走旧节点的连接，直连和其他策略组的连接不受影响；url-test / fallback 组以内核实际选中的节点为准，mihomo 内部的下载与升级连接不会被断开。
+
+**🐞 修复问题 (Bug Fixes)**
+
+- ![Fix](https://img.shields.io/badge/Fix-EF4444?style=flat-square) **fallback 组切换误报失败**：在 fallback 组中选择失效节点时，mihomo 会先重新测速（最多约 5 秒），原先 2 秒超时导致切换被误报为失败；现在超时延长至 10 秒，超时后也会以组的实际选中状态判断结果。
+
+---
+
 ## v0.4.5
 
 ![macOS](https://img.shields.io/badge/macOS-Supported-000000?style=flat-square&logo=apple) ![Version](https://img.shields.io/badge/Release-v0.4.5-10B981?style=flat-square) ![Core](https://img.shields.io/badge/Core-Mihomo-6366f1?style=flat-square)
