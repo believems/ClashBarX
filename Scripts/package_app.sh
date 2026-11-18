@@ -125,7 +125,10 @@ resolve_mihomo_install_path() {
   local filename="${1:-mihomo}"
   local bundle_dir="$APP/Contents/Resources/ClashBar_ClashBar.bundle"
   local resources_dir="$APP/Contents/Resources"
+  # Newer SwiftPM builds the resource bundle with a Contents/Resources layout, and the app
+  # resolves resources from the bundle's resourceURL, so prefer that directory when it exists.
   local candidates=(
+    "$bundle_dir/Contents/Resources/$filename"
     "$bundle_dir/$filename"
     "$bundle_dir/bin/$filename"
     "$bundle_dir/Resources/bin/$filename"
