@@ -17,6 +17,11 @@
 "ui.header.status.starting" = "Starting";
 "ui.header.status.failed" = "Failed";
 "ui.header.status.stopped" = "Stopped";
+"ui.header.status.degraded" = "Running (controller not responding normally)";
+"ui.header.status.unknown" = "Status unknown";
+"ui.header.status.checking" = "Checking connection";
+"ui.header.status.connected" = "Connected";
+"ui.header.status.connection_failed" = "Connection failed";
 
 "ui.action.stop" = "Stop";
 "ui.action.quit" = "Quit";

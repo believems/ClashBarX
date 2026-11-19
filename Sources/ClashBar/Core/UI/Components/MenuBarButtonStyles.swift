@@ -3,27 +3,75 @@ import SwiftUI
 // swiftlint:disable:next type_name
 private typealias T = MenuBarLayoutTokens
 
+/// The neutral gray levels used across the panel, defined once.
+///
+/// Each level is `Color.primary` at a fixed opacity, resolved by SwiftUI so it follows light and
+/// dark mode without a light flash when the panel opens. Custom colors don't get an
+/// Increase Contrast variant from the system, so every level carries a stronger opacity that is
+/// used while that setting is on (Apple HIG, Color: supply an increased contrast option).
+/// `ClashBarAppDelegate` refreshes the panel when the setting changes.
+enum NeutralFill {
+    static var resting: Color { level(0.05, increased: 0.12) }
+    static var hover: Color { level(0.09, increased: 0.18) }
+    static var pressed: Color { level(0.16, increased: 0.28) }
+    /// Selected item of a group: current tab, selected chip.
+    static var selected: Color { level(0.10, increased: 0.22) }
+    static var toggledOn: Color { level(0.20, increased: 0.34) }
+    static var toggledOnHover: Color { level(0.24, increased: 0.38) }
+    static var toggledOnPressed: Color { level(0.28, increased: 0.42) }
+    /// Recessed backgrounds: segmented-control tracks, progress tracks, text fields.
+    static var track: Color { level(0.07, increased: 0.16) }
+    /// Grouped section surfaces.
+    static var card: Color { level(0.045, increased: 0.1) }
+    /// Hairline borders and separators.
+    static var hairline: Color { level(0.08, increased: 0.35) }
+    /// Border shown only with Increase Contrast, for surfaces that are otherwise told apart by fill.
+    static var contrastBorder: Color { level(0, increased: 0.35) }
+
+    static var increasesContrast: Bool {
+        NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+    }
+
+    private static func level(_ base: Double, increased: Double) -> Color {
+        Color.primary.opacity(self.increasesContrast ? increased : base)
+    }
+}
+
 /// Shared fills for interactive surfaces. Every clickable element moves through
 /// the same rest → hover → pressed ladder so affordance and feedback stay consistent.
 enum InteractiveFill {
-    static func neutral(hovered: Bool, pressed: Bool, resting: Double = 0) -> Color {
-        let opacity = if pressed {
-            0.16
-        } else if hovered {
-            0.09
-        } else {
-            resting
+    static func neutral(hovered: Bool, pressed: Bool, resting: Bool = false) -> Color {
+        if pressed {
+            return NeutralFill.pressed
         }
-        return Color.primary.opacity(opacity)
+        if hovered {
+            return NeutralFill.hover
+        }
+        return resting ? NeutralFill.resting : .clear
     }
 
-    static func accent(hovered: Bool, pressed: Bool) -> Color {
-        Color(nsColor: .controlAccentColor).opacity(pressed ? 0.30 : (hovered ? 0.22 : 0.16))
+    static func selected(pressed: Bool) -> Color {
+        pressed ? NeutralFill.pressed : NeutralFill.selected
+    }
+
+    /// An icon button that is switched on: stronger than the resting fill of its siblings so
+    /// on/off reads at a glance without borrowing the accent color.
+    static func toggledOn(hovered: Bool, pressed: Bool) -> Color {
+        if pressed {
+            return NeutralFill.toggledOnPressed
+        }
+        return hovered ? NeutralFill.toggledOnHover : NeutralFill.toggledOn
+    }
+
+    /// Raised selected segment of a segmented control.
+    static func raisedSegment(_ colorScheme: ColorScheme) -> Color {
+        guard colorScheme == .dark else { return Color(nsColor: .controlBackgroundColor) }
+        return Color.white.opacity(NeutralFill.increasesContrast ? 0.32 : 0.2)
     }
 }
 
 /// Square icon button with a visible resting surface, hover highlight and pressed state.
-/// `isOn` renders the toggled appearance (accent tint) for buttons that represent a state.
+/// `isOn` renders the toggled appearance (raised neutral fill) for buttons that represent a state.
 struct IconButtonStyle: ButtonStyle {
     var size: CGFloat = 26
     var isOn: Bool = false
@@ -61,7 +109,7 @@ struct IconButtonStyle: ButtonStyle {
 
         private var foreground: Color {
             if self.style.isOn {
-                return Color(nsColor: .controlAccentColor)
+                return Color(nsColor: .labelColor)
             }
             if self.style.destructive, self.hovered {
                 return Color(nsColor: .systemRed)
@@ -74,7 +122,7 @@ struct IconButtonStyle: ButtonStyle {
 
         private func fill(pressed: Bool) -> Color {
             if self.style.isOn {
-                return InteractiveFill.accent(hovered: self.hovered, pressed: pressed)
+                return InteractiveFill.toggledOn(hovered: self.hovered, pressed: pressed)
             }
             if self.style.destructive, self.hovered || pressed {
                 return Color(nsColor: .systemRed).opacity(pressed ? 0.24 : 0.14)
@@ -82,7 +130,7 @@ struct IconButtonStyle: ButtonStyle {
             return InteractiveFill.neutral(
                 hovered: self.hovered,
                 pressed: pressed,
-                resting: self.style.showsRestingFill ? 0.05 : 0)
+                resting: self.style.showsRestingFill)
         }
     }
 }
@@ -136,22 +184,23 @@ struct ChipButtonStyle: ButtonStyle {
 
         var body: some View {
             let pressed = self.configuration.isPressed
-            let accent = self.style.tint ?? Color(nsColor: .controlAccentColor)
             let shape = Capsule(style: .continuous)
 
             self.configuration.label
                 .font(.app(size: T.FontSize.caption, weight: self.style.selected ? .semibold : .medium))
-                .foregroundStyle(self.style.selected ? Color.white : Color(nsColor: .labelColor).opacity(0.85))
+                .foregroundStyle(self.foreground)
                 .lineLimit(1)
                 .padding(.horizontal, T.space8)
                 .frame(height: 20)
                 .background {
-                    if self.style.selected {
-                        shape.fill(accent.opacity(pressed ? 0.75 : 1))
+                    if self.style.selected, let tint = self.style.tint {
+                        shape.fill(tint.opacity(pressed ? 0.75 : 1))
+                    } else if self.style.selected {
+                        shape.fill(InteractiveFill.selected(pressed: pressed))
                     } else {
                         shape
-                            .fill(InteractiveFill.neutral(hovered: self.hovered, pressed: pressed, resting: 0.05))
-                            .overlay(shape.strokeBorder(Color.primary.opacity(0.10), lineWidth: T.stroke))
+                            .fill(InteractiveFill.neutral(hovered: self.hovered, pressed: pressed, resting: true))
+                            .overlay(shape.strokeBorder(NeutralFill.hairline, lineWidth: T.stroke))
                     }
                 }
                 .contentShape(shape)
@@ -160,6 +209,13 @@ struct ChipButtonStyle: ButtonStyle {
                 .animation(.easeOut(duration: 0.12), value: pressed)
                 .animation(.easeOut(duration: 0.12), value: self.hovered)
                 .onHover { self.hovered = $0 && self.isEnabled }
+        }
+
+        /// A tinted chip is a solid colored capsule with white text; an untinted selected chip
+        /// stays neutral so selection never competes with the accent-colored system controls.
+        private var foreground: Color {
+            guard self.style.selected else { return Color(nsColor: .labelColor).opacity(0.85) }
+            return self.style.tint == nil ? Color(nsColor: .labelColor) : Color.white
         }
     }
 }
@@ -191,9 +247,8 @@ struct MiniSegmentButtonStyle: ButtonStyle {
                 .background {
                     if self.selected {
                         shape
-                            .fill(self.colorScheme == .dark
-                                ? Color.white.opacity(0.22)
-                                : Color(nsColor: .controlBackgroundColor))
+                            .fill(InteractiveFill.raisedSegment(self.colorScheme))
+                            .overlay(shape.strokeBorder(NeutralFill.contrastBorder, lineWidth: T.stroke))
                             .shadow(color: .black.opacity(0.18), radius: 1, y: 0.5)
                     } else {
                         shape.fill(InteractiveFill.neutral(
@@ -205,6 +260,43 @@ struct MiniSegmentButtonStyle: ButtonStyle {
                 .opacity(self.isEnabled ? 1 : 0.4)
                 .animation(.easeOut(duration: 0.12), value: self.hovered)
                 .animation(.easeOut(duration: 0.12), value: self.configuration.isPressed)
+                .onHover { self.hovered = $0 && self.isEnabled }
+        }
+    }
+}
+
+/// Secondary action button on the panel: faint neutral surface with a hairline border, the same
+/// rest → hover → pressed ladder as the other controls.
+struct PanelButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        PanelButtonBody(configuration: configuration)
+    }
+
+    private struct PanelButtonBody: View {
+        let configuration: ButtonStyleConfiguration
+
+        @Environment(\.isEnabled) private var isEnabled
+        @State private var hovered = false
+
+        var body: some View {
+            let pressed = self.configuration.isPressed
+            let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
+
+            self.configuration.label
+                .font(.app(size: T.FontSize.callout, weight: .medium))
+                .foregroundStyle(Color(nsColor: .labelColor))
+                .lineLimit(1)
+                .padding(.horizontal, T.space8)
+                .frame(minHeight: 24)
+                .background {
+                    shape
+                        .fill(InteractiveFill.neutral(hovered: self.hovered, pressed: pressed, resting: true))
+                        .overlay(shape.strokeBorder(NeutralFill.hairline, lineWidth: T.stroke))
+                }
+                .contentShape(shape)
+                .opacity(self.isEnabled ? 1 : 0.4)
+                .animation(.easeOut(duration: 0.12), value: pressed)
+                .animation(.easeOut(duration: 0.12), value: self.hovered)
                 .onHover { self.hovered = $0 && self.isEnabled }
         }
     }
@@ -226,8 +318,8 @@ struct GroupedSectionBackground: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: self.cornerRadius, style: .continuous)
         shape
-            .fill(Color.primary.opacity(0.045))
-            .overlay(shape.strokeBorder(Color.primary.opacity(0.06), lineWidth: T.stroke))
+            .fill(NeutralFill.card)
+            .overlay(shape.strokeBorder(NeutralFill.hairline, lineWidth: T.stroke))
     }
 }
 
@@ -274,10 +366,10 @@ struct ChipMenu<Content: View>: View {
             .frame(height: 22)
             .background(
                 Capsule(style: .continuous)
-                    .fill(InteractiveFill.neutral(hovered: self.hovered, pressed: false, resting: 0.06))
+                    .fill(InteractiveFill.neutral(hovered: self.hovered, pressed: false, resting: true))
                     .overlay(
                         Capsule(style: .continuous)
-                            .strokeBorder(Color.primary.opacity(0.08), lineWidth: T.stroke)))
+                            .strokeBorder(NeutralFill.hairline, lineWidth: T.stroke)))
             .contentShape(Capsule(style: .continuous))
         }
         .buttonStyle(.plain)
@@ -304,10 +396,10 @@ private struct AppTextFieldModifier: ViewModifier {
             .focused(self.$focused)
             .padding(.horizontal, T.space8)
             .frame(height: 24)
-            .background(shape.fill(Color.primary.opacity(0.06)))
+            .background(shape.fill(NeutralFill.track))
             .overlay(
                 shape.strokeBorder(
-                    self.focused ? Color(nsColor: .controlAccentColor) : Color.primary.opacity(0.10),
+                    self.focused ? Color(nsColor: .controlAccentColor) : NeutralFill.hairline,
                     lineWidth: self.focused ? 1.5 : T.stroke))
             .animation(.easeOut(duration: 0.12), value: self.focused)
     }

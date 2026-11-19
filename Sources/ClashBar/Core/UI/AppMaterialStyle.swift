@@ -62,7 +62,9 @@ extension View {
         if prominent {
             self.buttonStyle(.borderedProminent)
         } else {
-            self.buttonStyle(.bordered)
+            // Native .bordered renders as a bright gray block on the dark glass panel; a faint
+            // neutral surface matches the panel's other controls.
+            self.buttonStyle(PanelButtonStyle())
         }
     }
 }

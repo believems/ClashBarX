@@ -148,7 +148,7 @@ struct RemoteMachineManagerView: TranslatingView {
             HStack(spacing: rowContentSpacing) {
                 Image(systemName: "desktopcomputer")
                     .font(.app(size: T.FontSize.body, weight: .semibold))
-                    .foregroundStyle(self.nativeAccent.opacity(T.Opacity.solid))
+                    .foregroundStyle(self.nativeSecondaryLabel)
                     .frame(width: rowIconSize)
 
                 VStack(alignment: .leading, spacing: T.space4) {

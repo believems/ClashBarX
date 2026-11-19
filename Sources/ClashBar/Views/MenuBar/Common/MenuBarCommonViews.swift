@@ -58,7 +58,7 @@ extension MenuBarRootView {
 
         return VStack(spacing: 0) {
             Rectangle()
-                .fill(Color.primary.opacity(0.08))
+                .fill(NeutralFill.hairline)
                 .frame(height: T.stroke)
 
             HStack(spacing: T.space2) {
@@ -208,7 +208,7 @@ extension MenuBarRootView {
                 Label(tr("ui.footer.version", update.displayVersion), systemImage: "arrow.down.circle.fill")
                     .labelStyle(.titleAndIcon)
             }
-            .buttonStyle(ChipButtonStyle(selected: true))
+            .buttonStyle(ChipButtonStyle(selected: true, tint: self.nativeAccent))
             .help(tr("ui.footer.version_update_help", update.displayVersion))
             .accessibilityLabel(tr(
                 "ui.footer.version_update_accessibility",
@@ -241,7 +241,7 @@ extension TranslatingView {
         switch appViewModel.runtimeVisualStatus {
         case .runningHealthy: self.nativePositive.opacity(T.Opacity.solid)
         case .runningDegraded: self.nativeWarning.opacity(T.Opacity.solid)
-        case .starting: self.nativeInfo.opacity(T.Opacity.solid)
+        case .starting: self.nativeWarning.opacity(T.Opacity.solid)
         case .failed: self.nativeCritical.opacity(T.Opacity.solid)
         case .stopped: self.nativeSecondaryLabel
         }
@@ -249,17 +249,8 @@ extension TranslatingView {
 }
 
 extension View {
-    var isDarkAppearance: Bool {
-        // swiftlint:disable:next implicit_return
-        NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-    }
-
     var nativeAccent: Color {
         Color(nsColor: .controlAccentColor)
-    }
-
-    var nativeInfo: Color {
-        Color(nsColor: .systemBlue)
     }
 
     var nativePositive: Color {
@@ -274,14 +265,15 @@ extension View {
         Color(nsColor: .systemRed)
     }
 
-    /// Traffic direction tints. Orange/blue differ in hue and lightness (also for color-blind users);
-    /// apply them to glyphs and chart lines only and keep numbers in label colors for legibility.
+    /// Traffic direction tints. Orange/teal differ in hue and lightness (also for color-blind users),
+    /// and teal keeps download apart from the accent color, which marks interactive state only.
+    /// Apply them to glyphs and chart lines only and keep numbers in label colors for legibility.
     var trafficUploadTint: Color {
         Color(nsColor: .systemOrange)
     }
 
     var trafficDownloadTint: Color {
-        Color(nsColor: .systemBlue)
+        Color(nsColor: .systemTeal)
     }
 
     var nativePrimaryLabel: Color {
@@ -320,7 +312,9 @@ extension View {
         Color(nsColor: .separatorColor)
     }
 
-    var nativeHoverFill: Color {
+    /// Highlight of the hovered item in a menu-style list; pair it with `nativeSelectedMenuText`.
+    /// Panel rows use neutral hover fills instead, since this is the system selection color.
+    var nativeMenuHighlightFill: Color {
         Color(nsColor: .selectedContentBackgroundColor)
     }
 
@@ -361,14 +355,16 @@ extension View {
             return self.nativeAccent.opacity(T.Opacity.selection)
         }
         if hovered {
-            return self.nativeHoverFill
+            return InteractiveFill.neutral(hovered: true, pressed: false)
         }
         return self.nativeControlFill
     }
 
     func nativeActionBackground(hovered: Bool, destructive: Bool = false) -> Color {
         guard hovered else { return .clear }
-        return destructive ? self.nativeCritical.opacity(T.Opacity.tint) : self.nativeHoverFill
+        return destructive
+            ? self.nativeCritical.opacity(T.Opacity.tint)
+            : InteractiveFill.neutral(hovered: true, pressed: false)
     }
 
     func nativeActionForeground(hovered: Bool, destructive: Bool = false) -> Color {
@@ -376,17 +372,6 @@ extension View {
             return hovered ? self.nativeCritical : self.nativeSecondaryLabel
         }
         return hovered ? self.nativePrimaryLabel : self.nativeSecondaryLabel
-    }
-
-    func nativeControlSurface(cornerRadius: CGFloat = T.cornerRadius) -> some View {
-        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .fill(self.nativeControlFill.opacity(self.isDarkAppearance ? 0.54 : 0.38))
-            .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(
-                        self.nativeControlBorder.opacity(self.isDarkAppearance ? 0.40 : 0.12),
-                        lineWidth: T.stroke)
-            }
     }
 
     func tabControlCard(@ViewBuilder _ content: () -> some View) -> some View {

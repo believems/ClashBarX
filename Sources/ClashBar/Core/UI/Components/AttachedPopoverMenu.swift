@@ -228,14 +228,15 @@ struct AttachedPopoverMenuItem: View {
     }
 
     private var itemBackground: Color {
-        self.isHovered ? self.nativeHoverFill : .clear
+        self.isHovered ? self.nativeMenuHighlightFill : .clear
     }
 
     private var trailingSelectionForeground: Color {
         if self.isHovered {
             return self.nativeSelectedMenuText
         }
-        return self.nativeAccent
+        // Native menus draw the checkmark in the label color, not the accent.
+        return self.nativePrimaryLabel
     }
 
     private var trailingStatusForeground: Color {

@@ -13,15 +13,20 @@ extension MenuBarRootView {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // MARK: - Mode switcher (native buttons: Liquid Glass on macOS 26+, bordered before)
+    // MARK: - Mode switcher (segmented: neutral track, raised selected segment)
 
+    // Neutral on purpose: per Apple's HIG only one control should carry the accent on its
+    // background, and color must not mean different things across the panel.
     var modeSwitcher: some View {
-        HStack(spacing: T.space6) {
+        HStack(spacing: 3) {
             self.modeButton(tr("ui.mode.rule"), mode: .rule)
             self.modeButton(tr("ui.mode.global"), mode: .global)
             self.modeButton(tr("ui.mode.direct"), mode: .direct)
         }
-        .controlSize(.large)
+        .padding(3)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(NeutralFill.track))
         .frame(width: contentWidth)
         .disabled(!self.appViewModel.isModeSwitchEnabled)
     }
@@ -46,12 +51,11 @@ extension MenuBarRootView {
                 .lineLimit(1)
                 .frame(maxWidth: .infinity)
         }
-        .buttonBorderShape(.roundedRectangle)
-        .modifier(ModeButtonStyle(selected: selected))
+        .buttonStyle(ModeSegmentButtonStyle(selected: selected))
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
-    // MARK: - Tabs (accent-tinted pill marks the current page)
+    // MARK: - Tabs (neutral pill marks the current page)
 
     var topTabs: some View {
         HStack(spacing: T.space2) {
@@ -73,7 +77,7 @@ extension MenuBarRootView {
                 .font(.app(size: T.FontSize.body, weight: selected ? .semibold : .regular))
                 .lineLimit(1)
                 .minimumScaleFactor(T.minimumScale)
-                .foregroundStyle(selected ? nativeAccent : nativeSecondaryLabel)
+                .foregroundStyle(selected ? nativePrimaryLabel : nativeSecondaryLabel)
                 .frame(maxWidth: .infinity)
                 .frame(height: 26)
         }
@@ -106,7 +110,7 @@ private struct TabPillButtonStyle: ButtonStyle {
                 .background {
                     if self.style.selected {
                         shape
-                            .fill(InteractiveFill.accent(hovered: false, pressed: pressed))
+                            .fill(InteractiveFill.selected(pressed: pressed))
                             .matchedGeometryEffect(id: "tab-selection", in: self.style.selectionNamespace)
                     } else {
                         shape.fill(InteractiveFill.neutral(hovered: self.hovered, pressed: pressed))
@@ -121,21 +125,45 @@ private struct TabPillButtonStyle: ButtonStyle {
     }
 }
 
-/// Selected mode uses the prominent (accent) variant, the others the regular one.
-private struct ModeButtonStyle: ViewModifier {
+/// One segment of the mode switcher. The selected segment is raised like a native segmented
+/// control; unselected ones only show hover and press feedback.
+private struct ModeSegmentButtonStyle: ButtonStyle {
     let selected: Bool
 
-    func body(content: Content) -> some View {
-        if #available(macOS 26.0, *) {
-            if self.selected {
-                content.buttonStyle(.glassProminent)
-            } else {
-                content.buttonStyle(.glass)
-            }
-        } else if self.selected {
-            content.buttonStyle(.borderedProminent)
-        } else {
-            content.buttonStyle(.bordered)
+    func makeBody(configuration: Configuration) -> some View {
+        ModeSegmentBody(configuration: configuration, selected: self.selected)
+    }
+
+    private struct ModeSegmentBody: View {
+        let configuration: ButtonStyleConfiguration
+        let selected: Bool
+
+        @Environment(\.isEnabled) private var isEnabled
+        @Environment(\.colorScheme) private var colorScheme
+        @State private var hovered = false
+
+        var body: some View {
+            let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+            let pressed = self.configuration.isPressed
+
+            self.configuration.label
+                .foregroundStyle(self.selected ? Color(nsColor: .labelColor) : Color(nsColor: .secondaryLabelColor))
+                .frame(height: 28)
+                .background {
+                    if self.selected {
+                        shape
+                            .fill(InteractiveFill.raisedSegment(self.colorScheme))
+                            .overlay(shape.strokeBorder(NeutralFill.contrastBorder, lineWidth: T.stroke))
+                            .shadow(color: .black.opacity(0.18), radius: 1, y: 0.5)
+                    } else {
+                        shape.fill(InteractiveFill.neutral(hovered: self.hovered, pressed: pressed))
+                    }
+                }
+                .contentShape(shape)
+                .opacity(self.isEnabled ? 1 : 0.5)
+                .animation(.easeOut(duration: 0.12), value: self.hovered)
+                .animation(.easeOut(duration: 0.12), value: pressed)
+                .onHover { self.hovered = $0 && self.isEnabled }
         }
     }
 }

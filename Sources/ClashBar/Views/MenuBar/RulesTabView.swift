@@ -42,17 +42,17 @@ struct RulesTabView: TranslatingView {
                 Color.clear.frame(width: 24)
                 Text(self.tr("ui.rules.column.target_type"))
                     .font(.app(size: T.FontSize.caption, weight: .medium))
-                    .foregroundStyle(nativeTertiaryLabel)
+                    .foregroundStyle(nativeSecondaryLabel)
                     .frame(width: 120, alignment: .leading)
                     .padding(.trailing, T.space6)
                 Text(self.tr("ui.rules.column.policy"))
                     .font(.app(size: T.FontSize.caption, weight: .medium))
-                    .foregroundStyle(nativeTertiaryLabel)
+                    .foregroundStyle(nativeSecondaryLabel)
                     .padding(.leading, T.space6)
                     .frame(width: 90, alignment: .leading)
                 Text(self.tr("ui.rules.column.stats"))
                     .font(.app(size: T.FontSize.caption, weight: .medium))
-                    .foregroundStyle(nativeTertiaryLabel)
+                    .foregroundStyle(nativeSecondaryLabel)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
             .textCase(.uppercase)
@@ -242,7 +242,7 @@ struct RulesTabView: TranslatingView {
         HStack(spacing: T.space4) {
             Text(title.uppercased())
                 .font(.app(size: T.FontSize.caption, weight: .semibold))
-                .foregroundStyle(nativeTertiaryLabel)
+                .foregroundStyle(nativeSecondaryLabel)
             Text(value)
                 .font(.app(size: T.FontSize.body, weight: .bold))
                 .foregroundStyle(nativePrimaryLabel)
@@ -291,7 +291,7 @@ struct RulesTabView: TranslatingView {
                     .truncationMode(.tail)
                 Text(typeText)
                     .font(.app(size: T.FontSize.caption, weight: .regular))
-                    .foregroundStyle(nativeTertiaryLabel)
+                    .foregroundStyle(nativeSecondaryLabel)
                     .lineLimit(1)
             }
             .frame(width: showsPolicy ? 120 : 120 + 90 + T.space6, alignment: .leading)
@@ -320,7 +320,7 @@ struct RulesTabView: TranslatingView {
                 if let updatedText = stats.updatedText {
                     Text(updatedText)
                         .font(.app(size: T.FontSize.caption, weight: .regular))
-                        .foregroundStyle(nativeTertiaryLabel)
+                        .foregroundStyle(nativeSecondaryLabel)
                         .lineLimit(1)
                 }
             }
@@ -352,7 +352,7 @@ struct RulesTabView: TranslatingView {
         if lower.contains("fishy") {
             return (
                 symbol: "exclamationmark.triangle.fill",
-                color: nativeAccent.opacity(T.Opacity.solid))
+                color: nativeWarning.opacity(T.Opacity.solid))
         }
         return (
             symbol: nil,

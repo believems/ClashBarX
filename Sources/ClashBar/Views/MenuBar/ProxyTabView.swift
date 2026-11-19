@@ -122,7 +122,7 @@ struct ProxyTabView: TranslatingView {
     private func configMenuSSIDBadgeTint(for context: ConfigMenuItemContext) -> Color {
         context.isCurrentSSIDBound
             ? self.nativePositive.opacity(T.Opacity.solid)
-            : self.nativeInfo.opacity(T.Opacity.solid)
+            : self.nativeSecondaryLabel
     }
 
     private func configMenuItemHelpText(ssidHelpText: String?, remoteSubtitle: String?) -> String? {
@@ -188,7 +188,7 @@ struct ProxyTabView: TranslatingView {
     private func configMenuSectionHeader(_ title: String) -> some View {
         Text(title)
             .font(.app(size: T.FontSize.caption, weight: .bold))
-            .foregroundStyle(self.nativeTertiaryLabel)
+            .foregroundStyle(self.nativeSecondaryLabel)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, T.space6)
             .padding(.top, T.space2)
@@ -425,7 +425,7 @@ struct ProxyTabView: TranslatingView {
                     Text(self.tr("ui.machine.remote_readonly"))
                         .font(.app(size: T.FontSize.caption, weight: .regular))
                         .lineLimit(1)
-                        .foregroundStyle(nativeTertiaryLabel)
+                        .foregroundStyle(nativeSecondaryLabel)
                 }
             } else {
                 AttachedPopoverMenu(
@@ -521,11 +521,14 @@ struct ProxyTabView: TranslatingView {
                     .truncationMode(.middle)
                     .minimumScaleFactor(T.minimumScale)
                     .monospacedDigit()
+                // Only the glyph turns green: white text on a solid green chip falls well below
+                // the 4.5:1 contrast Apple's HIG asks for.
                 Image(systemName: copied ? "checkmark" : "doc.on.doc")
                     .font(.system(size: T.FontSize.caption - 1, weight: .semibold))
+                    .foregroundStyle(copied ? self.nativePositive : self.nativePrimaryLabel)
             }
         }
-        .buttonStyle(ChipButtonStyle(selected: copied, tint: self.nativePositive))
+        .buttonStyle(ChipButtonStyle())
         .help("\(helpTitle)\n\(helpDetail)")
     }
 
@@ -907,10 +910,10 @@ private struct ConfigMenuItemView: View {
 
     private var rowBackground: Color {
         if self.isHovered {
-            return self.nativeHoverFill
+            return self.nativeMenuHighlightFill
         }
         if self.selected {
-            return self.nativeHoverFill.opacity(0.34)
+            return self.nativeMenuHighlightFill.opacity(0.34)
         }
         return .clear
     }

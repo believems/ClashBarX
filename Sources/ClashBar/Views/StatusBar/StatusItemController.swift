@@ -80,10 +80,6 @@ private struct StatusItemBannerRootView: View {
         .background {
             Capsule(style: .continuous)
                 .fill(.ultraThinMaterial)
-                .overlay {
-                    Capsule(style: .continuous)
-                        .fill(self.panelTint)
-                }
         }
         .overlay {
             Capsule(style: .continuous)
@@ -173,26 +169,16 @@ private struct StatusItemBannerRootView: View {
         .frame(width: 26, height: 26)
     }
 
-    private var panelTint: Color {
-        self.nativeAccent.opacity(self.isDarkAppearance ? 0.04 : 0.025)
-    }
-
-    private var logoBackground: some ShapeStyle {
-        LinearGradient(
-            colors: [
-                self.nativeInfo.opacity(self.isDarkAppearance ? 0.24 : 0.16),
-                self.nativeAccent.opacity(self.isDarkAppearance ? 0.16 : 0.1),
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing)
+    private var logoBackground: Color {
+        NeutralFill.selected
     }
 
     private var iconBorder: Color {
-        self.nativeInfo.opacity(self.isDarkAppearance ? 0.22 : 0.16)
+        self.nativeControlBorder.opacity(0.6)
     }
 
     private var iconForeground: Color {
-        self.nativeInfo.opacity(T.Opacity.solid)
+        self.nativePrimaryLabel
     }
 }
 

@@ -130,10 +130,20 @@ struct MenuBarHeaderView: TranslatingView {
                         ProgressView()
                             .controlSize(.mini)
                             .frame(width: 10, height: 10)
+                    } else if self.headerConnectionIsFailed {
+                        // A shape as well as a color, so a failure doesn't rely on red alone.
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(self.headerConnectionStatusTint)
+                            .frame(width: 10, height: 10)
+                            .help(self.headerConnectionStatusText)
+                            .accessibilityLabel(self.headerConnectionStatusText)
                     } else {
                         Circle()
                             .fill(self.headerConnectionStatusTint)
                             .frame(width: 8, height: 8)
+                            .help(self.headerConnectionStatusText)
+                            .accessibilityLabel(self.headerConnectionStatusText)
                     }
 
                     Text(self.headerConnectionDisplayText)
@@ -151,7 +161,7 @@ struct MenuBarHeaderView: TranslatingView {
                 .frame(height: 20)
                 .background(
                     Capsule(style: .continuous)
-                        .fill(InteractiveFill.neutral(hovered: hovered, pressed: false, resting: 0.05)))
+                        .fill(InteractiveFill.neutral(hovered: hovered, pressed: false, resting: true)))
                 .contentShape(Capsule(style: .continuous))
             },
             content: { dismiss in
@@ -159,7 +169,7 @@ struct MenuBarHeaderView: TranslatingView {
                 AttachedPopoverMenuItem(
                     title: self.tr("ui.machine.local"),
                     leadingSymbol: "desktopcomputer",
-                    leadingTint: self.nativeInfo.opacity(T.Opacity.solid),
+                    leadingTint: self.nativeSecondaryLabel,
                     selected: self.remoteMachineStore.activeTarget.isLocal,
                     selectionIndicatorPlacement: .trailing)
                 {
@@ -234,7 +244,7 @@ struct MenuBarHeaderView: TranslatingView {
     func headerPopoverSection(_ title: String) -> some View {
         Text(title)
             .font(.app(size: T.FontSize.caption, weight: .bold))
-            .foregroundStyle(nativeTertiaryLabel)
+            .foregroundStyle(nativeSecondaryLabel)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, T.space6)
             .padding(.top, T.space2)
@@ -249,6 +259,33 @@ struct MenuBarHeaderView: TranslatingView {
 
     var headerConnectionDisplayText: String {
         self.appViewModel.externalControllerDisplay
+    }
+
+    var headerConnectionIsFailed: Bool {
+        if let status = self.machineSwitcherStatus {
+            if case .failed = status { return true }
+            return false
+        }
+        return self.appViewModel.runtimeVisualStatus == .failed
+    }
+
+    /// The status the dot's color stands for, as text for the tooltip and VoiceOver.
+    var headerConnectionStatusText: String {
+        if let status = self.machineSwitcherStatus {
+            switch status {
+            case .unknown: return self.tr("ui.header.status.unknown")
+            case .checking: return self.tr("ui.header.status.checking")
+            case .connected: return self.tr("ui.header.status.connected")
+            case .failed: return self.tr("ui.header.status.connection_failed")
+            }
+        }
+        switch self.appViewModel.runtimeVisualStatus {
+        case .runningHealthy: return self.tr("ui.header.status.running")
+        case .runningDegraded: return self.tr("ui.header.status.degraded")
+        case .starting: return self.tr("ui.header.status.starting")
+        case .failed: return self.tr("ui.header.status.failed")
+        case .stopped: return self.tr("ui.header.status.stopped")
+        }
     }
 
     var headerConnectionStatusTint: Color {

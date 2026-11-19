@@ -17,6 +17,11 @@
 "ui.header.status.starting" = "启动中";
 "ui.header.status.failed" = "异常";
 "ui.header.status.stopped" = "已停止";
+"ui.header.status.degraded" = "运行中（控制接口响应异常）";
+"ui.header.status.unknown" = "状态未知";
+"ui.header.status.checking" = "正在检测连接";
+"ui.header.status.connected" = "已连接";
+"ui.header.status.connection_failed" = "连接失败";
 
 "ui.action.stop" = "停止";
 "ui.action.quit" = "退出";

@@ -84,7 +84,7 @@ extension ProxyTabView {
 
                     Text(updatedText)
                         .font(.app(size: T.FontSize.caption, weight: .regular))
-                        .foregroundStyle(nativeTertiaryLabel)
+                        .foregroundStyle(nativeSecondaryLabel)
                         .lineLimit(1)
                         .frame(width: updateTimeWidth, alignment: .trailing)
                 }
@@ -118,10 +118,11 @@ extension ProxyTabView {
                     if let usedRatio {
                         GeometryReader { geo in
                             ZStack(alignment: .leading) {
-                                Capsule().fill(Color.primary.opacity(0.09))
+                                Capsule().fill(NeutralFill.track)
                                 Capsule()
-                                    .fill((usedRatio >= 0.9 ? nativeCritical : usedRatio >= 0.75 ? nativeWarning :
-                                            nativeAccent).opacity(T.Opacity.solid))
+                                    .fill(usedRatio >= 0.9 ? nativeCritical.opacity(T.Opacity.solid)
+                                        : usedRatio >= 0.75 ? nativeWarning.opacity(T.Opacity.solid)
+                                        : nativeSecondaryLabel)
                                     .frame(width: geo.size.width * usedRatio)
                             }
                         }

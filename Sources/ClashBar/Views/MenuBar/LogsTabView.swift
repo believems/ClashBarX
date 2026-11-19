@@ -193,7 +193,7 @@ struct LogsTabView: TranslatingView {
                     self.logMetadataSeparator
                     Text(ValueFormatter.dateTime(log.timestamp))
                         .font(.app(size: T.FontSize.caption, weight: .regular))
-                        .foregroundStyle(nativeTertiaryLabel)
+                        .foregroundStyle(nativeSecondaryLabel)
                         .lineLimit(1)
                 }
 
@@ -254,7 +254,7 @@ struct LogsTabView: TranslatingView {
         case .clashbar:
             (self.tr("ui.log_source.clashbar"), nativeSecondaryLabel)
         case .mihomo:
-            (self.tr("ui.log_source.mihomo"), nativeAccent.opacity(T.Opacity.solid))
+            (self.tr("ui.log_source.mihomo"), nativeSecondaryLabel)
         }
     }
 
@@ -279,7 +279,7 @@ struct LogsTabView: TranslatingView {
             return (
                 LogLevelFilter.info,
                 self.tr("ui.log_filter.info"),
-                nativeAccent.opacity(T.Opacity.solid),
+                nativeSecondaryLabel,
                 "info.circle.fill")
         }
     }
@@ -312,22 +312,13 @@ struct LogsTabView: TranslatingView {
             message = message.replacingOccurrences(of: trailingBracket, with: "").trimmed
         }
 
+        // Protocol tags stay neutral: orange and green already mean warning and healthy elsewhere,
+        // and the tag text says which protocol it is.
         var protocolTag: String?
-        var protocolColor = nativeAccent.opacity(T.Opacity.solid)
+        let protocolColor = nativeSecondaryLabel
         if let tag = firstRegexCapture(in: message, regex: CachedLogRegex.protocolTag) {
             protocolTag = tag
             message = message.replacingOccurrences(of: tag, with: "").trimmed
-
-            let upper = tag.uppercased()
-            if upper.contains("UDP") {
-                protocolColor = nativeWarning.opacity(T.Opacity.solid)
-            }
-            if upper.contains("DNS") {
-                protocolColor = nativePositive.opacity(T.Opacity.solid)
-            }
-            if upper.contains("HTTP") {
-                protocolColor = nativeAccent.opacity(T.Opacity.solid)
-            }
         }
 
         if message.isEmpty {
