@@ -1,3 +1,20 @@
+## v0.4.7
+
+![macOS](https://img.shields.io/badge/macOS-Supported-000000?style=flat-square&logo=apple) ![Version](https://img.shields.io/badge/Release-v0.4.7-10B981?style=flat-square) ![Core](https://img.shields.io/badge/Core-Mihomo-6366f1?style=flat-square)
+
+> 本次更新按 Apple 人机界面指南重新梳理了界面配色：强调色只用在开关、选中项等交互状态上，模式切换、标签页和各类按钮改为中性色，整体不再一片蓝；同时提升了文字对比度，并支持系统的"增强对比度"设置。
+
+### 📝 更新日志 (Changelog)
+
+**🚀 优化改进 (Improvements)**
+
+- ![Optimize](https://img.shields.io/badge/Optimize-3B82F6?style=flat-square) **配色统一**：规则 / 全局 / 直连改为中性分段控件，标签页、图标开关、筛选标签的选中态改为中性灰；强调色只保留给系统开关、选中节点等交互状态，并跟随系统强调色设置。
+- ![Optimize](https://img.shields.io/badge/Optimize-3B82F6?style=flat-square) **颜色含义不再混用**：下载流量改用青色，与强调色区分；额度进度条默认中性灰，接近用完时变橙、变红；日志协议标签改为中性色，不再与警告、正常状态色混淆。
+- ![Optimize](https://img.shields.io/badge/Optimize-3B82F6?style=flat-square) **按钮更协调**：设置页"系统维护"等次要按钮不再是玻璃面板上的亮灰块；面板行悬停改为浅灰，下拉菜单保持系统原生高亮。
+- ![Optimize](https://img.shields.io/badge/Optimize-3B82F6?style=flat-square) **可读性与无障碍**：更新时间、时间戳、列标题等说明文字对比度提升；复制成功改为绿色对勾，不再白字绿底；开启系统"增强对比度"后面板灰底与边框自动加深；顶部状态圆点支持悬停提示和读屏，连接失败时显示感叹号图标。
+
+---
+
 ## v0.4.6
 
 ![macOS](https://img.shields.io/badge/macOS-Supported-000000?style=flat-square&logo=apple) ![Version](https://img.shields.io/badge/Release-v0.4.6-10B981?style=flat-square) ![Core](https://img.shields.io/badge/Core-Mihomo-6366f1?style=flat-square)
