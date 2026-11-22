@@ -141,8 +141,7 @@ struct RulesTabView: TranslatingView {
         let grouped = self.viewModel.groupByPolicy
         return self.compactTopIcon(
             grouped ? "rectangle.3.group.fill" : "list.bullet",
-            label: self.tr("ui.rules.group.toggle"),
-            isOn: grouped)
+            label: self.tr("ui.rules.group.toggle"))
         {
             self.viewModel.groupByPolicy.toggle()
             self.storedGroupByPolicy = self.viewModel.groupByPolicy
