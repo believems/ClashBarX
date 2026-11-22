@@ -1,3 +1,21 @@
+## v0.4.8
+
+![macOS](https://img.shields.io/badge/macOS-Supported-000000?style=flat-square&logo=apple) ![Version](https://img.shields.io/badge/Release-v0.4.8-10B981?style=flat-square) ![Core](https://img.shields.io/badge/Core-Mihomo-6366f1?style=flat-square)
+
+> 本次更新为代理提供者新增「全部更新」按钮，一次更新所有订阅，不用再逐个点刷新。
+
+### 📝 更新日志 (Changelog)
+
+**✨ 新功能 (Features)**
+
+- ![New](https://img.shields.io/badge/New-10B981?style=flat-square) **代理提供者全部更新**：代理提供者标题栏新增「全部更新」按钮，依次更新所有提供者；更新中各行刷新按钮同步转圈，每个提供者更新完成后立即刷新其更新时间与节点数，单个失败不影响其余提供者。
+
+**🚀 优化改进 (Improvements)**
+
+- ![Optimize](https://img.shields.io/badge/Optimize-3B82F6?style=flat-square) **分流显示切换按钮**：列表 / 按策略分组的切换按钮只是切换显示方式，不再使用选中高亮，与旁边的刷新按钮样式一致。
+
+---
+
 ## v0.4.7
 
 ![macOS](https://img.shields.io/badge/macOS-Supported-000000?style=flat-square&logo=apple) ![Version](https://img.shields.io/badge/Release-v0.4.7-10B981?style=flat-square) ![Core](https://img.shields.io/badge/Core-Mihomo-6366f1?style=flat-square)
