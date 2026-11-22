@@ -145,6 +145,11 @@ final class AppViewModel: ObservableObject {
         set { self.proxyStore.isRuleProvidersRefreshing = newValue }
     }
 
+    var isProxyProvidersRefreshing: Bool {
+        get { self.proxyStore.isProxyProvidersRefreshing }
+        set { self.proxyStore.isProxyProvidersRefreshing = newValue }
+    }
+
     @Published var isSystemProxyEnabled: Bool = false
     @Published var systemProxyEnableIntentInFlight: Bool = false
     @Published var systemProxyHelperFailureReason: SystemProxyHelperFailureReason?

@@ -13,16 +13,29 @@ extension ProxyTabView {
                 count: "\(providers.count)")
             {
                 let label = tr(isProxyProvidersCollapsed ? "ui.action.expand" : "ui.action.collapse")
-                Button {
-                    withAnimation(.easeInOut(duration: 0.16)) {
-                        isProxyProvidersCollapsed.toggle()
+                HStack(spacing: T.space2) {
+                    if !providers.isEmpty {
+                        self.compactTopIcon(
+                            "arrow.clockwise",
+                            label: tr("ui.action.update_all_proxy_providers"),
+                            isLoading: proxyStore.isProxyProvidersRefreshing,
+                            size: 22)
+                        {
+                            await appViewModel.refreshAllProxyProviders()
+                        }
                     }
-                } label: {
-                    Image(systemName: isProxyProvidersCollapsed ? "chevron.right" : "chevron.down")
+
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.16)) {
+                            isProxyProvidersCollapsed.toggle()
+                        }
+                    } label: {
+                        Image(systemName: isProxyProvidersCollapsed ? "chevron.right" : "chevron.down")
+                    }
+                    .buttonStyle(IconButtonStyle(size: 22, showsRestingFill: false))
+                    .accessibilityLabel(label)
+                    .help(label)
                 }
-                .buttonStyle(IconButtonStyle(size: 22, showsRestingFill: false))
-                .accessibilityLabel(label)
-                .help(label)
             }
 
             if providers.isEmpty {
