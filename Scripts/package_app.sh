@@ -60,6 +60,19 @@ resolve_build_artifact() {
     return
   fi
 
+  # Newer SwiftPM (swift-build backend) puts --arch builds under .build/release
+  # (-> .build/out/Products/Release) instead of .build/<arch>-apple-macosx/release.
+  local fallback
+  fallback="$ROOT/.build/release/$(basename "$candidate")"
+  if [ "$artifact_type" = "file" ] && [ -f "$fallback" ]; then
+    echo "$fallback"
+    return
+  fi
+  if [ "$artifact_type" = "dir" ] && [ -d "$fallback" ]; then
+    echo "$fallback"
+    return
+  fi
+
   local find_type="f"
   if [ "$artifact_type" = "dir" ]; then
     find_type="d"
@@ -188,6 +201,14 @@ fi
 if [ ! -f "$HELPER_BIN" ]; then
   echo "Helper build output not found: $HELPER_BIN" >&2
   exit 1
+fi
+if [ -n "$TARGET_ARCH" ]; then
+  for built_binary in "$BIN" "$HELPER_BIN"; do
+    if [ "$(lipo -archs "$built_binary")" != "$TARGET_ARCH" ]; then
+      echo "Expected $TARGET_ARCH binary, got $(lipo -archs "$built_binary"): $built_binary" >&2
+      exit 1
+    fi
+  done
 fi
 if [ ! -f "$HELPER_PLIST_SOURCE" ]; then
   echo "Helper plist not found: $HELPER_PLIST_SOURCE" >&2
