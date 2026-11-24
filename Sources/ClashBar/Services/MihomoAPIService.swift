@@ -454,6 +454,38 @@ extension String {
     }
 }
 
+struct RuleTestResult: Sendable {
+    enum Match: Sendable {
+        case matched, other, unknown
+    }
+
+    let match: Match
+    let rule: String?
+    let chain: [String]?
+    let statusCode: Int?
+    let requestError: String?
+}
+
+private struct RuleTestConnections: Decodable {
+    private let connectionsValue: [ConnectionSummary]?
+    var connections: [ConnectionSummary] { connectionsValue ?? [] }
+
+    private enum CodingKeys: String, CodingKey {
+        case connectionsValue = "connections"
+    }
+}
+
+enum RuleTestError: LocalizedError {
+    case invalidURL, noProxyPort, wrongMode
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidURL: "Enter a complete HTTP or HTTPS URL without credentials."
+        case .noProxyPort: "The local core has no HTTP or mixed proxy port enabled."
+        case .wrongMode: "Switch the core to rule mode before testing rules."
+        }
+    }
+}
 enum RuleTester {
     private static let maxConcurrentRules = 20
 
