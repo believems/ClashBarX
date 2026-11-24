@@ -4,8 +4,24 @@
 > 整合了 [mh567](https://github.com/mh567/ClashBar)（工程加固、测试体系）、
 > [kingcanfish](https://github.com/kingcanfish/ClashBar)（v0.4.x Liquid Glass UI/UX）、
 > [Gongsc](https://github.com/Gongsc/ClashBar)（v1.2.x 流量曲线、规则覆写、深度修复）、
-> [flowke](https://github.com/flowke/ClashBar)（数据目录迁移 `~/.config`、测速同步、多显示器锚定）的变更。
+> [flowke](https://github.com/flowke/ClashBar)（数据目录迁移 `~/.config`、测速同步、多显示器锚定，
+> 以及 Dashboard 独立仪表盘：配置管理、自定义规则引擎、服务连通性诊断与端口保持）的变更。
 > 以下保留各 fork 的原始版本记录，致谢与版权声明见 README 与各提交作者署名（GPL-3.0）。
+
+### ClashBarX 整合内容速览
+
+**✨ 新功能 (Features)**
+
+- **独立仪表盘窗口**（flowke）：概览（流量/连接/内存/路由对比）、配置管理（本地与远程订阅）、自定义规则编辑（增删改、每条独立启用开关、合并进生效配置并支持提交/回滚事务）、服务连通性诊断（经代理与直连实测并以颜色呈现状态）。
+- **数据目录迁移**（flowke）：运行时数据迁移至 `~/.config/clashbar`，首启自动从旧目录平滑迁移；系统代理 Helper 支持备份恢复与版本协商（helper v5 协议）。
+- **运行时端口保持**（flowke）：端口草稿落盘、内核重载后自动核对并恢复配置端口。
+- **Liquid Glass 界面**（kingcanfish）：macOS 26+ 原生 Liquid Glass 面板、连接按实时速度排序、节点测速新旧延迟区分、切换节点可断开旧连接、HIG 配色与增强对比度支持。
+- **流量曲线与规则覆写**（Gongsc）：流量曲线跨面板开合保留并可设时长、延迟信号条、规则与规则集覆写页、系统唤醒后自动恢复覆写。
+- **测速与订阅体验**（flowke + kingcanfish）：策略组测速后同步选中节点、WebSocket 消息上限 4MB、菜单栏面板固定在点击的显示器。
+
+**🐞 工程质量 (Engineering)**
+
+- 本地测试体系与 `make test`（mh567）、上游同步脚本、退出与启动主线程阻塞收敛、发布版本号推导脚本化。
 
 ---
 
