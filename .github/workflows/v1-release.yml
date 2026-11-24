@@ -1,0 +1,48 @@
+name: V1 Release
+
+# 首发版：2026-12-01（配额重置日）自动发布 v1.0.0。
+# 代码已双架构验证编译通过（2026-11-24 CI），此 workflow 幂等：
+# tag v1.0.0 已存在时静默跳过。也可随时手动 dispatch 提前触发。
+on:
+  schedule:
+    - cron: '30 0 1 12 *' # 12 月 1 日 00:30 UTC（北京 08:30）
+  workflow_dispatch:
+
+concurrency:
+  group: v1-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  release:
+    if: github.repository == 'believems/ClashBarX'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout integration
+        uses: actions/checkout@v7
+        with:
+          ref: integration
+          fetch-depth: 0
+
+      - name: Skip if v1.0.0 already released
+        run: |
+          if git ls-remote --tags origin 'refs/tags/v1.0.0' | grep -q .; then
+            echo "v1.0.0 already exists; nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+        id: check
+
+      - name: Fast-forward main to integration
+        if: steps.check.outputs.skip != 'true'
+        run: git push origin integration:refs/heads/main
+
+      - name: Dispatch release v1.0.0
+        if: steps.check.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run release-dmg.yml --repo "${GITHUB_REPOSITORY}" --ref main -f tag=v1.0.0 -f bump=patch
+          echo "Release v1.0.0 dispatched (build + test + release 双架构 no-core)."
