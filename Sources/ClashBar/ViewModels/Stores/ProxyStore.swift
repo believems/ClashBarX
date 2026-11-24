@@ -11,6 +11,10 @@ final class ProxyStore: ObservableObject {
         willSet { self.publishChangeIfNeeded(current: self.groupLatencyLoading, next: newValue) }
     }
 
+    var isTestingAllGroupLatencies = false {
+        willSet { self.publishChangeIfNeeded(current: self.isTestingAllGroupLatencies, next: newValue) }
+    }
+
     var proxyLatencyTesting: Set<ProxyLatencyTestKey> = [] {
         willSet { self.publishChangeIfNeeded(current: self.proxyLatencyTesting, next: newValue) }
     }
@@ -67,6 +71,10 @@ final class ProxyStore: ObservableObject {
 
     var isRuleProvidersRefreshing = false {
         willSet { self.publishChangeIfNeeded(current: self.isRuleProvidersRefreshing, next: newValue) }
+    }
+
+    var isProxyProvidersRefreshing = false {
+        willSet { self.publishChangeIfNeeded(current: self.isProxyProvidersRefreshing, next: newValue) }
     }
 
     private func publishChangeIfNeeded<Value: Equatable>(current: Value, next: Value) {

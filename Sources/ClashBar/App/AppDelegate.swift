@@ -5,6 +5,7 @@ final class ClashBarAppDelegate: NSObject, NSApplicationDelegate {
     let appViewModel = AppViewModel(dependencies: .live)
     private var statusItemController: StatusItemController?
     private var windowObservers: [any NSObjectProtocol] = []
+    private var accessibilityDisplayObserver: (any NSObjectProtocol)?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         UserDefaults.standard.register(defaults: [
@@ -19,6 +20,7 @@ final class ClashBarAppDelegate: NSObject, NSApplicationDelegate {
 
         self.setupWindowSuppression()
         self.suppressNonPanelWindows()
+        self.observeAccessibilityDisplayOptions()
 
         self.appViewModel.start()
         self.statusItemController = StatusItemController(appViewModel: self.appViewModel)
@@ -55,6 +57,10 @@ final class ClashBarAppDelegate: NSObject, NSApplicationDelegate {
             NotificationCenter.default.removeObserver(observer)
         }
         self.windowObservers.removeAll()
+        if let observer = self.accessibilityDisplayObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+            self.accessibilityDisplayObserver = nil
+        }
 
         self.appViewModel.shutdownForTermination()
         self.statusItemController?.shutdown()
@@ -63,6 +69,19 @@ final class ClashBarAppDelegate: NSObject, NSApplicationDelegate {
 
     func showSettingsPanel() {
         self.statusItemController?.presentPopover(tab: .system)
+    }
+
+    /// `NeutralFill` reads Increase Contrast when views render; redraw the panel when it changes.
+    private func observeAccessibilityDisplayOptions() {
+        self.accessibilityDisplayObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+            object: nil,
+            queue: .main)
+        { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.appViewModel.objectWillChange.send()
+            }
+        }
     }
 
     private func setupWindowSuppression() {

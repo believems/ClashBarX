@@ -54,6 +54,46 @@ extension AppViewModel {
             })
     }
 
+    func refreshAllProxyProviders() async {
+        guard !isProxyProvidersRefreshing else { return }
+        let names = proxyProvidersDetail.keys
+            .filter { !providerUpdating.contains($0) }
+            .sorted()
+        guard !names.isEmpty else { return }
+
+        isProxyProvidersRefreshing = true
+        providerUpdating.formUnion(names)
+        defer {
+            providerUpdating.subtract(names)
+            isProxyProvidersRefreshing = false
+        }
+
+        _ = await self.updateProvidersSequential(
+            names: names,
+            operation: { name in
+                defer { self.providerUpdating.remove(name) }
+                let client = try self.clientOrThrow()
+                try await client.requestNoResponse(.updateProxyProvider(name: name))
+                await self.reloadProxyProviderDetail(name: name, client: client)
+            },
+            onError: { name, error in
+                tr("log.providers.proxy_update_failed", name, error.localizedDescription)
+            })
+
+        await self.refreshProvidersAndRules()
+    }
+
+    /// Pulls one provider's detail so its row (updated time, node count) reflects the update
+    /// immediately, without waiting for the full providers/rules refresh.
+    private func reloadProxyProviderDetail(name: String, client: MihomoAPIService) async {
+        guard let incoming: ProviderDetail = try? await client.request(.proxyProvider(name: name)),
+              proxyProvidersDetail[name] != nil
+        else { return }
+        proxyProvidersDetail[name] = self.mergedProviderDetailPreservingNodes(
+            previous: proxyProvidersDetail[name],
+            incoming: incoming)
+    }
+
     private func mergedProviderDetailPreservingNodes(
         previous: ProviderDetail?,
         incoming: ProviderDetail) -> ProviderDetail

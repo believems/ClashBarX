@@ -5,7 +5,9 @@ import SwiftUI
 // swiftlint:disable:next type_name
 private typealias T = MenuBarLayoutTokens
 
-private final class FloatingPanel: NSPanel {
+private final class FloatingPanel: NSPanel, VisualInsetReporting {
+    var visualInset: CGFloat = 0
+
     override var canBecomeKey: Bool {
         true
     }
@@ -78,10 +80,6 @@ private struct StatusItemBannerRootView: View {
         .background {
             Capsule(style: .continuous)
                 .fill(.ultraThinMaterial)
-                .overlay {
-                    Capsule(style: .continuous)
-                        .fill(self.panelTint)
-                }
         }
         .overlay {
             Capsule(style: .continuous)
@@ -171,26 +169,16 @@ private struct StatusItemBannerRootView: View {
         .frame(width: 26, height: 26)
     }
 
-    private var panelTint: Color {
-        self.nativeAccent.opacity(self.isDarkAppearance ? 0.04 : 0.025)
-    }
-
-    private var logoBackground: some ShapeStyle {
-        LinearGradient(
-            colors: [
-                self.nativeInfo.opacity(self.isDarkAppearance ? 0.24 : 0.16),
-                self.nativeAccent.opacity(self.isDarkAppearance ? 0.16 : 0.1),
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing)
+    private var logoBackground: Color {
+        NeutralFill.selected
     }
 
     private var iconBorder: Color {
-        self.nativeInfo.opacity(self.isDarkAppearance ? 0.22 : 0.16)
+        self.nativeControlBorder.opacity(0.6)
     }
 
     private var iconForeground: Color {
-        self.nativeInfo.opacity(T.Opacity.solid)
+        self.nativePrimaryLabel
     }
 }
 
@@ -204,6 +192,8 @@ final class StatusItemController: NSObject {
     private let statusContentView: StatusItemContentView
     private let popoverLayoutModel = PopoverLayoutModel()
     private let popoverFallbackMaxHeight: CGFloat = 640
+    /// Keep the panel menu-sized on tall screens; content scrolls beyond this.
+    private let popoverPreferredMaxHeight: CGFloat = 640
     private let popoverScreenPadding: CGFloat = 10
     private let panelTopSpacing: CGFloat = 0
     private let panelHorizontalPadding: CGFloat = T.space8
@@ -225,6 +215,7 @@ final class StatusItemController: NSObject {
     private var screenParametersObserver: Any?
     private var lockedPanelOriginX: CGFloat?
     private var popoverHostingController: NSHostingController<StatusItemPopoverRootView>?
+    private var popoverContainerController: NSViewController?
     private var bannerHostingController: NSHostingController<StatusItemBannerRootView>?
     private var panelStabilizationTask: Task<Void, Never>?
     private var bannerDismissTask: Task<Void, Never>?
@@ -232,6 +223,10 @@ final class StatusItemController: NSObject {
     private let iconOnlyRefreshInterval: TimeInterval = 0.12
     private let speedDisplayRefreshInterval: TimeInterval = 1.0
     private static let popoverContentWidth: CGFloat = T.panelWidth
+    /// Transparent margin around the glass so its shadow is not clipped by the window rectangle.
+    private static var panelShadowMargin: CGFloat {
+        PanelGlassContainerController.effectiveShadowMargin
+    }
     fileprivate static let bannerShadowBleed: CGFloat = 24
     fileprivate static let bannerContentSize = NSSize(width: 328, height: 68)
     fileprivate static let bannerPanelSize = NSSize(
@@ -344,7 +339,9 @@ final class StatusItemController: NSObject {
         self.panel.isReleasedWhenClosed = false
         self.panel.isOpaque = false
         self.panel.backgroundColor = .clear
-        self.panel.hasShadow = true
+        // macOS 26+: the glass draws its own shadow inside the transparent margin.
+        self.panel.hasShadow = Self.panelShadowMargin == 0
+        self.panel.visualInset = Self.panelShadowMargin
         self.panel.acceptsMouseMovedEvents = true
         self.panel.becomesKeyOnlyIfNeeded = false
         self.panel.hidesOnDeactivate = false
@@ -370,16 +367,21 @@ final class StatusItemController: NSObject {
             let hc = NSHostingController(rootView: self.popoverRootView)
             hc.sizingOptions = [.standardBounds]
             self.popoverHostingController = hc
+            self.popoverContainerController = PanelGlassContainerController.wrapping(hc, cornerRadius: T.panelCornerRadius)
         } else {
             self.popoverHostingController?.rootView = self.popoverRootView
         }
-        self.panel.contentViewController = self.popoverHostingController
+        // Keep the current panel size: a freshly loaded container view has a placeholder size and
+        // the window would otherwise adopt it before the next layout pass.
+        self.popoverContainerController?.view.frame = NSRect(origin: .zero, size: self.panel.frame.size)
+        self.panel.contentViewController = self.popoverContainerController
         self.suppressPanelScrollIndicators()
     }
 
     private func unloadPopoverContent() {
         self.panel.contentViewController = nil
         self.popoverHostingController = nil
+        self.popoverContainerController = nil
     }
 
     private var popoverRootView: StatusItemPopoverRootView {
@@ -575,13 +577,17 @@ final class StatusItemController: NSObject {
             return self.popoverFallbackMaxHeight
         }
 
-        return anchorContext.maximumHeightBelowMenuBar(
+        let available = anchorContext.maximumHeightBelowMenuBar(
             screenPadding: self.popoverScreenPadding,
             verticalSpacing: self.panelTopSpacing)
+        return min(available, self.popoverPreferredMaxHeight)
     }
 
     private func applyPopoverSize(preferredHeight: CGFloat, preserveHorizontalPosition: Bool) {
-        let targetSize = NSSize(width: Self.popoverContentWidth, height: preferredHeight)
+        let margin = Self.panelShadowMargin
+        let targetSize = NSSize(
+            width: Self.popoverContentWidth + margin * 2,
+            height: preferredHeight + margin * 2)
 
         let widthChanged = abs(panel.frame.width - targetSize.width) > 0.5
         let heightChanged = abs(panel.frame.height - targetSize.height) > 0.5
@@ -651,8 +657,11 @@ final class StatusItemController: NSObject {
     {
         guard let anchorContext = self.resolvedStatusItemAnchorContext(for: button) else { return nil }
 
+        // Placement works on the visible glass; the window extends past it by the shadow margin.
+        let margin = Self.panelShadowMargin
+        let contentSize = NSSize(width: panelSize.width - margin * 2, height: panelSize.height - margin * 2)
         let placement = anchorContext.menuBarDropdownPlacement(
-            panelSize: panelSize,
+            panelSize: contentSize,
             options: MenuBarDropdownPlacementOptions(
                 horizontalPadding: self.panelHorizontalPadding,
                 verticalSpacing: self.panelTopSpacing,
@@ -662,7 +671,7 @@ final class StatusItemController: NSObject {
 
         self.lockedPanelOriginX = placement.lockedOriginX
 
-        return placement.frame.origin
+        return NSPoint(x: placement.frame.origin.x - margin, y: placement.frame.origin.y - margin)
     }
 
     private func resolvedStatusItemAnchorContext(for button: NSStatusBarButton?) -> PanelAnchorContext? {

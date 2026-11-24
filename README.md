@@ -84,7 +84,7 @@
 
 **要求：** macOS 13+ 🍎
 
-1. 打开 [本仓库 Releases](https://github.com/mh567/ClashBar/releases)，下载最新的 `.dmg`。
+1. 打开 [ClashBarX Releases](https://github.com/believems/ClashBarX/releases)，下载最新的 `.dmg`。
 2. 把 `ClashBar.app` 拖入 `/Applications`。
 3. 首次打开若被系统拦截，到「系统设置 → 隐私与安全性」中放行。
 

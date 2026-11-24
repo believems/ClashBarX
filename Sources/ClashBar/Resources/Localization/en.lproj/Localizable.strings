@@ -17,10 +17,16 @@
 "ui.header.status.starting" = "Starting";
 "ui.header.status.failed" = "Failed";
 "ui.header.status.stopped" = "Stopped";
+"ui.header.status.degraded" = "Running (controller not responding normally)";
+"ui.header.status.unknown" = "Status unknown";
+"ui.header.status.checking" = "Checking connection";
+"ui.header.status.connected" = "Connected";
+"ui.header.status.connection_failed" = "Connection failed";
 
 "ui.action.stop" = "Stop";
 "ui.action.quit" = "Quit";
 "ui.action.test_latency" = "Test Latency";
+"ui.action.update_all_proxy_providers" = "Update All Providers";
 "ui.action.show_hidden_proxy_groups" = "Show hidden proxy groups";
 "ui.action.hide_hidden_proxy_groups" = "Hide hidden proxy groups";
 "ui.action.sort_nodes_by_latency" = "Sort Nodes by Latency";
@@ -149,15 +155,19 @@
 "ui.network.filter.transport.tcp" = "TCP Only";
 "ui.network.filter.transport.udp" = "UDP Only";
 "ui.network.filter.transport.other" = "Other Protocols";
-"ui.network.sort.label" = "Network Sort";
-"ui.network.sort.default" = "Default Order";
-"ui.network.sort.newest" = "Newest Connections";
-"ui.network.sort.oldest" = "Oldest Connections";
-"ui.network.sort.upload_desc" = "Upload High to Low";
-"ui.network.sort.download_desc" = "Download High to Low";
-"ui.network.sort.total_desc" = "Total Traffic High to Low";
+"ui.network.sort.label" = "Sort By";
+"ui.network.sort.key.default" = "Default Order";
+"ui.network.sort.key.start_time" = "Connect Time";
+"ui.network.sort.key.download_speed" = "Download Speed";
+"ui.network.sort.key.upload_speed" = "Upload Speed";
+"ui.network.sort.key.download" = "Download";
+"ui.network.sort.key.upload" = "Upload";
+"ui.network.sort.key.total" = "Total Traffic";
+"ui.network.sort.direction.descending" = "Descending: high to low / newest first";
+"ui.network.sort.direction.ascending" = "Ascending: low to high / oldest first";
 
 "ui.settings.auto_start_core" = "Auto Start Core";
+"ui.settings.close_connections_on_proxy_switch" = "Close Connections on Proxy Switch";
 "ui.settings.launch_at_login" = "Start at Login";
 "ui.settings.menu_bar_style" = "Menu Bar Style";
 "ui.settings.language" = "UI Language";
@@ -195,7 +205,7 @@
 "ui.language.zh_hans" = "简体中文";
 "ui.language.en" = "English";
 
-"ui.footer.core_mihomo" = "MIHOMO %@";
+"ui.footer.core_mihomo" = "mihomo %@";
 "ui.footer.version" = "v%@";
 "ui.footer.version_update_help" = "Open release notes for v%@";
 "ui.footer.version_update_accessibility" = "Current version v%@. Update available v%@.";
@@ -389,6 +399,8 @@
 "log.action_name.update_rule_provider" = "Update rule provider %@";
 "log.action_name.update_proxy_provider" = "Update proxy provider %@";
 "log.action_name.close_all_connections" = "Close all connections";
+"log.action_name.close_group_connections" = "Close connections via %@";
+"log.connection.close_partial_failure" = "%d of %d connections could not be closed";
 "log.action_name.close_connection" = "Close connection %@";
 "log.action_name.flush_fakeip_cache" = "Flush FakeIP cache";
 "log.action_name.flush_dns_cache" = "Flush DNS cache";

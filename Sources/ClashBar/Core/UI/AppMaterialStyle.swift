@@ -29,12 +29,42 @@ struct AppMaterialSurface: View {
 }
 
 extension View {
+    /// Root panel surface. On macOS 26+ the window itself is an `NSGlassEffectView`
+    /// (see `PanelGlassContainerController`), so only older systems need a SwiftUI background.
+    @ViewBuilder
+    func rootPanelSurface(cornerRadius: CGFloat, stroke: Color) -> some View {
+        if #available(macOS 26.0, *) {
+            self
+        } else {
+            self.panelSurface(cornerRadius: cornerRadius, stroke: stroke)
+        }
+    }
+
+    /// Floating panel surface: Liquid Glass on macOS 26+, translucent material before that.
+    @ViewBuilder
+    func panelSurface(cornerRadius: CGFloat, stroke: Color) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        if #available(macOS 26.0, *) {
+            self
+                .glassEffect(.regular, in: shape)
+                .overlay(shape.strokeBorder(stroke.opacity(0.5), lineWidth: MenuBarLayoutTokens.stroke))
+        } else {
+            self.background(
+                AppMaterialSurface(
+                    cornerRadius: cornerRadius,
+                    fallbackStyle: .material(.regularMaterial),
+                    stroke: stroke))
+        }
+    }
+
     @ViewBuilder
     func appBorderedButtonStyle(prominent: Bool = false) -> some View {
         if prominent {
             self.buttonStyle(.borderedProminent)
         } else {
-            self.buttonStyle(.bordered)
+            // Native .bordered renders as a bright gray block on the dark glass panel; a faint
+            // neutral surface matches the panel's other controls.
+            self.buttonStyle(PanelButtonStyle())
         }
     }
 }

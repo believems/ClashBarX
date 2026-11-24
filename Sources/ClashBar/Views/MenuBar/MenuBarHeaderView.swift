@@ -11,7 +11,7 @@ struct MenuBarHeaderView: TranslatingView {
     @Environment(\.openURL) private var openURL
 
     var headerLogoSize: CGFloat {
-        40
+        36
     }
 
     var body: some View {
@@ -20,21 +20,12 @@ struct MenuBarHeaderView: TranslatingView {
 
     var topHeader: some View {
         HStack(alignment: .center, spacing: T.space8) {
-            HStack(alignment: .top, spacing: T.space8) {
+            HStack(alignment: .center, spacing: T.space8) {
                 Button {
                     guard let url = URL(string: "https://github.com/Sitoi/ClashBar") else { return }
                     self.openURL(url)
                 } label: {
                     ZStack {
-                        RoundedRectangle(cornerRadius: T.cornerRadius, style: .continuous)
-                            .fill(nativeControlFill.opacity(T.Opacity.solid))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: T.cornerRadius, style: .continuous)
-                                    .stroke(
-                                        nativeControlBorder.opacity(T.Opacity.solid),
-                                        lineWidth: T.stroke)
-                            }
-
                         if let brandImage = BrandIcon.image {
                             Image(nsImage: brandImage)
                                 .resizable()
@@ -53,7 +44,7 @@ struct MenuBarHeaderView: TranslatingView {
                     }
                     .frame(width: self.headerLogoSize, height: self.headerLogoSize)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressableButtonStyle())
                 .help(self.tr("ui.action.open_project_homepage"))
                 .accessibilityLabel(self.tr("ui.action.open_project_homepage"))
 
@@ -62,7 +53,7 @@ struct MenuBarHeaderView: TranslatingView {
                         .font(.app(size: T.FontSize.title3, weight: .semibold))
                         .foregroundStyle(nativePrimaryLabel)
 
-                    HStack(spacing: T.space6) {
+                    HStack(spacing: T.space4) {
                         self.headerConnectionControl
                         self.headerControllerWebUIButton
                         if self.appViewModel.isExternalControllerWildcardIPv4 {
@@ -74,11 +65,12 @@ struct MenuBarHeaderView: TranslatingView {
 
             Spacer(minLength: T.space6)
 
-            HStack(spacing: T.space6) {
+            HStack(spacing: T.space4) {
                 self.compactTopIcon(
                     self.appViewModel.isPinned ? "pin.fill" : "pin",
                     label: self.appViewModel.isPinned ? self.tr("ui.action.unpin") : self.tr("ui.action.pin"),
-                    toneOverride: self.appViewModel.isPinned ? nativeInfo : nativeTertiaryLabel)
+                    isOn: self.appViewModel.isPinned,
+                    size: 28)
                 {
                     self.appViewModel.togglePinned()
                 }
@@ -86,19 +78,17 @@ struct MenuBarHeaderView: TranslatingView {
                 self.compactTopIcon(
                     "arrow.clockwise",
                     label: self.appViewModel.primaryCoreActionLabel,
-                    toneOverride: nativeInfo)
+                    size: 28)
                 {
                     await self.appViewModel.performPrimaryCoreAction()
                 }
                 .disabled(self.appViewModel.isRemoteTarget || !self.appViewModel.isPrimaryCoreActionEnabled)
-                .opacity((self.appViewModel.isRemoteTarget || !self.appViewModel.isPrimaryCoreActionEnabled) ? 1 * 0.6 :
-                    1)
 
                 self.compactTopIcon(
-                    self.appViewModel.isRuntimeRunning ? "stop.circle" : "play.circle",
+                    self.appViewModel.isRuntimeRunning ? "stop.fill" : "play.fill",
                     label: self.appViewModel.isRuntimeRunning ? self.tr("ui.action.stop") : self
                         .tr("app.primary.start"),
-                    toneOverride: self.appViewModel.isRuntimeRunning ? nativeWarning : nativePositive)
+                    size: 28)
                 {
                     if self.appViewModel.isRuntimeRunning {
                         await self.appViewModel.stopCore()
@@ -107,9 +97,8 @@ struct MenuBarHeaderView: TranslatingView {
                     }
                 }
                 .disabled(self.appViewModel.isRemoteTarget || self.appViewModel.isCoreActionProcessing)
-                .opacity((self.appViewModel.isRemoteTarget || self.appViewModel.isCoreActionProcessing) ? 0.6 : 1)
 
-                self.compactTopIcon("power", label: self.tr("ui.action.quit"), warning: true) {
+                self.compactTopIcon("power", label: self.tr("ui.action.quit"), warning: true, size: 28) {
                     await self.appViewModel.quitApp()
                 }
             }
@@ -135,36 +124,52 @@ struct MenuBarHeaderView: TranslatingView {
             onWillPresent: {
                 self.remoteMachineStore.checkAllConnectivity()
             },
-            label: { _ in
-                HStack(spacing: T.space6) {
+            label: { hovered in
+                HStack(spacing: T.space4) {
                     if self.isSwitchingMachine {
                         ProgressView()
                             .controlSize(.mini)
                             .frame(width: 10, height: 10)
+                    } else if self.headerConnectionIsFailed {
+                        // A shape as well as a color, so a failure doesn't rely on red alone.
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(self.headerConnectionStatusTint)
+                            .frame(width: 10, height: 10)
+                            .help(self.headerConnectionStatusText)
+                            .accessibilityLabel(self.headerConnectionStatusText)
                     } else {
                         Circle()
                             .fill(self.headerConnectionStatusTint)
                             .frame(width: 8, height: 8)
+                            .help(self.headerConnectionStatusText)
+                            .accessibilityLabel(self.headerConnectionStatusText)
                     }
 
                     Text(self.headerConnectionDisplayText)
-                        .font(.app(size: T.FontSize.caption, weight: .semibold))
+                        .font(.app(size: T.FontSize.caption, weight: .medium))
+                        .monospacedDigit()
                         .foregroundStyle(nativePrimaryLabel)
                         .lineLimit(1)
                         .truncationMode(.tail)
 
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.system(size: 8, weight: .semibold))
-                        .foregroundStyle(nativeTertiaryLabel)
+                        .foregroundStyle(nativeSecondaryLabel)
                 }
-                .contentShape(Rectangle())
+                .padding(.horizontal, T.space6)
+                .frame(height: 20)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(InteractiveFill.neutral(hovered: hovered, pressed: false, resting: true)))
+                .contentShape(Capsule(style: .continuous))
             },
             content: { dismiss in
                 self.headerPopoverSection(self.tr("ui.machine.local_label"))
                 AttachedPopoverMenuItem(
                     title: self.tr("ui.machine.local"),
                     leadingSymbol: "desktopcomputer",
-                    leadingTint: self.nativeInfo.opacity(T.Opacity.solid),
+                    leadingTint: self.nativeSecondaryLabel,
                     selected: self.remoteMachineStore.activeTarget.isLocal,
                     selectionIndicatorPlacement: .trailing)
                 {
@@ -229,20 +234,17 @@ struct MenuBarHeaderView: TranslatingView {
             self.appViewModel.openControllerWebUI()
         } label: {
             Image(systemName: "safari")
-                .font(.app(size: T.FontSize.caption, weight: .semibold))
-                .foregroundStyle(self.nativeSecondaryLabel)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(IconButtonStyle(size: 20))
         .help("Open WebUI")
         .accessibilityLabel("Open WebUI")
         .disabled(self.isSwitchingMachine)
-        .opacity(self.isSwitchingMachine ? 0.6 : 1)
     }
 
     func headerPopoverSection(_ title: String) -> some View {
         Text(title)
             .font(.app(size: T.FontSize.caption, weight: .bold))
-            .foregroundStyle(nativeTertiaryLabel)
+            .foregroundStyle(nativeSecondaryLabel)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, T.space6)
             .padding(.top, T.space2)
@@ -257,6 +259,33 @@ struct MenuBarHeaderView: TranslatingView {
 
     var headerConnectionDisplayText: String {
         self.appViewModel.externalControllerDisplay
+    }
+
+    var headerConnectionIsFailed: Bool {
+        if let status = self.machineSwitcherStatus {
+            if case .failed = status { return true }
+            return false
+        }
+        return self.appViewModel.runtimeVisualStatus == .failed
+    }
+
+    /// The status the dot's color stands for, as text for the tooltip and VoiceOver.
+    var headerConnectionStatusText: String {
+        if let status = self.machineSwitcherStatus {
+            switch status {
+            case .unknown: return self.tr("ui.header.status.unknown")
+            case .checking: return self.tr("ui.header.status.checking")
+            case .connected: return self.tr("ui.header.status.connected")
+            case .failed: return self.tr("ui.header.status.connection_failed")
+            }
+        }
+        switch self.appViewModel.runtimeVisualStatus {
+        case .runningHealthy: return self.tr("ui.header.status.running")
+        case .runningDegraded: return self.tr("ui.header.status.degraded")
+        case .starting: return self.tr("ui.header.status.starting")
+        case .failed: return self.tr("ui.header.status.failed")
+        case .stopped: return self.tr("ui.header.status.stopped")
+        }
     }
 
     var headerConnectionStatusTint: Color {

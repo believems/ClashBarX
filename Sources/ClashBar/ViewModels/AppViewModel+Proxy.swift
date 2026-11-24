@@ -125,26 +125,132 @@ extension AppViewModel {
     }
 
     func switchProxy(group: String, target: String) async {
-        await runNoResponseAction(tr("log.action_name.switch_proxy", group, target)) {
-            try await self.clientOrThrow().requestNoResponse(.switchProxy(name: group, target: target))
+        let controllerAtStart = self.controller
+        let previous = self.proxyGroups.first { $0.name == group }?.now
+        let switched = await runNoResponseAction(tr("log.action_name.switch_proxy", group, target)) {
+            do {
+                try await self.clientOrThrow().requestNoResponse(.switchProxy(name: group, target: target))
+            } catch let error as URLError where error.code == .timedOut {
+                // A timeout does not mean the core rejected the switch; it may have applied it
+                // after a slow re-test. Go by the group's actual selection instead.
+                await self.refreshProxyGroups()
+                guard self.proxyGroups.first(where: { $0.name == group })?.now == target else { throw error }
+                return
+            }
             await self.refreshProxyGroups()
+        }
+        guard switched, self.closeConnectionsOnProxySwitch else { return }
+
+        // Close against what the core actually selected: url-test and fallback groups can keep their
+        // current node when the requested one is dead. If the refreshed selection still equals the
+        // pre-switch one, either nothing changed or the refresh failed; skipping is safe both ways.
+        let selection = self.proxyGroups.first { $0.name == group }?.now ?? target
+        guard selection == target || selection != previous else { return }
+
+        await self.closeConnections(through: group, notOn: selection, controller: controllerAtStart)
+
+        // mihomo lists a connection only once its dial succeeds, so connections that were still
+        // dialing the old node at switch time show up later. Sweep once more after they settle.
+        try? await Task.sleep(nanoseconds: Self.proxySwitchFollowUpSweepDelayNanoseconds)
+        guard self.closeConnectionsOnProxySwitch,
+              self.proxyGroups.first(where: { $0.name == group })?.now == selection
+        else { return }
+        await self.closeConnections(through: group, notOn: selection, controller: controllerAtStart)
+    }
+
+    private static let proxySwitchFollowUpSweepDelayNanoseconds: UInt64 = 2_000_000_000
+    private static let maxConcurrentConnectionCloses = 4
+
+    /// Closes the connections that pass through `group` on a hop other than `selection`, i.e. the
+    /// ones still pinned to the previously selected node. Does nothing if the active controller
+    /// changed since the switch started, so a machine switch mid-flight never hits the wrong core.
+    private func closeConnections(through group: String, notOn selection: String, controller: String) async {
+        guard self.controller == controller else { return }
+        let actionName = tr("log.action_name.close_group_connections", group)
+
+        let client: MihomoAPIService
+        let ids: [String]
+        do {
+            client = try self.clientOrThrow()
+            let snapshot: ConnectionRoutesSnapshot = try await client.request(.connections(interval: nil))
+            ids = snapshot.connections
+                .filter { $0.isPinned(through: group, toOtherThan: selection) }
+                .map(\.id)
+        } catch {
+            appendLog(level: "error", message: tr("log.action.failed", actionName, error.localizedDescription))
+            return
+        }
+        guard !ids.isEmpty, self.controller == controller else { return }
+
+        await self.runConnectionMutation(actionName: actionName) {
+            let failures = await Self.closeConnections(ids, using: client)
+            if failures > 0 {
+                throw ConnectionCloseError(
+                    errorDescription: self.tr("log.connection.close_partial_failure", failures, ids.count))
+            }
+        }
+    }
+
+    /// Closes `ids` with at most `maxConcurrentConnectionCloses` requests in flight, so a large batch
+    /// does not queue behind URLSession's per-host limit and time out. Returns the failure count.
+    private static func closeConnections(_ ids: [String], using client: MihomoAPIService) async -> Int {
+        await withTaskGroup(of: Bool.self) { taskGroup in
+            var pending = ids.makeIterator()
+            func enqueueNext() {
+                guard let id = pending.next() else { return }
+                taskGroup.addTask {
+                    (try? await client.requestNoResponse(.closeConnection(id: id))) != nil
+                }
+            }
+
+            for _ in 0..<Self.maxConcurrentConnectionCloses {
+                enqueueNext()
+            }
+            var failures = 0
+            while let succeeded = await taskGroup.next() {
+                if !succeeded {
+                    failures += 1
+                }
+                enqueueNext()
+            }
+            return failures
         }
     }
 
     func refreshGroupLatency(_ group: ProxyGroup) async {
+        guard !groupLatencyLoading.contains(group.name) else { return }
         groupLatencyLoading.insert(group.name)
         defer { groupLatencyLoading.remove(group.name) }
 
         let testURL = group.testUrl?.trimmedNonEmpty ?? defaultHealthcheckURL
         let timeout = group.timeout.flatMap { $0 > 0 ? $0 : nil } ?? defaultHealthcheckTimeoutMilliseconds
         await runRefresh {
-            let response: GroupDelayMeasurement = try await self.clientOrThrow().request(
-                .groupDelay(name: group.name, url: testURL, timeout: timeout))
-            self.applyMeasuredNodeDelays(response.values)
+            do {
+                let response: GroupDelayMeasurement = try await self.clientOrThrow().request(
+                    .groupDelay(name: group.name, url: testURL, timeout: timeout))
+                self.applyMeasuredNodeDelays(Self.groupDelayResult(members: group.all, measured: response.values))
+            } catch let APIError.statusCode(code, _) where Self.delayTestFailureStatusCodes.contains(code) {
+                // Every member failed the test: record them all as timeouts.
+                self.applyMeasuredNodeDelays(Self.groupDelayResult(members: group.all, measured: [:]))
+            }
         }
     }
 
+    /// mihomo's group delay endpoint only reports members that passed the test. Record the
+    /// missing ones as timeouts so a failed node never keeps showing its previous latency.
+    private static func groupDelayResult(members: [String], measured: [String: Int]) -> [String: Int] {
+        var result = measured
+        for member in members where result[member] == nil {
+            result[member] = 0
+        }
+        return result
+    }
+
     func refreshAllGroupLatencies(includeHiddenGroups: Bool = false) async {
+        guard !self.isTestingAllGroupLatencies else { return }
+        self.isTestingAllGroupLatencies = true
+        defer { self.isTestingAllGroupLatencies = false }
+
         let modeScopedGroups = self.currentMode == .global
             ? self.proxyGroups
             : self.proxyGroups.filter { $0.name.caseInsensitiveCompare("GLOBAL") != .orderedSame }
@@ -160,8 +266,16 @@ extension AppViewModel {
         }
     }
 
+    /// True while `node` is being measured, either on its own or as a member of any group test
+    /// in flight, so its row can mark the shown latency as the previous result.
     func isProxyLatencyTesting(group: String, node: String) -> Bool {
-        self.proxyLatencyTesting.contains(ProxyLatencyTestKey(group: group, node: node))
+        if self.proxyLatencyTesting.contains(ProxyLatencyTestKey(group: group, node: node)) {
+            return true
+        }
+        guard !self.groupLatencyLoading.isEmpty else { return false }
+        return self.proxyGroups.contains { candidate in
+            self.groupLatencyLoading.contains(candidate.name) && candidate.all.contains(node)
+        }
     }
 
     func refreshProxyLatency(group: String, node: String) async {
@@ -172,15 +286,48 @@ extension AppViewModel {
         defer { self.proxyLatencyTesting.remove(key) }
 
         let proxyGroup = self.proxyGroups.first { $0.name == group }
-        let testURL = proxyGroup?.testUrl?.trimmedNonEmpty ?? defaultHealthcheckURL
-        let timeout = proxyGroup?.timeout.flatMap { $0 > 0 ? $0 : nil } ?? defaultHealthcheckTimeoutMilliseconds
+        let provider = self.subscriptionProvider(containing: node)
+        let testURL = proxyGroup?.testUrl?.trimmedNonEmpty
+            ?? provider?.detail.testUrl?.trimmedNonEmpty
+            ?? defaultHealthcheckURL
+        let timeout = proxyGroup?.timeout.flatMap { $0 > 0 ? $0 : nil }
+            ?? provider?.detail.timeout.flatMap { $0 > 0 ? $0 : nil }
+            ?? defaultHealthcheckTimeoutMilliseconds
+
+        // mihomo's /proxies only lists config-level proxies and groups; nodes that come from a
+        // subscription provider return 404 there and must be tested through the provider.
+        let endpoint: Endpoint = if let provider {
+            .proxyProviderProxyHealthcheck(provider: provider.name, proxy: node, url: testURL, timeout: timeout)
+        } else {
+            .proxyDelay(name: node, url: testURL, timeout: timeout)
+        }
 
         await runRefresh {
-            let response: DelayMeasurement = try await self.clientOrThrow().request(
-                .proxyDelay(name: node, url: testURL, timeout: timeout))
-            guard let value = response.value else { return }
-            self.applyMeasuredNodeDelays([node: value])
+            do {
+                let response: DelayMeasurement = try await self.clientOrThrow().request(endpoint)
+                guard let value = response.value else { return }
+                self.applyMeasuredNodeDelays([node: value])
+            } catch let APIError.statusCode(code, _) where Self.delayTestFailureStatusCodes.contains(code) {
+                // The node itself failed the test (unreachable or timed out): show it as a
+                // timeout instead of treating the controller as unhealthy.
+                self.applyMeasuredNodeDelays([node: 0])
+            }
         }
+    }
+
+    /// mihomo answers 503 when the delay test fails and 504 when it times out.
+    private static let delayTestFailureStatusCodes: Set<Int> = [503, 504]
+
+    /// The remote subscription provider that supplies `node`, if any. The built-in "default"
+    /// provider (vehicle type Compatible) wraps config-level proxies, which /proxies already serves.
+    private func subscriptionProvider(containing node: String) -> (name: String, detail: ProviderDetail)? {
+        for (name, detail) in self.proxyProvidersDetail.sorted(by: { $0.key < $1.key }) {
+            guard detail.vehicleType?.caseInsensitiveCompare("Compatible") != .orderedSame else { continue }
+            if detail.proxies?.contains(where: { $0.name == node }) == true {
+                return (name, detail)
+            }
+        }
+        return nil
     }
 
     private func applyMeasuredNodeDelays(_ delays: [String: Int]) {
@@ -427,7 +574,15 @@ extension AppViewModel {
     private func runConnectionMutation(actionName: String, operation: @escaping () async throws -> Void) async {
         await runNoResponseAction(actionName) {
             try await operation()
-            await self.refreshConnections()
+            // A live connections stream reports the change on its next tick; only start one if
+            // none is running, instead of tearing down and reopening the WebSocket.
+            if self.webSocketTask(for: .connections) == nil {
+                await self.refreshConnections()
+            }
         }
     }
+}
+
+private struct ConnectionCloseError: LocalizedError {
+    let errorDescription: String?
 }

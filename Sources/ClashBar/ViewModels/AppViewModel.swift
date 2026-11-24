@@ -81,6 +81,11 @@ final class AppViewModel: ObservableObject {
         set { self.proxyStore.groupLatencyLoading = newValue }
     }
 
+    var isTestingAllGroupLatencies: Bool {
+        get { self.proxyStore.isTestingAllGroupLatencies }
+        set { self.proxyStore.isTestingAllGroupLatencies = newValue }
+    }
+
     var proxyLatencyTesting: Set<ProxyLatencyTestKey> {
         get { self.proxyStore.proxyLatencyTesting }
         set { self.proxyStore.proxyLatencyTesting = newValue }
@@ -138,6 +143,11 @@ final class AppViewModel: ObservableObject {
     var isRuleProvidersRefreshing: Bool {
         get { self.proxyStore.isRuleProvidersRefreshing }
         set { self.proxyStore.isRuleProvidersRefreshing = newValue }
+    }
+
+    var isProxyProvidersRefreshing: Bool {
+        get { self.proxyStore.isProxyProvidersRefreshing }
+        set { self.proxyStore.isProxyProvidersRefreshing = newValue }
     }
 
     @Published var isSystemProxyEnabled: Bool = false
@@ -407,6 +417,7 @@ final class AppViewModel: ObservableObject {
     @AppStorage("clashbar.statusbar.display.mode") private var statusBarDisplayModeRaw: String = StatusBarDisplayMode
         .iconOnly.rawValue
     @AppStorage("clashbar.proxy.node.hide_unavailable") var hideUnavailableProxyNodes: Bool = false
+    @AppStorage("clashbar.proxy.switch.close_connections") var closeConnectionsOnProxySwitch: Bool = false
     let selectedConfigKey = "clashbar.config.selected.filename"
     let legacySelectedConfigKey = "clashbar.config.selected"
     let remoteConfigSourcesKey = "clashbar.config.remote.sources.v1"

@@ -38,7 +38,7 @@ struct AttachedPopoverMenu<Label: View, Content: View>: View {
         Button(action: self.activateAnchor) {
             self.anchorLabel
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableButtonStyle())
         .onHover { hovering in
             self.isAnchorHovered = hovering
 
@@ -102,22 +102,11 @@ struct AttachedPopoverMenu<Label: View, Content: View>: View {
                     }
                 }
             }
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.never)
             .frame(width: self.width, alignment: .leading)
             .frame(maxHeight: self.maxHeight)
             .padding(T.space8)
-            .background {
-                AppMaterialSurface(
-                    cornerRadius: T.panelCornerRadius,
-                    fallbackStyle: .material(.regularMaterial),
-                    stroke: self.nativeSeparator.opacity(0.46),
-                    lineWidth: T.stroke)
-            }
-            .shadow(
-                color: self.nativeShadow.opacity(T.Shadow.standard.opacity),
-                radius: T.Shadow.standard.radius,
-                x: T.Shadow.standard.x,
-                y: T.Shadow.standard.y)
+            .rootPanelSurface(cornerRadius: T.panelCornerRadius, stroke: self.nativeSeparator.opacity(0.46))
         }
     }
 
@@ -239,14 +228,15 @@ struct AttachedPopoverMenuItem: View {
     }
 
     private var itemBackground: Color {
-        self.isHovered ? self.nativeHoverFill : .clear
+        self.isHovered ? self.nativeMenuHighlightFill : .clear
     }
 
     private var trailingSelectionForeground: Color {
         if self.isHovered {
             return self.nativeSelectedMenuText
         }
-        return self.nativeAccent
+        // Native menus draw the checkmark in the label color, not the accent.
+        return self.nativePrimaryLabel
     }
 
     private var trailingStatusForeground: Color {
@@ -323,6 +313,9 @@ private struct SideAttachedPopoverHost<Content: View>: NSViewRepresentable {
 
         let panel: SideAttachedMenuPanel
         let hostingController: NSHostingController<Content>
+        /// Glass wrapper on macOS 26+ (retained here; the panel only holds it while shown).
+        private var containerController: NSViewController?
+        private let shadowMargin = PanelGlassContainerController.effectiveShadowMargin
 
         private weak var anchorView: NSView?
         private weak var hostWindow: NSWindow?
@@ -359,11 +352,17 @@ private struct SideAttachedPopoverHost<Content: View>: NSViewRepresentable {
             self.panel.isReleasedWhenClosed = false
             self.panel.isOpaque = false
             self.panel.backgroundColor = .clear
-            self.panel.hasShadow = true
+            // macOS 26+: native glass draws the shadow inside a transparent margin (see
+            // PanelGlassContainerController); the system shadow would add a dark outline.
+            self.panel.hasShadow = PanelGlassContainerController.effectiveShadowMargin == 0
             self.panel.hidesOnDeactivate = true
             self.panel.level = .statusBar
             self.panel.collectionBehavior = [.transient, .moveToActiveSpace, .ignoresCycle]
-            self.panel.contentViewController = self.hostingController
+            let container = PanelGlassContainerController.wrapping(
+                self.hostingController,
+                cornerRadius: T.panelCornerRadius)
+            self.containerController = container
+            self.panel.contentViewController = container
             self.panel.acceptsMouseMovedEvents = true
 
             self.installTrackingAreaIfNeeded()
@@ -401,7 +400,8 @@ private struct SideAttachedPopoverHost<Content: View>: NSViewRepresentable {
             guard let anchorContext = PanelAnchorContext.resolve(for: anchorView) else { return }
             guard let placement = anchorContext.sideAttachedPlacement(
                 contentSize: fitting,
-                preferredWidth: self.width,
+                // `width` sizes the content; the surface adds `T.space8` padding on each side.
+                preferredWidth: self.width.map { $0 + T.space8 * 2 },
                 maximumHeight: self.maxHeight,
                 screenPadding: 6,
                 edgeOverlap: self.edgeOverlap)
@@ -413,7 +413,10 @@ private struct SideAttachedPopoverHost<Content: View>: NSViewRepresentable {
                 self.attachmentSide = attachmentSide
             }
 
-            self.panel.setFrame(placement.frame, display: true)
+            // Placement is for the visible glass; the window extends by the shadow margin.
+            self.panel.setFrame(
+                placement.frame.insetBy(dx: -self.shadowMargin, dy: -self.shadowMargin),
+                display: true)
             self.ensureExclusiveVisibility()
 
             if !self.panel.isVisible {
@@ -531,7 +534,7 @@ private struct SideAttachedPopoverHost<Content: View>: NSViewRepresentable {
 
             let triggerRectInWindow = anchorView.convert(anchorView.bounds, to: nil)
             let triggerRect = hostWindow.convertToScreen(triggerRectInWindow)
-            let panelRect = self.panel.frame
+            let panelRect = self.panel.frame.insetBy(dx: self.shadowMargin, dy: self.shadowMargin)
 
             let bridgeMinY = min(triggerRect.minY - self.bridgeVerticalPadding, panelRect.minY)
             let bridgeMaxY = max(triggerRect.maxY + self.bridgeVerticalPadding, panelRect.maxY)

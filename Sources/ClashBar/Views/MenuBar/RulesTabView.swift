@@ -42,17 +42,17 @@ struct RulesTabView: TranslatingView {
                 Color.clear.frame(width: 24)
                 Text(self.tr("ui.rules.column.target_type"))
                     .font(.app(size: T.FontSize.caption, weight: .medium))
-                    .foregroundStyle(nativeTertiaryLabel)
+                    .foregroundStyle(nativeSecondaryLabel)
                     .frame(width: 120, alignment: .leading)
                     .padding(.trailing, T.space6)
                 Text(self.tr("ui.rules.column.policy"))
                     .font(.app(size: T.FontSize.caption, weight: .medium))
-                    .foregroundStyle(nativeTertiaryLabel)
+                    .foregroundStyle(nativeSecondaryLabel)
                     .padding(.leading, T.space6)
                     .frame(width: 90, alignment: .leading)
                 Text(self.tr("ui.rules.column.stats"))
                     .font(.app(size: T.FontSize.caption, weight: .medium))
-                    .foregroundStyle(nativeTertiaryLabel)
+                    .foregroundStyle(nativeSecondaryLabel)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
             .textCase(.uppercase)
@@ -133,15 +133,15 @@ struct RulesTabView: TranslatingView {
             symbol: "arrow.triangle.branch",
             helpText: self.tr("ui.rules.filter.policy"),
             optionTitle: { $0.isAll ? self.tr("ui.rules.policy.all") : $0.name },
-            onSelect: { self.viewModel.policyFilter = $0 }))
+            onSelect: { self.viewModel.policyFilter = $0 }),
+            maxTitleWidth: 120)
     }
 
     var rulesGroupToggle: some View {
         let grouped = self.viewModel.groupByPolicy
         return self.compactTopIcon(
             grouped ? "rectangle.3.group.fill" : "list.bullet",
-            label: self.tr("ui.rules.group.toggle"),
-            toneOverride: grouped ? nativeInfo : nil)
+            label: self.tr("ui.rules.group.toggle"))
         {
             self.viewModel.groupByPolicy.toggle()
             self.storedGroupByPolicy = self.viewModel.groupByPolicy
@@ -226,7 +226,7 @@ struct RulesTabView: TranslatingView {
             .frame(height: T.rowHeight)
             .background(nativeHoverRowBackground(hovered))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableButtonStyle())
         .onHover { self.hoveredGroupPolicy = self.nextHovered(
             current: self.hoveredGroupPolicy, target: group.policy, isHovering: $0) }
     }
@@ -241,7 +241,7 @@ struct RulesTabView: TranslatingView {
         HStack(spacing: T.space4) {
             Text(title.uppercased())
                 .font(.app(size: T.FontSize.caption, weight: .semibold))
-                .foregroundStyle(nativeTertiaryLabel)
+                .foregroundStyle(nativeSecondaryLabel)
             Text(value)
                 .font(.app(size: T.FontSize.body, weight: .bold))
                 .foregroundStyle(nativePrimaryLabel)
@@ -254,7 +254,6 @@ struct RulesTabView: TranslatingView {
         self.compactTopIcon(
             "arrow.clockwise",
             label: self.tr("ui.action.refresh"),
-            toneOverride: nativeInfo,
             isLoading: self.proxyStore.isRuleProvidersRefreshing)
         {
             await self.appViewModel.refreshRuleProviders()
@@ -291,7 +290,7 @@ struct RulesTabView: TranslatingView {
                     .truncationMode(.tail)
                 Text(typeText)
                     .font(.app(size: T.FontSize.caption, weight: .regular))
-                    .foregroundStyle(nativeTertiaryLabel)
+                    .foregroundStyle(nativeSecondaryLabel)
                     .lineLimit(1)
             }
             .frame(width: showsPolicy ? 120 : 120 + 90 + T.space6, alignment: .leading)
@@ -320,7 +319,7 @@ struct RulesTabView: TranslatingView {
                 if let updatedText = stats.updatedText {
                     Text(updatedText)
                         .font(.app(size: T.FontSize.caption, weight: .regular))
-                        .foregroundStyle(nativeTertiaryLabel)
+                        .foregroundStyle(nativeSecondaryLabel)
                         .lineLimit(1)
                 }
             }
@@ -336,15 +335,15 @@ struct RulesTabView: TranslatingView {
     func ruleTypeIcon(for type: String) -> (symbol: String, color: Color) {
         let lower = type.lowercased()
         if lower.contains("ipcidr") {
-            return ("globe.americas.fill", nativeInfo.opacity(T.Opacity.solid))
+            return ("globe.americas", nativeSecondaryLabel)
         }
         if lower.contains("domain") || lower.contains("suffix") || lower.contains("keyword") {
-            return ("network", nativeTeal.opacity(T.Opacity.solid))
+            return ("network", nativeSecondaryLabel)
         }
         if lower.contains("ruleset") {
-            return ("list.bullet.rectangle.fill", nativeWarning.opacity(T.Opacity.solid))
+            return ("list.bullet.rectangle", nativeSecondaryLabel)
         }
-        return ("circle.grid.2x2.fill", nativeIndigo.opacity(T.Opacity.solid))
+        return ("circle.grid.2x2", nativeSecondaryLabel)
     }
 
     func rulePolicyBadge(for policy: String) -> (symbol: String?, color: Color) {
@@ -352,7 +351,7 @@ struct RulesTabView: TranslatingView {
         if lower.contains("fishy") {
             return (
                 symbol: "exclamationmark.triangle.fill",
-                color: nativeAccent.opacity(T.Opacity.solid))
+                color: nativeWarning.opacity(T.Opacity.solid))
         }
         return (
             symbol: nil,

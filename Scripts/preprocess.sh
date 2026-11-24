@@ -120,7 +120,10 @@ download_mihomo_binary() {
 prepare_mihomo() {
   mkdir -p "$(dirname "$MIHOMO_RESOURCE_PATH")"
 
-  if [ "$REUSE_LOCAL_MIHOMO" = "1" ] && [ -f "$MIHOMO_RESOURCE_PATH" ] && is_mach_o_binary "$MIHOMO_RESOURCE_PATH"; then
+  # Only reuse a local core built for the target arch; otherwise a core left over from a build
+  # for another arch would be bundled silently.
+  if [ "$REUSE_LOCAL_MIHOMO" = "1" ] && [ -f "$MIHOMO_RESOURCE_PATH" ] && is_mach_o_binary "$MIHOMO_RESOURCE_PATH" \
+    && [ "$(lipo -archs "$MIHOMO_RESOURCE_PATH" 2>/dev/null)" = "$(resolve_target_arch)" ]; then
     install -m 755 "$MIHOMO_RESOURCE_PATH" "$PREPROCESSED_MIHOMO_PATH"
     echo "Prepared mihomo from local resource: $MIHOMO_RESOURCE_PATH"
     echo "Prepared mihomo path: $PREPROCESSED_MIHOMO_PATH"

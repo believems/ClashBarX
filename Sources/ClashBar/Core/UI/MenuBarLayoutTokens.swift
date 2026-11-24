@@ -2,6 +2,9 @@ import SwiftUI
 
 enum MenuBarLayoutTokens {
     static let panelWidth: CGFloat = 360
+    /// Bounds for the node popover, whose width follows the longest node name.
+    static let nodePopoverMinWidth: CGFloat = 260
+    static let nodePopoverMaxWidth: CGFloat = 520
 
     static let space1: CGFloat = 1
     static let space2: CGFloat = 2
@@ -11,8 +14,9 @@ enum MenuBarLayoutTokens {
 
     static let stroke: CGFloat = 0.65
 
-    static let panelCornerRadius: CGFloat = 10
-    static let cornerRadius: CGFloat = 6
+    static let panelCornerRadius: CGFloat = 14
+    static let groupCornerRadius: CGFloat = 10
+    static let cornerRadius: CGFloat = 7
 
     static let compactRowHeight: CGFloat = 20
     static let rowHeight: CGFloat = 32
@@ -38,7 +42,7 @@ enum MenuBarLayoutTokens {
 
     enum FontSize {
         static let statusBar: CGFloat = 10
-        static let caption: CGFloat = 10
+        static let caption: CGFloat = 11
         static let subheadline: CGFloat = 11
         static let callout: CGFloat = 12
         static let body: CGFloat = 13
@@ -49,7 +53,7 @@ enum MenuBarLayoutTokens {
 
 extension View {
     func menuRowPadding(vertical: CGFloat = MenuBarLayoutTokens.space6) -> some View {
-        padding(.horizontal, MenuBarLayoutTokens.space4)
+        padding(.horizontal, MenuBarLayoutTokens.space6)
             .padding(.vertical, vertical)
     }
 }
