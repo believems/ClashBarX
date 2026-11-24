@@ -1,9 +1,12 @@
 import AppKit
+import SwiftUI
 
 @MainActor
-final class ClashBarAppDelegate: NSObject, NSApplicationDelegate {
+final class ClashBarAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+    static let managedModalWindowIdentifier = NSUserInterfaceItemIdentifier("ClashBar.ManagedModalWindow")
     let appViewModel = AppViewModel(dependencies: .live)
     private var statusItemController: StatusItemController?
+    private var dashboardWindow: NSWindow?
     private var windowObservers: [any NSObjectProtocol] = []
     private var accessibilityDisplayObserver: (any NSObjectProtocol)?
     private var wakeObserver: (any NSObjectProtocol)?
@@ -24,6 +27,9 @@ final class ClashBarAppDelegate: NSObject, NSApplicationDelegate {
         self.observeAccessibilityDisplayOptions()
 
         self.appViewModel.start()
+        self.appViewModel.dashboardPresenter = { [weak self] in
+            self?.showDashboard()
+        }
         self.wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification,
             object: nil,
@@ -49,7 +55,11 @@ final class ClashBarAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        self.statusItemController?.presentPopover()
+        if self.dashboardWindow != nil {
+            self.showDashboard()
+        } else {
+            self.statusItemController?.presentPopover()
+        }
         return false
     }
 
@@ -59,7 +69,14 @@ final class ClashBarAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidBecomeActive(_ notification: Notification) {
         self.suppressNonPanelWindows()
+        self.restoreManagedModalWindowIfNeeded()
         self.appViewModel.handleApplicationDidBecomeActive()
+    }
+
+    func restoreManagedModalWindowIfNeeded() {
+        guard let window = NSApp.modalWindow,
+              window.identifier == Self.managedModalWindowIdentifier else { return }
+        window.makeKeyAndOrderFront(nil)
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -83,6 +100,53 @@ final class ClashBarAppDelegate: NSObject, NSApplicationDelegate {
 
     func showSettingsPanel() {
         self.statusItemController?.presentPopover(tab: .system)
+    }
+
+    func showDashboard() {
+        if self.dashboardWindow == nil {
+            let window = DashboardWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 1100, height: 740),
+                // Let the sidebar and detail backgrounds extend behind the
+                // native titlebar controls.
+                styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+                backing: .buffered,
+                defer: false)
+            window.title = L10n.t("ui.action.open_dashboard", language: self.appViewModel.uiLanguage)
+            window.minSize = NSSize(width: 760, height: 520)
+            window.isReleasedWhenClosed = false
+            window.delegate = self
+            let hosting = NSHostingController(rootView:
+                DashboardView(appViewModel: self.appViewModel, sidebarState: window.sidebarState))
+            hosting.sizingOptions = []
+            window.contentViewController = hosting
+            window.configureTitlebar()
+            window.setContentSize(NSSize(width: 1100, height: 740))
+            window.center()
+            self.dashboardWindow = window
+        }
+        // Keep the Dock icon until termination, even after the dashboard closes.
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        if self.dashboardWindow?.isMiniaturized == true {
+            self.dashboardWindow?.deminiaturize(nil)
+        }
+        self.dashboardWindow?.makeKeyAndOrderFront(nil)
+        self.appViewModel.setDashboardVisibility(true)
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        guard notification.object as? NSWindow === self.dashboardWindow else { return }
+        self.appViewModel.setDashboardVisibility(false)
+    }
+
+    func windowDidMiniaturize(_ notification: Notification) {
+        guard notification.object as? NSWindow === self.dashboardWindow else { return }
+        self.appViewModel.setDashboardVisibility(false)
+    }
+
+    func windowDidDeminiaturize(_ notification: Notification) {
+        guard notification.object as? NSWindow === self.dashboardWindow else { return }
+        self.appViewModel.setDashboardVisibility(true)
     }
 
     /// `NeutralFill` reads Increase Contrast when views render; redraw the panel when it changes.
@@ -121,6 +185,12 @@ final class ClashBarAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func suppressWindowIfNeeded(_ window: NSWindow) {
+        if window.identifier == Self.managedModalWindowIdentifier || window === NSApp.modalWindow {
+            return
+        }
+        if window is DashboardWindow {
+            return
+        }
         if window is NSPanel {
             return
         }

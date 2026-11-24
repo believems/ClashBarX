@@ -78,6 +78,16 @@ extension AppViewModel {
         self.updateDataAcquisitionPolicy()
     }
 
+    func setDashboardVisibility(_ presented: Bool) {
+        guard self.isDashboardPresented != presented else { return }
+        self.isDashboardPresented = presented
+        if !presented && !self.isPanelPresented {
+            self.resetTrafficTotalsForHiddenPanel()
+            self.releasePanelCachedData()
+        }
+        self.updateDataAcquisitionPolicy()
+    }
+
     func setPanelVisibility(_ presented: Bool) {
         guard isPanelPresented != presented else { return }
         isPanelPresented = presented

@@ -267,6 +267,11 @@ final class AppViewModel: ObservableObject {
     @Published var isDashboardPresented: Bool = false
     lazy var serviceStatusStore = ServiceStatusViewModel(
         storageURL: self.workingDirectoryManager.stateDirectoryURL.appendingPathComponent("service-status.json"))
+    /// 由 AppDelegate 注入的仪表盘呈现动作（窗口归 AppDelegate 管理，视图层只发请求）。
+    var dashboardPresenter: (() -> Void)?
+    func presentDashboard() {
+        self.dashboardPresenter?()
+    }
 
     // —— 系统代理目标记忆与状态监控（flowke T4 同步链）——
     @Published var systemProxyStatus: SystemProxyStatus = .disabled {

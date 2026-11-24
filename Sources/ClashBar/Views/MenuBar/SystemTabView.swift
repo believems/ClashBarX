@@ -516,6 +516,17 @@ struct SystemTabView: TranslatingView {
             }
             .animation(.spring(response: 0.30, dampingFraction: 0.80), value: self.isExceptionsExpanded)
 
+            self.settingsSection(self.tr("ui.section.dashboard")) {
+                Button {
+                    self.appViewModel.presentDashboard()
+                } label: {
+                    Label(self.tr("ui.action.open_dashboard"), systemImage: "square.grid.2x2")
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
+                .appBorderedButtonStyle(prominent: true)
+                .controlSize(.small)
+            }
+
             self.settingsSection(
                     isRemote ? self.tr("ui.section.core_settings_remote") : self.tr("ui.section.core_settings"))
             {
