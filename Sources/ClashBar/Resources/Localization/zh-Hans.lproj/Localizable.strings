@@ -263,6 +263,8 @@
 "app.system_proxy.error.helper_not_bundled" = "未找到系统代理 helper。请使用打包后的应用（.app/.dmg）";
 "app.system_proxy.error.helper_install_location" = "请先将 ClashBarPlus.app 拖到“应用程序”目录后重试";
 "app.system_proxy.error.helper_not_registered" = "系统代理 helper 尚未安装";
+"app.system_proxy.error.helper_needs_update" = "系统代理 Helper 版本过旧（已安装 v%d，当前需要 v%d），请在设置中更新";
+"app.system_proxy.alert.helper_needs_update" = "Helper 版本过旧，请在设置中的“系统代理 Helper”区域更新";
 "app.system_proxy.error.helper_start_timed_out" = "系统代理 Helper 未响应，请重新开启系统代理以重试";
 "app.system_proxy.error.helper_authorization_cancelled" = "已取消管理员授权";
 "app.system_proxy.error.helper_install_failed" = "安装系统代理 helper 失败: %@";
