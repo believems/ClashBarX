@@ -96,7 +96,7 @@ ClashBarX 是 [Sitoi/ClashBar](https://github.com/Sitoi/ClashBar) 的整合发�
 
 | 客户端                     |     体积 |
 | -------------------------- | -------: |
-| ClashBarPlus.app (No Core) |     3 MB |
+| ClashBarX.app (No Core) |     3 MB |
 | ClashMac.app               |  75.2 MB |
 | Clash Verge.app            | 128.4 MB |
 | Clash Party.app            | 496.7 MB |
@@ -132,7 +132,7 @@ ClashBarX 是 [Sitoi/ClashBar](https://github.com/Sitoi/ClashBar) 的整合发�
 >
 > - ⚠️ 同一时间只让一个 mihomo / Clash 系客户端接管系统代理。
 > - 📂 系统代理依赖打包后的 `.app`；请放到 `/Applications` 后再使用。
-> - 🔑 第一次开启系统代理时输入管理员密码。helper 会装到系统目录，之后更新 app 不会让它失效。开机启动仍需在登录项中允许 ClashBarPlus。
+> - 🔑 第一次开启系统代理时输入管理员密码。helper 会装到系统目录，之后更新 app 不会让它失效。开机启动仍需在登录项中允许 ClashBarX。
 > - 🔄 系统代理开关异常时，在应用内重新打开一次；必要时 `Restart` 内核。若系统弹出后台项目提示，在登录项里允许该 helper。
 
 ## 🔄 版本与更新
