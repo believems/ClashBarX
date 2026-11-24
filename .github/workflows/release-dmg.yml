@@ -164,23 +164,16 @@ jobs:
     needs: prepare-version
     strategy:
       fail-fast: false
+      # 发布策略：不打包 mihomo 内核（用户自备），保留 arm64 与 intel 双架构。
       matrix:
         include:
           - target_arch: arm64
             dmg_suffix: apple-silicon
             artifact_name: dmg-arm64
-            bundle_mihomo_binary: '1'
-          - target_arch: arm64
-            dmg_suffix: apple-silicon-no-core
-            artifact_name: dmg-arm64-no-core
             bundle_mihomo_binary: '0'
           - target_arch: x86_64
             dmg_suffix: intel
             artifact_name: dmg-x86_64
-            bundle_mihomo_binary: '1'
-          - target_arch: x86_64
-            dmg_suffix: intel-no-core
-            artifact_name: dmg-x86_64-no-core
             bundle_mihomo_binary: '0'
     runs-on: macos-15
     permissions:

@@ -109,14 +109,16 @@ ClashBarX 是 [Sitoi/ClashBar](https://github.com/Sitoi/ClashBar) 的整合发�
 2. 把 `ClashBar.app` 拖入 `/Applications`。
 3. 首次打开若被系统拦截，到「系统设置 → 隐私与安全性」中放行。
 
-每个版本提供 4 个产物，按芯片和是否内置 mihomo 内核区分：
+发布策略：**只提供 GitHub Releases 下载，不发布 Homebrew Cask；安装包不内置 mihomo 内核（体积更小、内核由用户自备并自行升级），同时提供 Apple Silicon 与 Intel 双架构**。每个版本提供 2 个产物：
 
-| 文件名                                    | 适用                             |
-| ----------------------------------------- | -------------------------------- |
-| `ClashBarX-<版本>-apple-silicon.dmg`         | Apple Silicon，内置内核          |
-| `ClashBarX-<版本>-apple-silicon-no-core.dmg` | Apple Silicon，自备内核          |
-| `ClashBarX-<版本>-intel.dmg`                 | Intel，内置内核                  |
-| `ClashBarX-<版本>-intel-no-core.dmg`         | Intel，自备内核                  |
+| 文件名                              | 适用                     |
+| ----------------------------------- | ------------------------ |
+| `ClashBarX-<版本>-apple-silicon.dmg` | Apple Silicon，自备内核 |
+| `ClashBarX-<版本>-intel.dmg`         | Intel，自备内核          |
+
+> [!TIP]
+> 自备内核：在「设置 → 核心」中选择本机已安装的 mihomo，
+> 或从 [mihomo Releases](https://github.com/MetaCubeX/mihomo/releases) 下载对应架构的内核后选择。
 
 > [!NOTE]
 > 本仓库的安装包使用 ad-hoc 签名，未做 Apple 公证。上游的 Homebrew tap
