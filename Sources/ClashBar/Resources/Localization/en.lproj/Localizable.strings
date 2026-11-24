@@ -478,3 +478,15 @@
 "fmt.remote_config.next_update_hours" = "Auto in %dh";
 "ui.action.open_dashboard" = "Dashboard";
 "ui.section.dashboard" = "Dashboard";
+
+"ui.section.proxy_guard" = "Auto Proxy Guard";
+"ui.settings.proxy_guard_enabled" = "Switch to a usable node automatically";
+"ui.settings.proxy_guard_interval" = "Probe interval (seconds)";
+"ui.action.proxy_guard_check_now" = "Check now";
+"app.proxyguard.started" = "Proxy guard enabled; probing every %d seconds.";
+"app.proxyguard.probe_failed" = "Proxy probe failed (%d/%d).";
+"app.proxyguard.recovering" = "Proxy unavailable; recovering automatically…";
+"app.proxyguard.switched" = "Switched group \"%@\" to usable node \"%@\".";
+"app.proxyguard.updating_providers" = "No usable node in groups; updating all subscriptions (%d providers)…";
+"app.proxyguard.recovered" = "Proxy is reachable again.";
+"app.proxyguard.recovery_failed" = "Automatic recovery failed; will retry on the next probe cycle.";

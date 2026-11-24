@@ -65,8 +65,8 @@ struct ConnectionsTabView: TranslatingView {
                             self.connectionRow(conn)
                         }
                     }
+                    .onHover { self.viewModel.isReorderingPaused = $0 }
                 }
-                .onHover { self.viewModel.isReorderingPaused = $0 }
             }
         }
         .onAppear {

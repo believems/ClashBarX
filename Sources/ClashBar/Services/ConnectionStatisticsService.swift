@@ -79,7 +79,12 @@ actor ConnectionStatisticsService {
             }
             return TrafficStatisticsSnapshot(dimension: dimension, entries: entries)
         }
-        return ConnectionStatisticsUpdate(totalCount: snapshot.totalCount, connections: connections, statistics: statistics)
+        return ConnectionStatisticsUpdate(
+            totalCount: snapshot.totalCount,
+            uploadTotal: snapshot.uploadTotal,
+            downloadTotal: snapshot.downloadTotal,
+            connections: connections,
+            statistics: statistics)
     }
 
     private static func accumulate(

@@ -264,6 +264,8 @@ extension AppViewModel {
     private func applyConnectionsUpdate(_ update: ConnectionStatisticsUpdate) {
         guard self.isPanelPresented else { return }
 
+        self.connectionsStore.uploadTotal = update.uploadTotal
+        self.connectionsStore.downloadTotal = update.downloadTotal
         if self.activeMenuTab == .proxy || self.activeMenuTab == .connections,
            self.connectionsStore.connectionsCount != update.totalCount
         {

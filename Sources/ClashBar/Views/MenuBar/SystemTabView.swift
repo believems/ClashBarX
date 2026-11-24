@@ -32,6 +32,17 @@ struct SystemTabView: TranslatingView {
         }
     }
 
+    /// 守护周期（秒）的字符串视图绑定：输入为 30–86400 的整数时回写。
+    private var proxyGuardIntervalText: Binding<String> {
+        Binding(
+            get: { String(max(30, self.appViewModel.proxyGuardIntervalSeconds)) },
+            set: { text in
+                guard let value = Int(text.trimmingCharacters(in: .whitespaces)),
+                      (30...86_400).contains(value) else { return }
+                self.appViewModel.proxyGuardIntervalSeconds = value
+            })
+    }
+
     func settingsRowLabel(symbol: String, title: String) -> some View {
         HStack(spacing: T.space6) {
             Image(systemName: symbol)
@@ -525,6 +536,33 @@ struct SystemTabView: TranslatingView {
                 }
                 .appBorderedButtonStyle(prominent: true)
                 .controlSize(.small)
+            }
+
+            self.settingsSection(self.tr("ui.section.proxy_guard")) {
+                self.settingsToggleRow(
+                    self.tr("ui.settings.proxy_guard_enabled"),
+                    symbol: "shield.checkerboard",
+                    isOn: self.$appViewModel.proxyGuardEnabled)
+                self.settingsPortFieldRow(
+                    self.tr("ui.settings.proxy_guard_interval"),
+                    symbol: "timer",
+                    text: self.proxyGuardIntervalText)
+                Button {
+                    Task { await self.appViewModel.proxyGuardProbe() }
+                } label: {
+                    Label(self.tr("ui.action.proxy_guard_check_now"), systemImage: "bolt.badge.clock")
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
+                .appBorderedButtonStyle()
+                .controlSize(.small)
+                .disabled(!self.appViewModel.isRuntimeRunning)
+            }
+            .onChange(of: self.appViewModel.proxyGuardEnabled) { enabled in
+                if enabled {
+                    self.appViewModel.startProxyGuardIfNeeded()
+                } else {
+                    self.appViewModel.stopProxyGuard()
+                }
             }
 
             self.settingsSection(

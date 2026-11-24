@@ -34,6 +34,8 @@ struct TrafficStatisticsSnapshot: Equatable, Sendable {
 
 struct ConnectionStatisticsUpdate: Sendable {
     let totalCount: Int
+    let uploadTotal: Int64?
+    let downloadTotal: Int64?
     let connections: [ConnectionSummary]?
     let statistics: TrafficStatisticsSnapshot?
 }

@@ -56,6 +56,7 @@ extension AppViewModel {
         self.didStart = true
         self.bootstrapDirectoriesAndLogs()
         self.performDeferredInitialization()
+        self.startProxyGuardIfNeeded()
     }
 
     private func performDeferredInitialization() {

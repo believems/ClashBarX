@@ -1,0 +1,93 @@
+name: Upstream Sync & Release
+
+# 每晚 21:00（北京时间，UTC 13:00）检查上游 Sitoi/ClashBar 是否有更新；
+# 有更新则合并进 integration 并自动发布新版本（版本号按提交语义自动递增）。
+# 合并冲突时自动创建 Issue 提醒人工处理，不强制发版。
+on:
+  schedule:
+    - cron: '0 13 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: write
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout integration
+        uses: actions/checkout@v7
+        with:
+          ref: integration
+          fetch-depth: 0
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream https://github.com/Sitoi/ClashBar.git
+          git fetch upstream main
+
+      - name: Check for upstream updates
+        id: check
+        run: |
+          count=$(git rev-list --count HEAD..upstream/main)
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          if [ "$count" -gt 0 ]; then
+            echo "Upstream has $count new commit(s)."
+          else
+            echo "Upstream is up to date; nothing to do."
+          fi
+
+      - name: Merge upstream into integration
+        if: steps.check.outputs.count != '0'
+        id: merge
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # --no-edit 保留双方历史；冲突时本步骤失败并转入提醒分支。
+          git merge upstream/main --no-edit
+          git push origin integration
+
+      - name: Fast-forward main to integration
+        if: steps.merge.outcome == 'success'
+        run: |
+          # 发版基线走 main：正式 tag 与 Release 都落在 main 上。
+          git push origin integration:refs/heads/main
+
+      - name: Push integration to alpha
+        if: steps.merge.outcome == 'success'
+        run: git push origin integration:refs/heads/alpha
+
+      - name: Trigger release
+        if: steps.merge.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # tag 留空 → 由 release workflow 按提交语义自动推导递增版本号并出正式 Release。
+          gh workflow run release-dmg.yml --repo "${GITHUB_REPOSITORY}" --ref main -f tag='' -f bump=auto
+          echo "Release workflow dispatched."
+
+      - name: Report merge conflict
+        if: failure() && steps.check.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "上游同步冲突：需要人工合并 upstream/main" \
+            --body "每日 21:00 的上游同步在合并 Sitoi/ClashBar main 时遇到冲突，未自动发版。
+
+          请本地执行：
+          \`\`\`sh
+          git fetch upstream main
+          git merge upstream/main
+          # 解决冲突后推送 integration 并手动触发 Release DMG workflow
+          \`\`\`
+
+          上游新增提交数：${{ steps.check.outputs.count }}" \
+            --label "upstream-sync"

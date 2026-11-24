@@ -204,6 +204,7 @@ extension AppViewModel {
 
     func shutdownForTermination() {
         self.prepareForTermination()
+        self.shutdownProxyGuard()
         self.systemProxyService.clearBlocking(timeout: 0.35)
         if processManager.isRunning {
             self.processManager.stopImmediately()

@@ -338,6 +338,15 @@ final class AppViewModel: ObservableObject {
     var proxyPortRetryTask: Task<Void, Never>?
     var proxyPortRetryID: UUID?
 
+    // —— 自动代理守护（组内切换 + 订阅自愈 + CLI --proxy-guard 触发）——
+    @AppStorage("clashbar.proxyguard.enabled") var proxyGuardEnabled: Bool = false
+    /// 探测周期（秒），下限 30。
+    @AppStorage("clashbar.proxyguard.interval.seconds") var proxyGuardIntervalSeconds: Int = 300
+    var proxyGuardTask: Task<Void, Never>?
+    var proxyGuardConsecutiveFailures = 0
+    var proxyGuardRecoveryInFlight = false
+    var proxyGuardTriggerObserver: (any NSObjectProtocol)?
+
     var runtimeVisualStatus: RuntimeVisualStatus {
         let normalized = self.statusText.lowercased()
         if normalized == "starting" {

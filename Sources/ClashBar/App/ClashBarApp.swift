@@ -5,6 +5,11 @@ import SwiftUI
 struct ClashBarApp: App {
     @NSApplicationDelegateAdaptor(ClashBarAppDelegate.self) private var appDelegate
 
+    init() {
+        // --proxy-guard：自动化触发入口（有实例则通知并退出，无实例则启动后立即探测一次）。
+        ProxyGuardCLI.runIfNeeded()
+    }
+
     var body: some Scene {
         Settings {
             SettingsWindowSuppressor()
