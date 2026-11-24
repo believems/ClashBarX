@@ -305,7 +305,7 @@ extension EditableSettingsSnapshot {
     }
 }
 
-struct SystemProxyPorts: Equatable {
+struct SystemProxyPorts: Codable, Equatable, Sendable {
     let httpPort: Int?
     let httpsPort: Int?
     let socksPort: Int?
