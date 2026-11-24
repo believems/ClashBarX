@@ -1,10 +1,10 @@
 <div align="center">
 
-<img src="./docs/public/clashbar-logo.png" width="220" alt="ClashBar Logo" />
+<img src="./docs/public/clashbar-logo.png" width="220" alt="ClashBarPlus Logo" />
 
-# ClashBar
+# ClashBarPlus
 
-原生 macOS 菜单栏代理客户端，基于 `SwiftUI + AppKit`，由 `mihomo` 驱动。  
+原生 macOS 菜单栏代理客户端，基于 `SwiftUI + AppKit`，由 `mihomo` 驱动。
 轻量、稳定，在菜单栏完成配置、节点、规则、连接与系统代理管理。 ✨
 
 > **本仓库是 [Sitoi/ClashBar](https://github.com/Sitoi/ClashBar) 的 fork。**  
@@ -15,37 +15,38 @@
   <img alt="Swift" src="https://img.shields.io/badge/Swift-6.2-F05138?style=flat-square&logo=swift" />
   <img alt="Build" src="https://img.shields.io/badge/Build-SwiftPM-0A84FF?style=flat-square" />
   <img alt="i18n" src="https://img.shields.io/badge/i18n-zh--Hans%20%7C%20en-34C759?style=flat-square" />
-  <a href="https://github.com/mh567/ClashBar/releases" target="_blank" rel="noopener noreferrer">
-    <img alt="Version" src="https://img.shields.io/github/v/release/mh567/ClashBar?style=flat-square&logo=github" />
+  <img alt="Upstream" src="https://img.shields.io/badge/Fork_of-Sitoi%2FClashBar-8B5CF6?style=flat-square&logo=github" />
+  <a href="https://github.com/believems/ClashBarX/releases" target="_blank" rel="noopener noreferrer">
+    <img alt="Version" src="https://img.shields.io/github/v/release/believems/ClashBarX?style=flat-square&logo=github" />
   </a>
-  <a href="https://github.com/mh567/ClashBar/stargazers" target="_blank" rel="noopener noreferrer">
-    <img alt="Stars" src="https://img.shields.io/github/stars/mh567/ClashBar?style=flat-square&logo=github" />
+  <a href="https://github.com/believems/ClashBarX/stargazers" target="_blank" rel="noopener noreferrer">
+    <img alt="Stars" src="https://img.shields.io/github/stars/believems/ClashBarX?style=flat-square&logo=github" />
   </a>
-  <a href="https://github.com/mh567/ClashBar/issues" target="_blank" rel="noopener noreferrer">
-    <img alt="Issues" src="https://img.shields.io/github/issues/mh567/ClashBar?style=flat-square&logo=github" />
+  <a href="https://github.com/believems/ClashBarX/issues" target="_blank" rel="noopener noreferrer">
+    <img alt="Issues" src="https://img.shields.io/github/issues/believems/ClashBarX?style=flat-square&logo=github" />
   </a>
-  <a href="https://github.com/mh567/ClashBar/pulls" target="_blank" rel="noopener noreferrer">
-    <img alt="PRs" src="https://img.shields.io/github/issues-pr/mh567/ClashBar?style=flat-square&logo=github" />
+  <a href="https://github.com/believems/ClashBarX/pulls" target="_blank" rel="noopener noreferrer">
+    <img alt="PRs" src="https://img.shields.io/github/issues-pr/believems/ClashBarX?style=flat-square&logo=github" />
   </a>
-  <a href="https://github.com/mh567/ClashBar/network/members" target="_blank" rel="noopener noreferrer">
-    <img alt="Forks" src="https://img.shields.io/github/forks/mh567/ClashBar?style=flat-square&logo=github" />
+  <a href="https://github.com/believems/ClashBarX/network/members" target="_blank" rel="noopener noreferrer">
+    <img alt="Forks" src="https://img.shields.io/github/forks/believems/ClashBarX?style=flat-square&logo=github" />
   </a>
-  <a href="https://github.com/mh567/ClashBar/releases" target="_blank" rel="noopener noreferrer">
-    <img alt="Downloads" src="https://img.shields.io/github/downloads/mh567/ClashBar/total?style=flat-square&logo=github" />
+  <a href="https://github.com/believems/ClashBarX/releases" target="_blank" rel="noopener noreferrer">
+    <img alt="Downloads" src="https://img.shields.io/github/downloads/believems/ClashBarX/total?style=flat-square&logo=github" />
   </a>
-  <a href="https://github.com/mh567/ClashBar/commits" target="_blank" rel="noopener noreferrer">
-    <img alt="Commit Activity" src="https://img.shields.io/github/commit-activity/m/mh567/ClashBar?style=flat-square&logo=github" />
+  <a href="https://github.com/believems/ClashBarX/commits" target="_blank" rel="noopener noreferrer">
+    <img alt="Commit Activity" src="https://img.shields.io/github/commit-activity/m/believems/ClashBarX?style=flat-square&logo=github" />
   </a>
-  <a href="https://github.com/mh567/ClashBar/commits" target="_blank" rel="noopener noreferrer">
-    <img alt="Last Commit" src="https://img.shields.io/github/last-commit/mh567/ClashBar?style=flat-square&logo=github" />
+  <a href="https://github.com/believems/ClashBarX/commits" target="_blank" rel="noopener noreferrer">
+    <img alt="Last Commit" src="https://img.shields.io/github/last-commit/believems/ClashBarX?style=flat-square&logo=github" />
   </a>
-  <a href="https://github.com/mh567/ClashBar/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">
-    <img alt="License" src="https://img.shields.io/github/license/mh567/ClashBar?style=flat-square" />
+  <a href="https://github.com/believems/ClashBarX/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">
+    <img alt="License" src="https://img.shields.io/github/license/believems/ClashBarX?style=flat-square" />
   </a>
 </p>
 
 <p>
-  📦 <a href="https://github.com/mh567/ClashBar/releases"><strong>Releases</strong></a>
+  📦 <a href="https://github.com/believems/ClashBarX/releases"><strong>Releases</strong></a>
   ·
   🧾 <a href="./CHANGELOG.md"><strong>更新日志</strong></a>
   ·
@@ -55,15 +56,31 @@
 </div>
 
 <p>
-  <img src="./docs/public/clashbar-black.png" width="49%" alt="ClashBar Dark" />
-  <img src="./docs/public/clashbar-light.png" width="49%" alt="ClashBar Light" />
+  <img src="./docs/public/clashbar-black.png" width="49%" alt="ClashBarPlus Dark" />
+  <img src="./docs/public/clashbar-light.png" width="49%" alt="ClashBarPlus Light" />
 </p>
+
+## 🔀 与上游的关系
+
+ClashBarPlus 是 [Sitoi/ClashBar](https://github.com/Sitoi/ClashBar) 的 fork，基线为上游 **v0.3.3**。上游的全部功能都在，这里只做增量改动，并会持续同步上游更新。
+
+|                | ClashBarPlus                                    | 上游 ClashBar                    |
+| -------------- | ----------------------------------------------- | -------------------------------- |
+| 版本号         | 自 `v1.0.0` 起独立编号，不跟随上游              | `v0.3.x`                         |
+| 安装方式       | 仅 Releases 下载 DMG                            | Homebrew Cask / DMG              |
+| Bundle ID      | `com.clashbar`（与上游一致）                    | `com.clashbar`                   |
+| 数据目录       | `~/Library/Application Support/clashbar`（一致）| 同左                             |
+
+> [!IMPORTANT]
+> ClashBarPlus 刻意保留了上游的 Bundle ID、数据目录与特权助手标签。这意味着**覆盖安装即原地升级**——既有配置、订阅、设置以及「登录项」里的助手授权全部保留，无需重新配置。代价是它与原版 ClashBar **不能并存**，请先卸载原版再安装。
+
+与上游的差异记录在 [CHANGELOG.md](./CHANGELOG.md)；v0.3.3 及更早的历史见[上游更新日志](https://github.com/Sitoi/ClashBar/blob/main/CHANGELOG.md)。
 
 ## ✨ 特点
 
 - 🪶 **轻量**：去掉 Core 约 3 MB 内
 - 🧭 **菜单栏优先**：配置导入/更新、节点切换、延迟测试、规则与连接排障
-- 🔐 **系统集成**：系统代理、开机启动
+- 🔐 **系统集成**：系统代理、TUN、开机启动
 - 📊 **可观测**：实时流量、连接、内存、日志过滤
 - 🌍 **中英双语**：简体中文 / English
 
@@ -73,12 +90,12 @@
 
 ### 📏 体积对比（macOS Finder 显示值，仅供参考）
 
-| 客户端                 |     体积 |
-| ---------------------- | -------: |
-| ClashBar.app (No Core) |     3 MB |
-| ClashMac.app           |  75.2 MB |
-| Clash Verge.app        | 128.4 MB |
-| Clash Party.app        | 496.7 MB |
+| 客户端                     |     体积 |
+| -------------------------- | -------: |
+| ClashBarPlus.app (No Core) |     3 MB |
+| ClashMac.app               |  75.2 MB |
+| Clash Verge.app            | 128.4 MB |
+| Clash Party.app            | 496.7 MB |
 
 ## 📦 安装
 
@@ -88,10 +105,20 @@
 2. 把 `ClashBar.app` 拖入 `/Applications`。
 3. 首次打开若被系统拦截，到「系统设置 → 隐私与安全性」中放行。
 
+每个版本提供 4 个产物，按芯片和是否内置 mihomo 内核区分：
+
+| 文件名                                    | 适用                             |
+| ----------------------------------------- | -------------------------------- |
+| `ClashBarX-<版本>-apple-silicon.dmg`         | Apple Silicon，内置内核          |
+| `ClashBarX-<版本>-apple-silicon-no-core.dmg` | Apple Silicon，自备内核          |
+| `ClashBarX-<版本>-intel.dmg`                 | Intel，内置内核                  |
+| `ClashBarX-<版本>-intel-no-core.dmg`         | Intel，自备内核                  |
+
 > [!NOTE]
 > 本仓库的安装包使用 ad-hoc 签名，未做 Apple 公证。上游的 Homebrew tap
 > （`brew install --cask clashbar`）安装的是上游版本，不会得到本仓库的构建，
-> 应用内更新也不会跟踪到这里。
+> 应用内更新也不会跟踪到这里。若此前用 Homebrew 装过上游版本，请先
+> `brew uninstall --cask clashbar` 再安装本版本，否则 Homebrew 升级会覆盖回上游。
 
 卸载：删除 `/Applications/ClashBar.app`，并清理 `~/Library/Application Support/clashbar`。
 如果装过系统代理 Helper，删除 `/Library/PrivilegedHelperTools/com.clashbar.helper` 与
@@ -101,7 +128,7 @@
 >
 > - ⚠️ 同一时间只让一个 mihomo / Clash 系客户端接管系统代理。
 > - 📂 系统代理依赖打包后的 `.app`；请放到 `/Applications` 后再使用。
-> - 🔑 第一次开启系统代理时输入管理员密码。helper 会装到系统目录，之后更新 app 不会让它失效。开机启动仍需在登录项中允许 ClashBar。
+> - 🔑 第一次开启系统代理时输入管理员密码。helper 会装到系统目录，之后更新 app 不会让它失效。开机启动仍需在登录项中允许 ClashBarPlus。
 > - 🔄 系统代理开关异常时，在应用内重新打开一次；必要时 `Restart` 内核。若系统弹出后台项目提示，在登录项里允许该 helper。
 
 ## 🔄 版本与更新
@@ -138,16 +165,27 @@
 | 📚 Rules       | 规则统计、筛选、Provider 更新                   |
 | 🌐 Connections | 连接过滤与关闭                                  |
 | 🪵 Logs        | 级别过滤、关键词检索                            |
+| 🔀 Override    | 规则覆写（前置/追加规则与规则集），保存即生效   |
 | ⚙️ System      | 语言、状态栏、端口、`allow-lan` / `ipv6`、直连测试地址等 |
 
-📁 运行时数据目录：`~/Library/Application Support/clashbar`  
+📁 运行时数据目录：`~/Library/Application Support/clashbar`
 🧩 内置内核会复制到：`~/Library/Application Support/clashbar/core/mihomo`
+
+## 📖 文档
+
+文档源码在 [`docs/`](./docs) 目录，本地预览：
+
+```sh
+cd docs && pnpm install && pnpm dev
+```
+
+功能说明与上游基本一致，上游也维护了一个在线文档站：<https://clashbar.sitoi.workers.dev>
 
 ## 🛠️ 开发构建
 
 ```sh
 # 依赖：Xcode / Swift 6.2+、macOS 13+
-make build                 # 产出 dist/ClashBar.app（默认不含 Core）
+make build                 # 产出 dist/ClashBarPlus.app（默认不含 Core）
 make build WITH_CORE=1     # 打包内置 mihomo
 make dist WITH_CORE=1      # app + dmg
 make test                  # 运行 Swift 测试
@@ -160,7 +198,7 @@ make format                # swiftformat + swiftlint（需自行安装）
 
 ## 🙌 社区与反馈
 
-- 🐛 本仓库的 Issue / PR：<https://github.com/mh567/ClashBar/issues>
+- 🐛 本仓库的 Issue / PR：<https://github.com/believems/ClashBarX/issues>
 - 💬 上游 Telegram 社区：<https://t.me/clashbars>（讨论内容以上游版本为主）
 - 🌐 上游文档站：<https://clashbar.sitoi.workers.dev>
 
@@ -169,7 +207,7 @@ make format                # swiftformat + swiftlint（需自行安装）
 
 ## 👥 贡献者
 
-[![Contributors](https://contrib.rocks/image?repo=mh567/ClashBar)](https://github.com/mh567/ClashBar/graphs/contributors)
+[![Contributors](https://contrib.rocks/image?repo=believems/ClashBarX)](https://github.com/believems/ClashBarX/graphs/contributors)
 
 ## 🙏 致谢
 
@@ -177,6 +215,8 @@ make format                # swiftformat + swiftlint（需自行安装）
 - 感谢 [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo) 提供内核能力。
 - 感谢 [Linux DO](https://linux.do/) 社区的支持与帮助 🙏
 
-## ⭐ Star 趋势
+## 📄 许可
 
-[![Star History Chart](https://star-history.dera.page/svg?repos=mh567/ClashBar&type=date&legend=top-left)](https://star-history.dera.page/#mh567/ClashBar&type=date&legend=top-left)
+沿用上游的许可协议，见 [LICENSE](./LICENSE)。
+
+[![Star History Chart](https://star-history.dera.page/svg?repos=believems/ClashBarX&type=date&legend=top-left)](https://star-history.dera.page/#believems/ClashBarX&type=date&legend=top-left)

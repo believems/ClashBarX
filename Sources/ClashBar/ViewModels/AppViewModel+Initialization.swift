@@ -63,6 +63,7 @@ extension AppViewModel {
         restoreLastSuccessfulConfigIfAvailable()
         self.remoteConfigSubscriptions = loadPersistedRemoteConfigSubscriptions()
         pruneRemoteConfigSubscriptionsIfNeeded()
+        self.refreshRemoteConfigMenuStates()
         restartRemoteConfigBackgroundTasksIfNeeded()
         self.ssidStrategyRules = loadPersistedSSIDStrategyRules()
         self.pruneSSIDStrategyRulesIfNeeded()
@@ -98,6 +99,7 @@ extension AppViewModel {
         }
 
         self.startConfigDirectoryMonitoringIfNeeded()
+        self.startRuleOverrideMonitoringIfNeeded()
         if self.autoStartCore {
             if !self.shouldDeferAutoStartForMissingManagedCore() {
                 self.autoStartTask = Task { [weak self] in

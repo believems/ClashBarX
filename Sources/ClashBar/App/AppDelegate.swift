@@ -6,6 +6,7 @@ final class ClashBarAppDelegate: NSObject, NSApplicationDelegate {
     private var statusItemController: StatusItemController?
     private var windowObservers: [any NSObjectProtocol] = []
     private var accessibilityDisplayObserver: (any NSObjectProtocol)?
+    private var wakeObserver: (any NSObjectProtocol)?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         UserDefaults.standard.register(defaults: [
@@ -23,6 +24,15 @@ final class ClashBarAppDelegate: NSObject, NSApplicationDelegate {
         self.observeAccessibilityDisplayOptions()
 
         self.appViewModel.start()
+        self.wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main)
+        { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.appViewModel.scheduleRuleOverrideRecoveryAfterWake()
+            }
+        }
         self.statusItemController = StatusItemController(appViewModel: self.appViewModel)
         self.appViewModel.presentInitialNoCoreSetupGuideIfNeeded()
 
@@ -60,6 +70,10 @@ final class ClashBarAppDelegate: NSObject, NSApplicationDelegate {
         if let observer = self.accessibilityDisplayObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(observer)
             self.accessibilityDisplayObserver = nil
+        }
+        if let wakeObserver = self.wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
+            self.wakeObserver = nil
         }
 
         self.appViewModel.shutdownForTermination()

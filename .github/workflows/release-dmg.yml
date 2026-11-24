@@ -47,6 +47,18 @@ jobs:
         run: |
           set -euo pipefail
 
+          # 本仓库自 v1.0.0 起独立编号，不同步上游 ClashBar 的版本序列。
+          MINIMUM_VERSION="1.0.0"
+
+          assert_version_floor() {
+            local candidate_tag="$1"
+            local candidate_version="$2"
+            if [[ "${candidate_version%%.*}" -lt "${MINIMUM_VERSION%%.*}" ]]; then
+              echo "Refusing to release ${candidate_tag}: ClashBarPlus numbers versions independently from v${MINIMUM_VERSION} and never reuses upstream's v0.x tags." >&2
+              exit 1
+            fi
+          }
+
           extract_version() {
             local raw="$1"
             if [[ "$raw" =~ ^v?([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
@@ -73,6 +85,7 @@ jobs:
               echo "Tag '$tag' is not valid (expected v1.2.3 or 1.2.3)." >&2
               exit 1
             fi
+            assert_version_floor "$tag" "$version"
           else
             git fetch --tags --force
 
@@ -83,47 +96,54 @@ jobs:
               fi
               version="$(extract_version "$tag")"
             else
-              last_tag="$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1 || true)"
-              base_version="0.0.0"
-              range="HEAD"
-              if [[ -n "$last_tag" ]]; then
+              # 本仓库版本号自 v1.0.0 起独立编号，不跟随上游 ClashBar 的 v0.x 序列。
+              # tag 匹配用 'v[1-9]*'，从上游同步过来的 v0.x 标签会被直接忽略。
+              last_tag="$(git tag -l 'v[1-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1 || true)"
+
+              if [[ -z "$last_tag" ]]; then
+                tag="v${MINIMUM_VERSION}"
+                version="${MINIMUM_VERSION}"
+                echo "No ClashBarPlus release yet, starting at $tag"
+              else
                 base_version="${last_tag#v}"
                 range="${last_tag}..HEAD"
-              fi
 
-              bump="${INPUT_BUMP:-auto}"
-              if [[ "$bump" == "auto" || -z "$bump" ]]; then
-                chmod +x Scripts/resolve_version_bump.sh
-                if ! bump="$(git log --format='%s%n%b' $range | Scripts/resolve_version_bump.sh)"; then
-                  echo "No releasable commits found since ${last_tag:-repository start}. Set bump manually." >&2
+                bump="${INPUT_BUMP:-auto}"
+                if [[ "$bump" == "auto" || -z "$bump" ]]; then
+                  chmod +x Scripts/resolve_version_bump.sh
+                  if ! bump="$(git log --format='%s%n%b' $range | Scripts/resolve_version_bump.sh)"; then
+                    echo "No releasable commits found since ${last_tag}. Set bump manually." >&2
+                    exit 1
+                  fi
+                fi
+
+                if [[ "$bump" != "major" && "$bump" != "minor" && "$bump" != "patch" ]]; then
+                  echo "Unsupported bump type: $bump" >&2
                   exit 1
                 fi
-              fi
 
-              if [[ "$bump" != "major" && "$bump" != "minor" && "$bump" != "patch" ]]; then
-                echo "Unsupported bump type: $bump" >&2
-                exit 1
+                IFS='.' read -r major minor patch <<< "$base_version"
+                case "$bump" in
+                  major)
+                    major=$((major + 1))
+                    minor=0
+                    patch=0
+                    ;;
+                  minor)
+                    minor=$((minor + 1))
+                    patch=0
+                    ;;
+                  patch)
+                    patch=$((patch + 1))
+                    ;;
+                esac
+                tag="v${major}.${minor}.${patch}"
+                version="${major}.${minor}.${patch}"
+                echo "Auto-calculated tag: $tag (bump: $bump, base: ${last_tag})"
               fi
-
-              IFS='.' read -r major minor patch <<< "$base_version"
-              case "$bump" in
-                major)
-                  major=$((major + 1))
-                  minor=0
-                  patch=0
-                  ;;
-                minor)
-                  minor=$((minor + 1))
-                  patch=0
-                  ;;
-                patch)
-                  patch=$((patch + 1))
-                  ;;
-              esac
-              tag="v${major}.${minor}.${patch}"
-              version="${major}.${minor}.${patch}"
-              echo "Auto-calculated tag: $tag (bump: $bump, base: ${last_tag:-none})"
             fi
+
+            assert_version_floor "$tag" "$version"
 
             if git ls-remote --tags origin "refs/tags/${tag}" | grep -q .; then
               echo "Tag ${tag} already exists on origin, reusing it."
@@ -209,8 +229,8 @@ jobs:
         with:
           name: ${{ matrix.artifact_name }}
           path: |
-            dist/ClashBar-${{ needs.prepare-version.outputs.version }}-${{ matrix.dmg_suffix }}.dmg
-            dist/ClashBar-${{ needs.prepare-version.outputs.version }}-${{ matrix.dmg_suffix }}.dmg.sha256
+            dist/ClashBarPlus-${{ needs.prepare-version.outputs.version }}-${{ matrix.dmg_suffix }}.dmg
+            dist/ClashBarPlus-${{ needs.prepare-version.outputs.version }}-${{ matrix.dmg_suffix }}.dmg.sha256
           if-no-files-found: error
 
   release:
@@ -246,7 +266,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.prepare-version.outputs.tag }}
-          name: ClashBar ${{ needs.prepare-version.outputs.version }}
+          name: ClashBarPlus ${{ needs.prepare-version.outputs.version }}
           body_path: release.md
           generate_release_notes: true
           fail_on_unmatched_files: true

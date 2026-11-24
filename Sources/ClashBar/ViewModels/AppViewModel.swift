@@ -39,14 +39,28 @@ final class AppViewModel: ObservableObject {
         set { self.trafficStore.displayDownTotal = newValue }
     }
 
-    var trafficHistoryUp: [Int64] {
-        get { self.trafficStore.trafficHistoryUp }
-        set { self.trafficStore.trafficHistoryUp = newValue }
+    var trafficSamples: [TrafficSample] {
+        get { self.trafficStore.trafficSamples }
+        set { self.trafficStore.trafficSamples = newValue }
     }
 
-    var trafficHistoryDown: [Int64] {
-        get { self.trafficStore.trafficHistoryDown }
-        set { self.trafficStore.trafficHistoryDown = newValue }
+    /// 改动会立刻重算采集策略，流量流随之启停，不必等下一次可见性变化。
+    var recordsTrafficWhileHidden: Bool {
+        get { self.recordTrafficWhileHiddenStorage }
+        set {
+            guard self.recordTrafficWhileHiddenStorage != newValue else { return }
+            self.recordTrafficWhileHiddenStorage = newValue
+            self.updateDataAcquisitionPolicy()
+        }
+    }
+
+    var trafficHistoryWindow: TrafficHistoryWindow {
+        get { TrafficHistoryWindow(rawValue: self.trafficHistoryWindowMinutes) ?? .fiveMinutes }
+        set {
+            guard self.trafficHistoryWindowMinutes != newValue.rawValue else { return }
+            self.trafficHistoryWindowMinutes = newValue.rawValue
+            self.trimTrafficHistoryToWindow()
+        }
     }
 
     let connectionsStore = ConnectionsStore()
@@ -155,7 +169,7 @@ final class AppViewModel: ObservableObject {
     @Published var systemProxyHelperFailureReason: SystemProxyHelperFailureReason?
     @Published var systemProxyHelperFailureMessage: String?
     @Published var systemProxyHelperInstalled: Bool?
-    @Published var systemProxyHelperProcessRunning: Bool?
+    @Published var systemProxyHelperReachable: Bool?
     @Published var systemProxyActiveDisplay: String?
     @Published var systemProxyOpenFailureHint: String?
     @Published var systemProxyExceptions: [EditableSystemProxyException] = []
@@ -183,6 +197,7 @@ final class AppViewModel: ObservableObject {
     }
 
     let logsStore = LogsStore()
+    let ruleOverrideStore = RuleOverrideStore()
     var errorLogs: [AppErrorLogEntry] {
         get { self.logsStore.errorLogs }
         set { self.logsStore.errorLogs = newValue }
@@ -418,6 +433,11 @@ final class AppViewModel: ObservableObject {
         .iconOnly.rawValue
     @AppStorage("clashbar.proxy.node.hide_unavailable") var hideUnavailableProxyNodes: Bool = false
     @AppStorage("clashbar.proxy.switch.close_connections") var closeConnectionsOnProxySwitch: Bool = false
+    /// 默认关闭：开启后面板关闭期间也保持流量流，应用不再完全空闲。
+    @AppStorage("clashbar.traffic.record_while_hidden") private var recordTrafficWhileHiddenStorage: Bool = false
+    /// 只持久化「展示时长」这个偏好本身；曲线数据永远只活在内存里。
+    @AppStorage("clashbar.traffic.history.window.minutes") var trafficHistoryWindowMinutes: Int = TrafficHistoryWindow
+        .fiveMinutes.rawValue
     let selectedConfigKey = "clashbar.config.selected.filename"
     let legacySelectedConfigKey = "clashbar.config.selected"
     let remoteConfigSourcesKey = "clashbar.config.remote.sources.v1"

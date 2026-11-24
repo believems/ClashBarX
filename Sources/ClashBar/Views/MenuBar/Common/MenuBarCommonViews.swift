@@ -382,8 +382,7 @@ extension View {
     }
 
     func filterTextField(_ placeholder: String, text: Binding<String>) -> some View {
-        TextField(placeholder, text: text)
-            .appTextField()
+        FilterTextField(placeholder: placeholder, text: text)
     }
 
     func emptyCard(_ text: String) -> some View {
@@ -505,14 +504,17 @@ extension View {
     }
 
     func latencyColor(_ value: Int?) -> Color {
-        guard let value else { return self.nativeTertiaryLabel }
-        if value == 0 {
+        guard value != nil else { return self.nativeTertiaryLabel }
+        switch LatencyLevel(delay: value) {
+        case .excellent:
+            return self.nativePositive.opacity(T.Opacity.solid)
+        case .good:
+            return self.nativeTeal.opacity(T.Opacity.solid)
+        case .fair:
+            return self.nativeWarning.opacity(T.Opacity.solid)
+        case .poor, .timeout:
             return self.nativeCritical.opacity(T.Opacity.solid)
         }
-        if value <= 400 {
-            return self.nativePositive.opacity(T.Opacity.solid)
-        }
-        return self.nativeWarning.opacity(T.Opacity.solid)
     }
 
     func nextHovered<V: Equatable>(current: V?, target: V, isHovering: Bool) -> V? {
@@ -555,5 +557,37 @@ struct CompactAsyncIconButton: View {
         }
         .buttonStyle(self.style)
         .allowsHitTesting(!self.isLoading)
+    }
+}
+
+private struct FilterTextField: View {
+    let placeholder: String
+    @Binding var text: String
+
+    @State private var hovered = false
+
+    var body: some View {
+        TextField(self.placeholder, text: self.$text)
+            .textFieldStyle(.roundedBorder)
+            .font(.app(size: T.FontSize.body, weight: .regular))
+            .foregroundStyle(self.nativePrimaryLabel)
+            .overlay(alignment: .trailing) {
+                if !self.text.isEmpty {
+                    Button {
+                        self.text = ""
+                        self.hovered = false
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.app(size: T.FontSize.subheadline, weight: .medium))
+                            .foregroundStyle(self.hovered ? self.nativeSecondaryLabel : self.nativeTertiaryLabel)
+                            .frame(width: T.compactRowHeight, height: T.compactRowHeight)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.borderless)
+                    .padding(.trailing, T.space2)
+                    .onHover { self.hovered = $0 }
+                    .onDisappear { self.hovered = false }
+                }
+            }
     }
 }

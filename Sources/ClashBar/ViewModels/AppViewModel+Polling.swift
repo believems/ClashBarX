@@ -30,13 +30,14 @@ extension AppViewModel {
         Task { [weak self] in
             guard let self else { return }
             while !Task.isCancelled {
-                await operation(self)
                 do {
                     let interval = max(1_000_000_000, intervalProvider(self))
                     try await Task.sleep(nanoseconds: interval)
                 } catch {
                     return
                 }
+                guard !Task.isCancelled else { return }
+                await operation(self)
             }
         }
     }
@@ -51,7 +52,11 @@ extension AppViewModel {
         }
         if mediumFrequencyTask == nil {
             mediumFrequencyTask = self.startPeriodicTask(
-                intervalProvider: { $0.mediumFrequencyIntervalNanoseconds },
+                intervalProvider: {
+                    $0.apiStatus == .degraded
+                        ? 1_000_000_000
+                        : $0.mediumFrequencyIntervalNanoseconds
+                },
                 operation: { await $0.refreshMediumFrequency() })
         }
         if lowFrequencyTask == nil {
@@ -77,14 +82,20 @@ extension AppViewModel {
         guard isPanelPresented != presented else { return }
         isPanelPresented = presented
         if !presented {
+            // 落盘未保存的端口草稿（内部会取消自动保存任务）。
             self.flushProxyPortsAutoSaveIfNeeded()
+            // 曲线历史刻意不在这里清空：它只活在内存里，面板重新打开时应当接着展示。
+            // 真正该重置的时机是内核停止或切换目标机器，由 resetTrafficPresentation() 负责。
             self.resetTrafficTotalsForHiddenPanel()
             self.releasePanelCachedData()
+            self.stopRemoteConfigMenuRefreshTimer()
         }
         trimInMemoryLogsForCurrentVisibility()
         self.updateDataAcquisitionPolicy()
 
         guard presented else { return }
+        self.refreshRemoteConfigMenuStates()
+        self.startRemoteConfigMenuRefreshTimerIfNeeded()
         self.flushPendingTrafficSnapshotIfNeeded(immediately: true)
         self.scheduleRefreshForActivatedTab(activeMenuTab)
         Task { [weak self] in
@@ -114,7 +125,11 @@ extension AppViewModel {
         panelPresented: Bool,
         activeTab: RootTab) -> DataAcquisitionPolicy
     {
-        let trafficEnabled = panelPresented || self.statusBarDisplayMode != .iconOnly
+        // 面板关闭且状态栏为「仅图标」时，流量流本会被停掉，曲线因此留下空档。
+        // recordsTrafficWhileHidden 让流量流继续跑，代价是应用不再完全空闲（每秒醒一次）。
+        let trafficEnabled = panelPresented
+            || self.statusBarDisplayMode != .iconOnly
+            || self.recordsTrafficWhileHidden
 
         if !panelPresented {
             return DataAcquisitionPolicy(
@@ -187,7 +202,7 @@ extension AppViewModel {
             await refreshProvidersAndRules()
         case .connections:
             await self.refreshConnections()
-        case .logs:
+        case .logs, .overrides:
             break
         case .system:
             await self.refreshMediumFrequency()
@@ -208,29 +223,85 @@ extension AppViewModel {
         }
     }
 
+    private func captureAPIResult<Value>(
+        _ operation: () async throws -> Value) async -> Result<Value, Error>
+    {
+        do {
+            return try await .success(operation())
+        } catch {
+            return .failure(error)
+        }
+    }
+
+    private func applyProxyGroupsWithDeferredProviders(
+        _ response: ProxyGroupsResponse,
+        providersTask: Task<(providers: [String: ProviderDetail], error: Error?), Never>)
+    {
+        self.proxyStore.proxyGroupsRefreshGeneration += 1
+        let generation = self.proxyStore.proxyGroupsRefreshGeneration
+        self.applyProxyGroupsResponse(response)
+
+        Task { [weak self] in
+            let providersResult = await providersTask.value
+            guard let self else { return }
+            guard !Task.isCancelled, generation == self.proxyStore.proxyGroupsRefreshGeneration else { return }
+            self.noteProxyProvidersAPIAvailability(error: providersResult.error)
+            if !providersResult.providers.isEmpty {
+                self.applyProxyGroupsResponse(response, proxyProviders: providersResult.providers)
+            }
+        }
+    }
+
     private func refreshMediumFrequency() async {
         await runRefresh {
             let client = try self.clientOrThrow()
-            async let versionTask: VersionInfo = client.request(.version)
-            async let configTask: ConfigSnapshot = client.request(.getConfigs)
 
             if self.activeMenuTab == .proxy {
-                async let proxyGroupsTask: ProxyGroupsResponse = client.request(.proxies)
-                async let providersTask = self.fetchProxyProvidersSummarySafely(client: client)
+                async let versionTask: Result<VersionInfo, Error> = self.captureAPIResult {
+                    try await client.request(.version)
+                }
+                async let configTask: Result<ConfigSnapshot, Error> = self.captureAPIResult {
+                    try await client.request(.getConfigs)
+                }
+                async let proxyGroupsTask: Result<ProxyGroupsResponse, Error> = self.captureAPIResult {
+                    try await client.request(.proxies)
+                }
+                let providersTask = Task {
+                    await self.fetchProxyProvidersSummarySafely(client: client)
+                }
 
-                let (versionInfo, configSnapshot, resolvedGroups, providersResult) = try await (
-                    versionTask,
-                    configTask,
-                    proxyGroupsTask,
-                    providersTask)
+                var firstError: Error?
+                switch await proxyGroupsTask {
+                case let .success(resolvedGroups):
+                    self.applyProxyGroupsWithDeferredProviders(
+                        resolvedGroups,
+                        providersTask: providersTask)
+                case let .failure(error):
+                    providersTask.cancel()
+                    firstError = error
+                }
 
-                self.version = versionInfo.version
-                self.applyRuntimeConfigSnapshot(configSnapshot)
-                self.noteProxyProvidersAPIAvailability(error: providersResult.error)
-                self.applyProxyGroupsResponse(
-                    resolvedGroups,
-                    proxyProviders: providersResult.providers)
+                let (versionResult, configResult) = await (versionTask, configTask)
+                switch versionResult {
+                case let .success(versionInfo):
+                    self.version = versionInfo.version
+                case let .failure(error):
+                    firstError = firstError ?? error
+                }
+
+                switch configResult {
+                case let .success(configSnapshot):
+                    self.applyRuntimeConfigSnapshot(configSnapshot)
+                case let .failure(error):
+                    firstError = firstError ?? error
+                }
+
+                if let firstError {
+                    throw firstError
+                }
             } else {
+                async let versionTask: VersionInfo = client.request(.version)
+                async let configTask: ConfigSnapshot = client.request(.getConfigs)
                 let (versionInfo, configSnapshot) = try await (versionTask, configTask)
                 self.version = versionInfo.version
                 self.applyRuntimeConfigSnapshot(configSnapshot)
@@ -247,7 +318,7 @@ extension AppViewModel {
 
     private func applyRuntimeConfigSnapshot(_ config: ConfigSnapshot) {
         let remoteMode = normalizeMode(config.mode)
-        if let remoteMode {
+        if let remoteMode, !preserveLocalSettingsOnNextSync {
             currentMode = remoteMode
         }
         logLevel = config.logLevel ?? logLevel
@@ -278,6 +349,7 @@ extension AppViewModel {
     }
 
     func clearProxyPresentation() {
+        self.proxyStore.proxyGroupsRefreshGeneration += 1
         proxyGroups = []
         proxyDelaySamples = [:]
         proxyNodeTypes = [:]
@@ -292,11 +364,44 @@ extension AppViewModel {
     func clearTrafficPresentationHistory() {
         displayUpTotal = 0
         displayDownTotal = 0
-        trafficHistoryUp = []
-        trafficHistoryDown = []
-        trafficHistoryUp.reserveCapacity(historyMaxPoints)
-        trafficHistoryDown.reserveCapacity(historyMaxPoints)
+        trafficSamples = []
+        trafficSamples.reserveCapacity(self.maxTrafficSampleCount)
         lastTrafficSampleAt = nil
+    }
+
+    /// 时间窗口内允许保留的最大采样数。流量流约每秒一个点，所以按每分钟
+    /// `historyMaxPoints` 个点封顶；这只是内存兜底，真正的裁剪依据是时间。
+    var maxTrafficSampleCount: Int {
+        self.historyMaxPoints * self.trafficHistoryWindow.rawValue
+    }
+
+    func trimTrafficHistoryToWindow(now: Date = Date()) {
+        let trimmed = self.trimmedTrafficSamples(self.trafficSamples, now: now)
+        guard trimmed != self.trafficSamples else { return }
+        self.trafficSamples = trimmed
+    }
+
+    /// 裁剪依据是真实时间而非下标——面板关闭且状态栏为「仅图标」时流量流会停掉，恢复后的
+    /// 序列里存在真实空档，按下标裁剪会把空档压缩掉。`maxTrafficSampleCount` 只是内存兜底，
+    /// 防止采样频率异常时无限增长。
+    private func trimmedTrafficSamples(_ samples: [TrafficSample], now: Date) -> [TrafficSample] {
+        let cutoff = now.addingTimeInterval(-self.trafficHistoryWindow.duration)
+        var samples = samples
+
+        if let firstKept = samples.firstIndex(where: { $0.at >= cutoff }) {
+            if firstKept > 0 {
+                samples.removeFirst(firstKept)
+            }
+        } else {
+            samples.removeAll(keepingCapacity: true)
+        }
+
+        let maxCount = self.maxTrafficSampleCount
+        if maxCount > 0, samples.count > maxCount {
+            samples.removeFirst(samples.count - maxCount)
+        }
+
+        return samples
     }
 
     func resetTrafficTotalsForHiddenPanel() {
@@ -321,16 +426,10 @@ extension AppViewModel {
         ruleItems.removeAll(keepingCapacity: false)
     }
 
-    func appendTrafficHistory(up: Int64, down: Int64) {
-        trafficHistoryUp.append(max(0, up))
-        trafficHistoryDown.append(max(0, down))
-
-        if trafficHistoryUp.count > historyMaxPoints {
-            trafficHistoryUp.removeFirst(trafficHistoryUp.count - historyMaxPoints)
-        }
-        if trafficHistoryDown.count > historyMaxPoints {
-            trafficHistoryDown.removeFirst(trafficHistoryDown.count - historyMaxPoints)
-        }
+    func appendTrafficHistory(up: Int64, down: Int64, at date: Date = Date()) {
+        var samples = self.trafficSamples
+        samples.append(TrafficSample(at: date, up: max(0, up), down: max(0, down)))
+        self.trafficSamples = self.trimmedTrafficSamples(samples, now: date)
     }
 
     func updateTrafficTotals(from snapshot: TrafficSnapshot) {
@@ -363,7 +462,7 @@ extension AppViewModel {
             if !self.isRemoteTarget {
                 await self.refreshSystemProxyStatus()
             }
-        case .connections, .logs:
+        case .connections, .logs, .overrides:
             break
         }
     }
@@ -371,12 +470,16 @@ extension AppViewModel {
     func refreshProxyGroups() async {
         await runRefresh {
             let client = try self.clientOrThrow()
-            async let groupsTask: ProxyGroupsResponse = client.request(.proxies)
-            async let providersTask = self.fetchProxyProvidersSummarySafely(client: client)
-
-            let (resolvedGroups, providersResult) = try await (groupsTask, providersTask)
-            self.noteProxyProvidersAPIAvailability(error: providersResult.error)
-            self.applyProxyGroupsResponse(resolvedGroups, proxyProviders: providersResult.providers)
+            let providersTask = Task {
+                await self.fetchProxyProvidersSummarySafely(client: client)
+            }
+            do {
+                let resolvedGroups: ProxyGroupsResponse = try await client.request(.proxies)
+                self.applyProxyGroupsWithDeferredProviders(resolvedGroups, providersTask: providersTask)
+            } catch {
+                providersTask.cancel()
+                throw error
+            }
         }
     }
 

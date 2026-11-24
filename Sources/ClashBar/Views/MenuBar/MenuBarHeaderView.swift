@@ -22,7 +22,7 @@ struct MenuBarHeaderView: TranslatingView {
         HStack(alignment: .center, spacing: T.space8) {
             HStack(alignment: .center, spacing: T.space8) {
                 Button {
-                    guard let url = URL(string: "https://github.com/Sitoi/ClashBar") else { return }
+                    guard let url = URL(string: "https://github.com/Gongsc/ClashBar") else { return }
                     self.openURL(url)
                 } label: {
                     ZStack {
@@ -49,7 +49,7 @@ struct MenuBarHeaderView: TranslatingView {
                 .accessibilityLabel(self.tr("ui.action.open_project_homepage"))
 
                 VStack(alignment: .leading, spacing: T.space2) {
-                    Text("ClashBar")
+                    Text("ClashBarPlus")
                         .font(.app(size: T.FontSize.title3, weight: .semibold))
                         .foregroundStyle(nativePrimaryLabel)
 

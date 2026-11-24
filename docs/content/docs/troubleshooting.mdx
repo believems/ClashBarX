@@ -21,12 +21,12 @@ description: 安装、内核、系统代理、节点、订阅、GEO 与 API 鉴�
 **现象**：首次启动被系统拦截。  
 **原因**：Gatekeeper 对未公证应用的默认策略。
 
-1. 将应用放到 `/Applications/ClashBar.app`。
+1. 将应用放到 `/Applications/ClashBarPlus.app`。
 2. 打开 **系统设置 → 隐私与安全性**，选择「仍要打开」。
 3. 仍被隔离标记拦截时（确认来源可信）：
 
 ```bash
-sudo xattr -r -d com.apple.quarantine /Applications/ClashBar.app
+sudo xattr -r -d com.apple.quarantine /Applications/ClashBarPlus.app
 ```
 
 ## 系统代理开启失败 / 开关没有反应
@@ -41,7 +41,7 @@ sudo xattr -r -d com.apple.quarantine /Applications/ClashBar.app
 5. 执行一次 **重启内核**，再开系统代理。
 6. 仍失败时在「日志」中查看关键错误并提交 Issue。
 
-删除 ClashBar 前，如需卸掉已经安装的 helper：
+删除 ClashBarPlus 前，如需卸掉已经安装的 helper：
 
 ```bash
 sudo launchctl bootout system/com.clashbar.helper
@@ -52,7 +52,7 @@ sudo rm -f /Library/LaunchDaemons/com.clashbar.helper.plist \
 
 ## 配置导入或重载失败
 
-ClashBar 会调用 Mihomo 校验 YAML。请在「日志」中查看错误行号，检查缩进、代理组引用、规则提供者与端口冲突。修正后重新导入，或执行一次「启动 / 重启内核」。
+ClashBarPlus 会调用 Mihomo 校验 YAML。请在「日志」中查看错误行号，检查缩进、代理组引用、规则提供者与端口冲突。修正后重新导入，或执行一次「启动 / 重启内核」。
 
 ## 订阅更新失败
 
@@ -111,7 +111,7 @@ ClashBar 会调用 Mihomo 校验 YAML。请在「日志」中查看错误行号�
 **原因**：其它 Clash/mihomo 客户端残留进程占用同一端口，导致 API 鉴权失败。
 
 1. 退出所有其它 mihomo / Clash 系客户端。
-2. 在 ClashBar 中 **重启内核**，确认由本应用独立拉起。
+2. 在 ClashBarPlus 中 **重启内核**，确认由本应用独立拉起。
 3. 若仍复现，可能有残留进程占端口——**重启电脑**后重试。
 
 ## Wi‑Fi 自动切换不生效
@@ -137,9 +137,9 @@ ClashBar 会调用 Mihomo 校验 YAML。请在「日志」中查看错误行号�
 
 ## 如何提交问题
 
-- [GitHub Issues](https://github.com/Sitoi/ClashBar/issues)
+- [GitHub Issues](https://github.com/Gongsc/ClashBar/issues)
 - Telegram 社区：[t.me/clashbars](https://t.me/clashbars)
 
-请附上 ClashBar 版本、macOS 版本、本机或远程内核，以及已脱敏日志。勿上传订阅链接与密钥。
+请附上 ClashBarPlus 版本、macOS 版本、本机或远程内核，以及已脱敏日志。勿上传订阅链接与密钥。
 
 功能对照见 [功能总览](/docs/features)；设计与许可见 [关于](/docs/about)。

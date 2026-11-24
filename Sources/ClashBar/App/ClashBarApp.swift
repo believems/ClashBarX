@@ -16,6 +16,11 @@ struct ClashBarApp: App {
     }
 }
 
+/// `Settings` 场景存在的唯一理由是给 `.commands` 找个宿主——菜单命令必须挂在某个 Scene 上，
+/// 而这个应用没有任何真正的窗口。它自己的设置在弹出面板的 System 标签里，⌘, 也已经被
+/// `CommandGroup(replacing: .appSettings)` 重定向过去，所以这个空窗口对用户毫无意义。
+/// 较新 SDK 构建出的版本会在启动时把它显示出来（标题为「<应用名> Settings」的空窗口），
+/// 这里在承载它的窗口出现的那一刻就关掉。
 private struct SettingsWindowSuppressor: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView {
         SuppressorNSView()
@@ -34,6 +39,9 @@ private struct SettingsWindowSuppressor: NSViewRepresentable {
     }
 }
 
+/// Menu commands have to live in a `Commands` type that observes the session. `App` itself has
+/// no observation, so building them inline froze every `.disabled(...)` and label at their
+/// launch-time values — the core always looked stopped and ⌘E stayed permanently disabled.
 private struct AppCommands: Commands {
     @ObservedObject var session: AppViewModel
     let appDelegate: ClashBarAppDelegate
@@ -134,8 +142,10 @@ private struct AppCommands: Commands {
                 Button(self.tr(entry.key)) { self.session.setActiveMenuTab(entry.tab) }
                     .keyboardShortcut(entry.shortcut, modifiers: [.command, .option])
             }
-            Button(self.tr("ui.tab.system")) { self.session.setActiveMenuTab(.system) }
+            Button(self.tr("ui.tab.overrides")) { self.session.setActiveMenuTab(.overrides) }
                 .keyboardShortcut("5", modifiers: [.command, .option])
+            Button(self.tr("ui.tab.system")) { self.session.setActiveMenuTab(.system) }
+                .keyboardShortcut("6", modifiers: [.command, .option])
         }
     }
 

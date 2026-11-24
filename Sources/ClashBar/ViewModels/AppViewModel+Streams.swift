@@ -218,6 +218,8 @@ extension AppViewModel {
 
     private func applyTrafficSnapshot(_ snapshot: TrafficSnapshot) {
         self.traffic = snapshot
+        // 面板关着也照常记录：状态栏显示速率时流量流本来就还开着，这样曲线能连续。
+        // 「仅图标」模式下流量流会被停掉，于是历史里留下真实空档，由曲线断开来如实表达。
         self.appendTrafficHistory(up: snapshot.up, down: snapshot.down)
         guard self.isPanelPresented else { return }
         self.updateTrafficTotals(from: snapshot)

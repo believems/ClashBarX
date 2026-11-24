@@ -43,12 +43,15 @@ extension AppViewModel {
             let data = try await downloadRemoteConfigData(from: remoteURL, userAgent: userAgent)
             try writeConfigData(data, to: targetURL)
 
+            let now = Date()
             let subscription = RemoteConfigSubscription(
                 urlString: remoteURL.absoluteString,
                 autoUpdateEnabled: input.autoUpdateEnabled,
                 autoUpdateIntervalHours: input.autoUpdateIntervalHours,
-                lastUpdateCheckAt: Date())
+                lastUpdateCheckAt: now,
+                lastSuccessAt: now)
             self.upsertRemoteConfigSubscription(for: fileName, subscription: subscription)
+            self.syncConfigSignatureSnapshotToMonitorBaseline()
             let message = tr("log.config.import_remote.success", fileName)
             appendLog(level: "info", message: message)
 
@@ -90,18 +93,23 @@ extension AppViewModel {
                         "log.config.remote.update_item_failed",
                         fileName,
                         tr("log.config.remote.invalid_url", subscriptions[fileName]?.urlString ?? fileName)))
+                self.setRemoteConfigMenuState(for: fileName, phase: .failed)
                 continue
             }
 
+            guard self.remoteConfigMenuState(for: fileName).phase != .refreshing else { continue }
+            self.setRemoteConfigMenuState(for: fileName, phase: .refreshing)
+
             let targetURL = configDirectory.appendingPathComponent(fileName, isDirectory: false)
-            let checkAt = Date()
             do {
                 let data = try await downloadRemoteConfigData(from: remoteURL, userAgent: userAgent)
-                guard let refreshedSubscription = self.checkedRemoteConfigSubscription(
+                let completedAt = Date()
+                guard let refreshedSubscription = self.succeededRemoteConfigSubscription(
                     for: fileName,
                     baseline: sub,
-                    at: checkAt)
+                    at: completedAt)
                 else {
+                    self.setRemoteConfigMenuState(for: fileName, phase: .idle)
                     continue
                 }
                 let didWrite = try self.writeConfigData(data, to: targetURL)
@@ -111,12 +119,20 @@ extension AppViewModel {
                     self.refreshConfigStateAfterMutation()
                     self.syncConfigSignatureSnapshotToMonitorBaseline()
                 }
+                self.setRemoteConfigMenuState(
+                    for: fileName,
+                    phase: .idle,
+                    updatedAt: self.remoteConfigUpdatedAt(for: fileName, subscription: refreshedSubscription)
+                        ?? completedAt)
             } catch {
-                guard let refreshedSubscription = self.checkedRemoteConfigSubscription(
+                let failedAt = Date()
+                guard let refreshedSubscription = self.failedRemoteConfigSubscription(
                     for: fileName,
                     baseline: sub,
-                    at: checkAt)
+                    at: failedAt,
+                    isAutoUpdate: false)
                 else {
+                    self.setRemoteConfigMenuState(for: fileName, phase: .idle)
                     continue
                 }
                 self.remoteConfigSubscriptions[fileName] = refreshedSubscription
@@ -124,10 +140,12 @@ extension AppViewModel {
                 appendLog(
                     level: "error",
                     message: tr("log.config.remote.update_item_failed", fileName, error.localizedDescription))
+                self.setRemoteConfigMenuState(for: fileName, phase: .failed)
             }
         }
 
         self.persistRemoteConfigSubscriptions()
+        self.refreshRemoteConfigMenuStates()
         appendLog(level: "info", message: tr("log.config.remote.update_summary", updatedFileNames.count, failedCount))
 
         if self.shouldAutoReloadCurrentConfig(updatedFileNames: updatedFileNames) {
@@ -231,7 +249,7 @@ extension AppViewModel {
         nextStates.reserveCapacity(subscriptions.count)
 
         for (fileName, sub) in subscriptions {
-            let updatedAt = self.remoteConfigUpdatedAt(for: fileName)
+            let updatedAt = self.remoteConfigUpdatedAt(for: fileName, subscription: sub)
             nextStates[fileName] = self.mergedRemoteConfigMenuState(
                 for: fileName,
                 updatedAt: updatedAt,
@@ -245,7 +263,7 @@ extension AppViewModel {
         self.remoteConfigMenuStates[fileName] ?? .idle
     }
 
-    func refreshRemoteConfigFile(named fileName: String) async {
+    func refreshRemoteConfigFile(named fileName: String, isAutoUpdate: Bool = false) async {
         guard self.remoteConfigMenuState(for: fileName).phase != .refreshing else { return }
         guard let configDirectory = self.ensureConfigDirectoryAvailable() else { return }
 
@@ -268,14 +286,14 @@ extension AppViewModel {
             return
         }
 
-        let checkAt = Date()
         do {
             let userAgent = await self.remoteSubscriptionUserAgent()
             let data = try await self.downloadRemoteConfigData(from: remoteURL, userAgent: userAgent)
-            guard let refreshedSubscription = self.checkedRemoteConfigSubscription(
+            let completedAt = Date()
+            guard let refreshedSubscription = self.succeededRemoteConfigSubscription(
                 for: fileName,
                 baseline: sub,
-                at: checkAt)
+                at: completedAt)
             else {
                 return
             }
@@ -297,12 +315,15 @@ extension AppViewModel {
             self.setRemoteConfigMenuState(
                 for: fileName,
                 phase: .idle,
-                updatedAt: self.remoteConfigUpdatedAt(for: fileName) ?? Date())
+                updatedAt: self.remoteConfigUpdatedAt(for: fileName, subscription: refreshedSubscription)
+                    ?? completedAt)
         } catch {
-            guard let refreshedSubscription = self.checkedRemoteConfigSubscription(
+            let failedAt = Date()
+            guard let refreshedSubscription = self.failedRemoteConfigSubscription(
                 for: fileName,
                 baseline: sub,
-                at: checkAt)
+                at: failedAt,
+                isAutoUpdate: isAutoUpdate)
             else {
                 return
             }
@@ -317,7 +338,9 @@ extension AppViewModel {
 
     func reloadConfig() async {
         let actionName = tr("log.action_name.reload_config")
-        let expectedTunEnabled = isTunEnabled
+        let settingsOverlay = self.currentEditableSettingsSnapshot()
+        var didReloadConfig = false
+        var restoredSettings = false
 
         do {
             ensureAPIClient()
@@ -325,11 +348,29 @@ extension AppViewModel {
                 appendLog(level: "error", message: tr("log.start.no_config"))
                 return
             }
-            try await self.clientOrThrow().requestNoResponse(.putConfigs(force: false, path: configPath, payload: nil))
-            try await self.restoreTunAfterConfigReloadIfNeeded(expectedEnabled: expectedTunEnabled)
+            self.preserveLocalSettingsOnNextSync = true
+            try await self.putSelectedConfig(configPath: configPath)
+            didReloadConfig = true
+            restoredSettings = await self.restoreSettingsAfterConfigReload(settingsOverlay)
+            if !restoredSettings {
+                self.preserveLocalSettingsOnNextSync = false
+                try await self.restoreTunAfterConfigReloadIfNeeded(expectedEnabled: settingsOverlay.tunEnabled)
+            }
             appendLog(level: "info", message: tr("log.action.success", actionName))
         } catch {
+            self.preserveLocalSettingsOnNextSync = false
             appendLog(level: "error", message: tr("log.action.failed", actionName, error.localizedDescription))
+        }
+
+        if didReloadConfig {
+            if !restoredSettings || self.activeMenuTab != .proxy {
+                await self.refreshProxyGroups()
+            }
+            if self.isPanelPresented {
+                Task { [weak self] in
+                    await self?.refreshProvidersAndRules()
+                }
+            }
         }
     }
 
@@ -349,7 +390,7 @@ extension AppViewModel {
         }
     }
 
-    private func refreshConfigStateAfterMutation() {
+    func refreshConfigStateAfterMutation() {
         _ = configService.reloadConfigs()
         if self.syncSelectedConfigSelection(configService.selectedConfig) == nil {
             selectedConfigName = "-"
@@ -524,6 +565,17 @@ extension AppViewModel {
         return trimmed
     }
 
+    private func restoreSettingsAfterConfigReload(_ overlay: EditableSettingsSnapshot) async -> Bool {
+        guard isRuntimeRunning else {
+            self.preserveLocalSettingsOnNextSync = false
+            return true
+        }
+        return await self.applyEditableSettingsOverlay(
+            overlay,
+            syncingKey: "config-reload-overlay",
+            successMessage: "")
+    }
+
     private func restoreTunAfterConfigReloadIfNeeded(expectedEnabled: Bool) async throws {
         guard isRuntimeRunning else { return }
         try await self.patchTunConfig(enable: expectedEnabled)
@@ -549,21 +601,51 @@ extension AppViewModel {
         self.refreshConfigStateAfterMutation()
     }
 
-    private func checkedRemoteConfigSubscription(
+    private func succeededRemoteConfigSubscription(
         for fileName: String,
         baseline: RemoteConfigSubscription,
-        at checkAt: Date) -> RemoteConfigSubscription?
+        at completedAt: Date) -> RemoteConfigSubscription?
     {
         guard self.remoteConfigSubscriptions[fileName] == baseline else { return nil }
-        return baseline.markChecked(at: checkAt)
+        return baseline.markSucceeded(at: completedAt)
     }
 
-    private func remoteConfigUpdatedAt(for fileName: String) -> Date? {
+    private func failedRemoteConfigSubscription(
+        for fileName: String,
+        baseline: RemoteConfigSubscription,
+        at failedAt: Date,
+        isAutoUpdate: Bool) -> RemoteConfigSubscription?
+    {
+        guard self.remoteConfigSubscriptions[fileName] == baseline else { return nil }
+        return baseline.markFailed(at: failedAt, isAutoUpdate: isAutoUpdate)
+    }
+
+    private func remoteConfigUpdatedAt(
+        for fileName: String,
+        subscription: RemoteConfigSubscription? = nil) -> Date?
+    {
+        let resolvedSub = subscription ?? self.remoteConfigSubscriptions[fileName]
+        let fileModifiedAt = self.remoteConfigFileModificationDate(for: fileName)
+        switch (fileModifiedAt, resolvedSub?.lastSuccessAt) {
+        case let (fileDate?, successDate?):
+            return max(fileDate, successDate)
+        case let (fileDate?, nil):
+            return fileDate
+        case let (nil, successDate?):
+            return successDate
+        case (nil, nil):
+            return nil
+        }
+    }
+
+    private func remoteConfigFileModificationDate(for fileName: String) -> Date? {
         guard let configURL = self.configService.availableConfigs.first(where: { $0.lastPathComponent == fileName })
         else {
             return nil
         }
-        return try? configURL.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+        let resolvedPath = configURL.resolvingSymlinksInPath().path
+        let attributes = try? FileManager.default.attributesOfItem(atPath: resolvedPath)
+        return attributes?[.modificationDate] as? Date
     }
 
     private func mergedRemoteConfigMenuState(
@@ -641,13 +723,15 @@ extension AppViewModel {
         guard !due.isEmpty else { return }
         for fileName in due {
             guard !Task.isCancelled else { break }
-            await self.refreshRemoteConfigFile(named: fileName)
+            await self.refreshRemoteConfigFile(named: fileName, isAutoUpdate: true)
         }
     }
 
     func startRemoteConfigMenuRefreshTimerIfNeeded() {
+        guard self.isPanelPresented else { return }
         guard remoteConfigMenuRefreshTask == nil || remoteConfigMenuRefreshTask?.isCancelled == true else { return }
-        guard !remoteConfigSubscriptions.isEmpty else { return }
+        let hasAutoUpdate = remoteConfigSubscriptions.values.contains { $0.autoUpdateEnabled }
+        guard hasAutoUpdate else { return }
         remoteConfigMenuRefreshTask = Task { [weak self] in
             while !Task.isCancelled {
                 do {

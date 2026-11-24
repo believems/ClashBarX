@@ -374,9 +374,29 @@ struct ProxyTabView: TranslatingView {
             }
 
             TrafficSparklineView(
-                upValues: self.trafficStore.trafficHistoryUp,
-                downValues: self.trafficStore.trafficHistoryDown)
-                .frame(height: 30)
+                samples: self.trafficStore.trafficSamples,
+                window: self.appViewModel.trafficHistoryWindow.duration)
+                .frame(height: sparklineHeight)
+                .padding(.horizontal, sparklineHorizontalInset)
+
+            VStack(spacing: 0) {
+                HStack(spacing: T.space6) {
+                    self.cornerMetric(
+                        symbol: "link",
+                        value: "\(self.connectionsStore.connectionsCount)",
+                        color: nativeIndigo)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    self.cornerMetric(
+                        symbol: "arrow.up.circle",
+                        value: ValueFormatter.speedAndTotal(
+                            rate: self.trafficStore.traffic.up,
+                            total: self.trafficStore.displayUpTotal),
+                        color: nativeInfo,
+                        iconTrailing: true)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+            }
 
             HStack(spacing: T.space8 + T.space6) {
                 Text("\(self.tr("ui.tab.connections")) \(self.connectionsStore.connectionsCount)")
@@ -710,7 +730,7 @@ struct ProxyTabView: TranslatingView {
                 tint: self.systemProxyHelperInstalledTint,
                 alignment: .leading)
             self.systemProxyCompositeIconLayer(
-                tint: self.systemProxyHelperProcessTint,
+                tint: self.systemProxyHelperConnectionTint,
                 alignment: .trailing)
         }
         .frame(width: 18, height: 18)
@@ -739,8 +759,8 @@ struct ProxyTabView: TranslatingView {
         }
     }
 
-    var systemProxyHelperProcessTint: Color {
-        switch self.appViewModel.systemProxyHelperProcessRunning {
+    var systemProxyHelperConnectionTint: Color {
+        switch self.appViewModel.systemProxyHelperReachable {
         case .some(true):
             nativeSecondaryLabel
         case .some(false):
@@ -762,20 +782,20 @@ struct ProxyTabView: TranslatingView {
         return "\(self.tr("ui.system_proxy.helper_install")): \(value)"
     }
 
-    var systemProxyHelperProcessHelp: String {
-        let value = switch self.appViewModel.systemProxyHelperProcessRunning {
+    var systemProxyHelperConnectionHelp: String {
+        let value = switch self.appViewModel.systemProxyHelperReachable {
         case .some(true):
-            self.tr("ui.system_proxy.helper_process.running")
+            self.tr("ui.system_proxy.helper_connection.reachable")
         case .some(false):
-            self.tr("ui.system_proxy.helper_process.stopped")
+            self.tr("ui.system_proxy.helper_connection.unreachable")
         case .none:
             self.tr("ui.common.unknown")
         }
-        return "\(self.tr("ui.system_proxy.helper_process")): \(value)"
+        return "\(self.tr("ui.system_proxy.helper_connection")): \(value)"
     }
 
     var systemProxyCompositeIconHelp: String {
-        "\(self.systemProxyHelperInstalledHelp)\n\(self.systemProxyHelperProcessHelp)"
+        "\(self.systemProxyHelperInstalledHelp)\n\(self.systemProxyHelperConnectionHelp)"
     }
 }
 
