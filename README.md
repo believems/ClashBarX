@@ -167,29 +167,26 @@ ClashBarX 是 [Sitoi/ClashBar](https://github.com/Sitoi/ClashBar) 的整合发�
 | -------------- | ----------------------------------------------- |
 | 🧭 Proxy       | 配置、模式、系统代理、节点切换、延迟与 Provider |
 | 📚 Rules       | 规则统计、筛选、Provider 更新                   |
-| 🌐 Connections | 连接过滤与关闭                                  |
+| 🌐 Connections | 连接过滤与关闭、按实时速度排序                  |
 | 🪵 Logs        | 级别过滤、关键词检索                            |
 | 🔀 Override    | 规则覆写（前置/追加规则与规则集），保存即生效   |
 | ⚙️ System      | 语言、状态栏、端口、`allow-lan` / `ipv6`、直连测试地址等 |
+| 📊 Dashboard   | 独立仪表盘窗口：概览、配置管理、自定义规则引擎、服务连通性诊断 |
 
-📁 运行时数据目录：`~/Library/Application Support/clashbar`
-🧩 内置内核会复制到：`~/Library/Application Support/clashbar/core/mihomo`
+📁 运行时数据目录：`~/.config/clashbar`（首启自动从旧目录迁移）
+🧩 内置内核会复制到：`~/.config/clashbar/core/mihomo`
 
 ## 📖 文档
 
-文档源码在 [`docs/`](./docs) 目录，本地预览：
-
-```sh
-cd docs && pnpm install && pnpm dev
-```
-
-功能说明与上游基本一致，上游也维护了一个在线文档站：<https://clashbar.sitoi.workers.dev>
+- 文档站由上游部署：<https://clashbar.sitoi.workers.dev>，内容可能滞后于本仓库代码。
+- 本仓库的维护、上游同步与发版说明：[docs/MAINTENANCE.md](./docs/MAINTENANCE.md)。
+- 文档源码在 [`docs/`](./docs)，可用 `cd docs && pnpm dev` 本地预览。
 
 ## 🛠️ 开发构建
 
 ```sh
 # 依赖：Xcode / Swift 6.2+、macOS 13+
-make build                 # 产出 dist/ClashBarPlus.app（默认不含 Core）
+make build                 # 产出 dist/ClashBarX.app（默认不含 Core）
 make build WITH_CORE=1     # 打包内置 mihomo
 make dist WITH_CORE=1      # app + dmg
 make test                  # 运行 Swift 测试
@@ -206,8 +203,17 @@ make format                # swiftformat + swiftlint（需自行安装）
 - 💬 上游 Telegram 社区：<https://t.me/clashbars>（讨论内容以上游版本为主）
 - 🌐 上游文档站：<https://clashbar.sitoi.workers.dev>
 
-提交 Issue 时请附上 ClashBar 版本、macOS 版本、本机或远程内核状态，以及已脱敏的日志。
+提交 Issue 时请附上 ClashBarX 版本、macOS 版本、本机或远程内核状态，以及已脱敏的日志。
 请勿上传订阅链接、密钥等私人信息。
+
+## 🤝 参与贡献
+
+欢迎通过 Pull Request 参与贡献：
+
+1. Fork 本仓库并创建特性分支。
+2. 提交前至少跑通 `make build` 与 `make test`。
+3. 变更说明请遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/)（`feat:` / `fix:` / `docs:` …），
+   显著变更请同步更新 [CHANGELOG.md](./CHANGELOG.md) 的 `Unreleased` 段。
 
 ## 👥 贡献者
 
@@ -220,12 +226,13 @@ make format                # swiftformat + swiftlint（需自行安装）
   - [mh567/ClashBar](https://github.com/mh567/ClashBar) —— 工程加固、测试体系与上游同步工具
   - [kingcanfish/ClashBar](https://github.com/kingcanfish/ClashBar) —— Liquid Glass UI 重设计与测速/提供者体验优化
   - [Gongsc/ClashBar](https://github.com/Gongsc/ClashBar) —— 流量曲线、延迟信号条、规则覆写与多项深度修复
-  - [flowke/ClashBar](https://github.com/flowke/ClashBar) —— 数据目录迁移、测速同步与多显示器面板锚定
+  - [flowke/ClashBar](https://github.com/flowke/ClashBar) —— 数据目录迁移、测速同步、多显示器面板锚定与 Dashboard 规则引擎
 - 感谢 [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo) 提供内核能力。
 - 感谢 [Linux DO](https://linux.do/) 社区的支持与帮助 🙏
 
 ## 📄 许可
 
-沿用上游的许可协议，见 [LICENSE](./LICENSE)。
+本项目以 [GPL-3.0](./LICENSE) 发布，与上游 [Sitoi/ClashBar](https://github.com/Sitoi/ClashBar) 及各整合来源
+保持同一许可协议；各来源的版权与作者署名保留在对应提交历史中。
 
 [![Star History Chart](https://star-history.dera.page/svg?repos=believems/ClashBarX&type=date&legend=top-left)](https://star-history.dera.page/#believems/ClashBarX&type=date&legend=top-left)
