@@ -265,6 +265,18 @@ extension View {
         Color(nsColor: .systemRed)
     }
 
+    var nativeInfo: Color {
+        Color(nsColor: .systemBlue)
+    }
+
+    var nativeTeal: Color {
+        Color(nsColor: .systemTeal)
+    }
+
+    var nativeIndigo: Color {
+        Color(nsColor: .systemIndigo)
+    }
+
     /// Traffic direction tints. Orange/teal differ in hue and lightness (also for color-blind users),
     /// and teal keeps download apart from the accent color, which marks interactive state only.
     /// Apply them to glyphs and chart lines only and keep numbers in label colors for legibility.

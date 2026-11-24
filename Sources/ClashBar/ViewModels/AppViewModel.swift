@@ -253,6 +253,41 @@ final class AppViewModel: ObservableObject {
     var pendingAppLaunchOverlaySettings: EditableSettingsSnapshot?
     var suppressSettingsPersistence = false
 
+    // —— Dashboard / 生效配置（flowke T9）——
+    @Published var dashboardConfigBusy = false
+    @Published var dashboardConfigError: String?
+    @Published var dashboardEffectiveRecord: EffectiveConfigRecord? {
+        didSet {
+            let changes = dashboardEffectiveRecord?.changes ?? []
+            if changes != (oldValue?.changes ?? []) { serviceStatusStore.syncRules(changes) }
+        }
+    }
+    @Published var dashboardSubscriptionErrors: [String: String] = [:]
+    @Published var isCoreBootstrapInFlight = false
+    @Published var isDashboardPresented: Bool = false
+    lazy var serviceStatusStore = ServiceStatusViewModel(
+        storageURL: self.workingDirectoryManager.stateDirectoryURL.appendingPathComponent("service-status.json"))
+
+    // —— 系统代理目标记忆与状态监控（flowke T4 同步链）——
+    @Published var systemProxyStatus: SystemProxyStatus = .disabled {
+        didSet { self.refreshMenuBarDisplaySnapshotIfNeeded() }
+    }
+    @Published var systemProxyActualDisplay: String?
+    var systemProxyExpectedTarget: SystemProxyTarget?
+    var systemProxyMayResumeAfterOwnedClear = false
+    let systemProxyMonitor = SystemProxyMonitor()
+    var systemProxyMonitorTask: Task<Void, Never>?
+    var systemProxyDebounceTask: Task<Void, Never>?
+    let systemProxyTargetKey = "clashbar.system_proxy.expected_target.v1"
+    let systemProxyResumeOnLaunchKey = "clashbar.system_proxy.resume_after_owned_clear"
+
+    // —— 端口保持（flowke T4）——
+    @Published var manualProxyPorts: ProxyPortValues?
+    @Published var proxyPortWarning: String?
+    @Published var isRetryingProxyPorts = false
+    var proxyPortRetryTask: Task<Void, Never>?
+    var proxyPortRetryID: UUID?
+
     var runtimeVisualStatus: RuntimeVisualStatus {
         let normalized = self.statusText.lowercased()
         if normalized == "starting" {

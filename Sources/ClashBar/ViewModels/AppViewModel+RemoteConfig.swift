@@ -153,8 +153,8 @@ extension AppViewModel {
         }
     }
 
-    func deleteConfigFile(named fileName: String) async {
-        guard self.confirmDeleteConfig(named: fileName) else { return }
+    func deleteConfigFile(named fileName: String, confirmed: Bool = false) async {
+        guard confirmed || self.confirmDeleteConfig(named: fileName) else { return }
         guard let configDirectory = ensureConfigDirectoryAvailable() else { return }
 
         let targetURL = configDirectory.appendingPathComponent(fileName, isDirectory: false)
@@ -196,7 +196,7 @@ extension AppViewModel {
         }
     }
 
-    private func confirmDeleteConfig(named fileName: String) -> Bool {
+    func confirmDeleteConfig(named fileName: String) -> Bool {
         self.runModalAlert(
             style: .warning,
             message: tr("app.config.delete.title", fileName),
@@ -576,7 +576,7 @@ extension AppViewModel {
             successMessage: "")
     }
 
-    private func restoreTunAfterConfigReloadIfNeeded(expectedEnabled: Bool) async throws {
+    func restoreTunAfterConfigReloadIfNeeded(expectedEnabled: Bool) async throws {
         guard isRuntimeRunning else { return }
         try await self.patchTunConfig(enable: expectedEnabled)
         try await self.verifyTunRuntimeState(expectedEnabled: expectedEnabled)

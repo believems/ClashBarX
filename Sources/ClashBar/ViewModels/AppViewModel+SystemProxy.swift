@@ -2,6 +2,88 @@ import Foundation
 
 @MainActor
 extension AppViewModel {
+    var systemProxyStatusHelp: String {
+        guard self.systemProxyStatus.needsAttention else { return self.tr("ui.quick.system_proxy") }
+        let expected = self.systemProxyExpectedTarget.flatMap {
+            self.buildSystemProxyDisplayString(host: $0.host, ports: $0.ports)
+        } ?? "—"
+        return self.tr("ui.system_proxy.conflict_help", expected,
+                       self.systemProxyActualDisplay ?? self.tr("ui.system_proxy.unavailable"))
+    }
+
+    func rememberSystemProxyTarget(host: String, ports: SystemProxyPorts) {
+        let target = SystemProxyTarget(host: host, ports: ports)
+        self.systemProxyExpectedTarget = target
+        self.encodeToDefaults(target, key: self.systemProxyTargetKey)
+    }
+
+    func startSystemProxyMonitoring() {
+        guard self.systemProxyMonitorTask == nil else { return }
+        self.systemProxyMonitor.start { [weak self] in self?.scheduleSystemProxyStatusRefresh() }
+        self.systemProxyMonitorTask = Task { [weak self] in
+            while !Task.isCancelled {
+                self?.checkSystemProxyConfigurationIfNeeded()
+                do { try await Task.sleep(nanoseconds: 3_000_000_000) } catch { return }
+            }
+        }
+    }
+
+    func stopSystemProxyMonitoring() {
+        self.systemProxyMonitor.stop()
+        self.systemProxyMonitorTask?.cancel()
+        self.systemProxyMonitorTask = nil
+        self.systemProxyDebounceTask?.cancel()
+        self.systemProxyDebounceTask = nil
+    }
+
+    func scheduleSystemProxyStatusRefresh() {
+        self.systemProxyDebounceTask?.cancel()
+        self.systemProxyDebounceTask = Task { [weak self] in
+            do { try await Task.sleep(nanoseconds: 300_000_000) } catch { return }
+            self?.checkSystemProxyConfigurationIfNeeded()
+        }
+    }
+
+    private func checkSystemProxyConfigurationIfNeeded() {
+        guard self.isSystemProxyEnabled, !self.isProxySyncing else { return }
+        self.checkSystemProxyConfiguration()
+    }
+
+    func checkSystemProxyConfiguration() {
+        guard self.isSystemProxyEnabled else { return }
+        let previous = self.systemProxyStatus
+        do {
+            let snapshot = try self.systemProxyService.readSnapshot()
+            var displays = snapshot.activeDisplays
+            if snapshot.hasAutomaticProxy { displays.append(self.tr("ui.system_proxy.automatic")) }
+            let actual = displays.isEmpty ? self.tr("ui.system_proxy.system_disabled") : displays.joined(separator: ", ")
+            if self.systemProxyActualDisplay != actual { self.systemProxyActualDisplay = actual }
+            if self.systemProxyActiveDisplay != snapshot.activeDisplays.first {
+                self.systemProxyActiveDisplay = snapshot.activeDisplays.first
+            }
+            let status: SystemProxyStatus
+            if let target = self.systemProxyExpectedTarget {
+                status = snapshot.matches(target) ? .active : .overridden
+            } else {
+                status = .unknown
+            }
+            if self.systemProxyStatus != status { self.systemProxyStatus = status }
+        } catch {
+            if self.systemProxyActualDisplay != nil { self.systemProxyActualDisplay = nil }
+            if self.systemProxyStatus != .unknown { self.systemProxyStatus = .unknown }
+        }
+        if previous != self.systemProxyStatus, self.systemProxyStatus.needsAttention {
+            self.appendLog(level: "warning", message: self.systemProxyStatusHelp)
+        }
+    }
+
+    /// Re-check immediately before any automatic write, even when the UI still looks healthy.
+    func systemProxyStillMatchesExpectedTarget() -> Bool {
+        guard let target = self.systemProxyExpectedTarget,
+              let snapshot = try? self.systemProxyService.readSnapshot() else { return false }
+        return snapshot.matches(target)
+    }
+
     static let defaultSystemProxyExceptions: [String] = [
         "::1",
         "*.local",

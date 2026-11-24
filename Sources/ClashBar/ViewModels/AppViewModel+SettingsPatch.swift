@@ -2,6 +2,166 @@ import Foundation
 
 @MainActor
 extension AppViewModel {
+    func cancelProxyPortRetry() {
+        proxyPortRetryID = nil
+        proxyPortRetryTask?.cancel()
+        if isRetryingProxyPorts { proxyPortWarning = nil }
+        isRetryingProxyPorts = false
+    }
+
+    func waitForProxyPortRetryToStop() async {
+        let task = proxyPortRetryTask
+        await task?.value
+    }
+
+    func retryProxyPorts() {
+        guard !isRemoteTarget, isRuntimeRunning, proxyPortRetryID == nil else { return }
+        do {
+            startProxyPortRetry(try resolvedProxyPorts().patch)
+        } catch {
+            proxyPortWarning = error.localizedDescription
+        }
+    }
+
+    func startProxyPortRetry(_ body: [String: ConfigPatchValue], attempts: Int = 10, interval: UInt64 = 1_000_000_000) {
+        guard !isRemoteTarget, isRuntimeRunning, proxyPortRetryID == nil else { return }
+        let id = UUID()
+        proxyPortRetryID = id
+        isRetryingProxyPorts = true
+        proxyPortWarning = tr("app.settings.ports.retrying")
+        let previousTask = proxyPortRetryTask
+        proxyPortRetryTask = Task { [weak self] in
+            await previousTask?.value
+            guard let self else { return }
+            defer {
+                if self.proxyPortRetryID == id {
+                    self.proxyPortRetryID = nil
+                    self.proxyPortRetryTask = nil
+                    self.isRetryingProxyPorts = false
+                }
+            }
+            let previousPorts = self.currentSystemProxyPortsFromState()
+            var lastMessage: String?
+            for _ in 0..<attempts {
+                do {
+                    try await Task.sleep(nanoseconds: interval)
+                    try Task.checkCancellation()
+                    guard self.proxyPortRetryID == id, self.isRuntimeRunning, !self.isRemoteTarget else { return }
+                    let config: ConfigSnapshot = try await self.clientOrThrow().request(.getConfigs)
+                    try Task.checkCancellation()
+                    guard self.proxyPortRetryID == id else { return }
+                    let missing = ProxyPortValues.mismatchedPatch(in: body, actual: ProxyPortValues(config: config))
+                    if !missing.isEmpty {
+                        try await self.clientOrThrow().requestNoResponse(.patchConfigs(body: missing.mapValues(\.jsonValue)))
+                        try Task.checkCancellation()
+                    }
+                    try await self.verifyRuntimeProxyPorts(body)
+                    try Task.checkCancellation()
+                    guard self.proxyPortRetryID == id else { return }
+                    await self.refreshFromAPI(includeSlowCalls: false)
+                    guard !Task.isCancelled, self.proxyPortRetryID == id else { return }
+                    await self.reconcileEditableSettingsWithRuntimeConfig()
+                    guard !Task.isCancelled, self.proxyPortRetryID == id else { return }
+                    await self.syncSystemProxyPortIfNeeded(shouldSync: true, previousPorts: previousPorts)
+                    self.appendLog(level: "info", message: self.tr("app.settings.ports.retry_succeeded"))
+                    return
+                } catch is CancellationError {
+                    return
+                } catch {
+                    guard !Task.isCancelled, self.proxyPortRetryID == id else { return }
+                    lastMessage = error.localizedDescription
+                    self.proxyPortWarning = self.tr("app.settings.ports.retrying")
+                }
+            }
+            guard !Task.isCancelled, self.proxyPortRetryID == id else { return }
+            self.proxyPortWarning = lastMessage ?? self.tr("app.settings.ports.retry_failed")
+            self.appendLog(level: "error", message: self.proxyPortWarning ?? "")
+        }
+    }
+
+    func resolvedProxyPorts(configURL: URL? = nil) throws -> ProxyPortValues {
+        if let manualProxyPorts { return manualProxyPorts }
+        guard let url = configURL ?? currentLocalProxyPortConfigURL() else {
+            throw ProxyPortError.missingConfig
+        }
+        return try ProxyPortValues.fromConfig(Data(contentsOf: url))
+    }
+
+    func currentLocalProxyPortConfigURL() -> URL? {
+        if let record = try? effectiveConfigTransaction.currentRecord(),
+           let effective = effectiveConfigTransaction.currentFile(record),
+           FileManager.default.fileExists(atPath: effective.path)
+        {
+            return effective
+        }
+        return configService.selectedConfig
+    }
+
+    func configuredProxyPortsForPresentation() -> ProxyPortValues? {
+        guard !isRemoteTarget else { return nil }
+        return try? resolvedProxyPorts()
+    }
+
+    func proxyPortsForPresentation(_ runtimeConfig: ConfigSnapshot) -> ProxyPortValues {
+        configuredProxyPortsForPresentation() ?? ProxyPortValues(config: runtimeConfig)
+    }
+
+    func editableSettingsSnapshotForPresentation(_ runtimeConfig: ConfigSnapshot)
+        -> EditableSettingsSnapshot
+    {
+        let snapshot = EditableSettingsSnapshot(config: runtimeConfig)
+        guard let ports = configuredProxyPortsForPresentation() else { return snapshot }
+        return snapshot.withProxyPorts(ports)
+    }
+
+    func applyRuntimeProxyPorts(configURL: URL) async throws {
+        let ports = try resolvedProxyPorts(configURL: configURL)
+        try await clientOrThrow().requestNoResponse(.patchConfigs(body: ports.patch.mapValues(\.jsonValue)))
+        try await verifyRuntimeProxyPorts(ports.patch)
+    }
+
+    func verifyRuntimeProxyPorts(_ body: [String: ConfigPatchValue]) async throws {
+        let keys = ["port", "socks-port", "mixed-port", "redir-port", "tproxy-port"]
+        guard keys.contains(where: { body[$0] != nil }) else { return }
+        let config: ConfigSnapshot = try await clientOrThrow().request(.getConfigs)
+        try Task.checkCancellation()
+        if let mismatch = ProxyPortValues.firstMismatch(in: body, actual: ProxyPortValues(config: config)) {
+            let message = tr("app.settings.error.port_not_applied", mismatch.key, mismatch.expected, mismatch.actual)
+            proxyPortWarning = message
+            throw ProxyPortRuntimeError(message: message)
+        }
+        proxyPortWarning = nil
+    }
+
+    func showProxyPortValues(_ ports: ProxyPortValues) {
+        suppressSettingsPersistence = true
+        settingsPort = String(ports.port)
+        settingsSocksPort = String(ports.socksPort)
+        settingsMixedPort = String(ports.mixedPort)
+        settingsRedirPort = String(ports.redirPort)
+        settingsTProxyPort = String(ports.tproxyPort)
+        suppressSettingsPersistence = false
+    }
+
+    func followConfigProxyPorts() async {
+        guard !isRemoteTarget, let url = currentLocalProxyPortConfigURL() else { return }
+        cancelProxyPortRetry()
+        await waitForProxyPortRetryToStop()
+        do {
+            let ports = try ProxyPortValues.fromConfig(Data(contentsOf: url))
+            cancelProxyPortsAutoSave()
+            if isRuntimeRunning {
+                guard await patchConfigBody(ports.patch, syncingKey: "ports", successMessage: tr("app.settings.saved.ports")) else { return }
+            } else {
+                showProxyPortValues(ports)
+            }
+            manualProxyPorts = nil
+            defaults.removeObject(forKey: "clashbar.settings.proxyPorts.manual.v1")
+        } catch {
+            settingsErrorMessage = error.localizedDescription
+        }
+    }
+
     func effectiveMixedPort() -> Int {
         if self.mixedPort > 0 {
             return self.mixedPort
@@ -188,7 +348,7 @@ extension AppViewModel {
         }
     }
 
-    private func syncSystemProxyPortIfNeeded(shouldSync: Bool, previousPorts: SystemProxyPorts?) async {
+    func syncSystemProxyPortIfNeeded(shouldSync: Bool, previousPorts: SystemProxyPorts?) async {
         guard shouldSync, isSystemProxyEnabled else { return }
 
         do {

@@ -453,3 +453,148 @@ extension String {
         return addingPercentEncoding(withAllowedCharacters: allowed) ?? self
     }
 }
+
+enum RuleTester {
+    private static let maxConcurrentRules = 20
+
+    @MainActor
+    static func runBatch(_ changes: [CustomRuleChange],
+                         measure: @escaping @Sendable (CustomRuleChange) async throws -> RuleTestResult,
+                         started: (UUID) -> Void,
+                         finished: (UUID, RuleTestResult) -> Void) async {
+        await withTaskGroup(of: (UUID, RuleTestResult).self) { group in
+            var remaining = changes.makeIterator()
+            for _ in 0..<maxConcurrentRules {
+                guard !Task.isCancelled, let change = remaining.next() else { break }
+                if group.addTaskUnlessCancelled(operation: { await measureRule(change, using: measure) }) {
+                    started(change.id)
+                }
+            }
+            while let (id, result) = await group.next() {
+                guard !Task.isCancelled else { return }
+                finished(id, result)
+                if let change = remaining.next(),
+                   group.addTaskUnlessCancelled(operation: { await measureRule(change, using: measure) }) {
+                    started(change.id)
+                }
+            }
+        }
+    }
+
+    private static func measureRule(_ change: CustomRuleChange,
+                                    using measure: @Sendable (CustomRuleChange) async throws -> RuleTestResult) async -> (UUID, RuleTestResult) {
+        do {
+            try Task.checkCancellation()
+            return (change.id, try await measure(change))
+        } catch {
+            return (change.id, RuleTestResult(match: .unknown, rule: nil, chain: nil, statusCode: nil,
+                                              requestError: error.localizedDescription))
+        }
+    }
+
+    static func canTest(_ change: CustomRuleChange) -> Bool {
+        change.isEnabled && supports(change) && change.testURL.flatMap(validURL) != nil
+    }
+
+    static func supports(_ change: CustomRuleChange) -> Bool {
+        guard change.operation != .delete else { return false }
+        let type = change.value.split(separator: ",", maxSplits: 1).first?.uppercased()
+        return ["DOMAIN", "DOMAIN-SUFFIX", "DOMAIN-KEYWORD", "IP-CIDR", "IP-CIDR6", "GEOIP"].contains(type ?? "")
+    }
+
+    static func validURL(_ value: String) -> URL? {
+        guard let components = URLComponents(string: value.trimmingCharacters(in: .whitespacesAndNewlines)),
+              let scheme = components.scheme?.lowercased(), ["http", "https"].contains(scheme),
+              components.host?.isEmpty == false, components.user == nil, components.password == nil,
+              let url = components.url else { return nil }
+        return url
+    }
+
+    static func match(rule: String, connection: ConnectionSummary?) -> RuleTestResult.Match {
+        guard let connection, let actualType = connection.rule, let payload = connection.rulePayload else { return .unknown }
+        let parts = rule.split(separator: ",", omittingEmptySubsequences: false).map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard parts.count >= 3 else { return .unknown }
+        let normalize: (String) -> String = { $0.uppercased().filter { $0.isLetter || $0.isNumber } }
+        guard normalize(parts[0]) == normalize(actualType), parts[1].caseInsensitiveCompare(payload) == .orderedSame else {
+            return .other
+        }
+        guard let chains = connection.chains, !chains.isEmpty else { return .unknown }
+        return chains.contains(parts[2]) ? .matched : .other
+    }
+
+    static func run(change: CustomRuleChange, client: MihomoAPIService) async throws -> RuleTestResult {
+        guard let url = change.testURL.flatMap(validURL), let host = url.host else { throw RuleTestError.invalidURL }
+        let config: ConfigSnapshot = try await client.request(.getConfigs)
+        guard config.mode?.lowercased() == "rule" else { throw RuleTestError.wrongMode }
+        guard let proxyPort = [config.mixedPort, config.port].compactMap({ $0 }).first(where: { $0 > 0 }) else {
+            throw RuleTestError.noProxyPort
+        }
+        let baseline: RuleTestConnections = try await client.request(.connections(interval: nil))
+        let existingIDs = Set(baseline.connections.map(\.id))
+        for _ in 0..<3 {
+            if let result = try await ProbeSourcePorts.shared.withPort({ sourcePort in
+                try await runCurl(rule: change.value, url: url, host: host, client: client, proxyPort: proxyPort,
+                                  sourcePort: sourcePort, existingIDs: existingIDs)
+            }) {
+                return result
+            }
+        }
+        return RuleTestResult(match: .unknown, rule: nil, chain: nil, statusCode: nil,
+                              requestError: "Cannot bind the local probe port.")
+    }
+
+    private static func runCurl(rule: String, url: URL, host: String, client: MihomoAPIService, proxyPort: Int,
+                                sourcePort: Int, existingIDs: Set<String>) async throws -> RuleTestResult? {
+        try Task.checkCancellation()
+        let start = Date().timeIntervalSince1970
+        let output = Pipe()
+        let errors = Pipe()
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
+        process.arguments = ["--disable", "--silent", "--show-error", "--proxy", "http://127.0.0.1:\(proxyPort)",
+                             "--noproxy", "", "--local-port", String(sourcePort), "--connect-timeout", "4",
+                             "--max-time", "8", "--max-filesize", "1048576", "--range", "0-0", "--output", "/dev/null",
+                             "--write-out", "%{http_code}", "--", url.absoluteString]
+        process.standardOutput = output
+        process.standardError = errors
+        let terminationObserver = ServiceProbeProcess.terminateOnAppExit(process)
+        defer { NotificationCenter.default.removeObserver(terminationObserver) }
+        try process.run()
+        var observed: ConnectionSummary?
+        do {
+            while process.isRunning {
+                try Task.checkCancellation()
+                if let snapshot: RuleTestConnections = try? await client.request(.connections(interval: nil)) {
+                    let candidates = snapshot.connections.filter {
+                        !existingIDs.contains($0.id) && $0.metadata?.sourceIP == "127.0.0.1" && $0.metadata?.sourcePort == sourcePort &&
+                            $0.metadata?.host?.caseInsensitiveCompare(host) == .orderedSame &&
+                            ($0.startTimestamp.map { $0 >= start - 1 } ?? false)
+                    }
+                    if candidates.count == 1 { observed = candidates[0] }
+                }
+                try await Task.sleep(nanoseconds: 100_000_000)
+            }
+            try Task.checkCancellation()
+        } catch {
+            if process.isRunning { process.terminate() }
+            await ServiceProbeProcess.waitForExit(process)
+            throw error
+        }
+        await ServiceProbeProcess.waitForExit(process)
+        let outputData = output.fileHandleForReading.readDataToEndOfFile()
+        let errorData = errors.fileHandleForReading.readDataToEndOfFile()
+        let status = Int(String(decoding: outputData, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines))
+        let code = status.flatMap { $0 > 0 ? $0 : nil }
+        let exit = process.terminationStatus
+        if exit == 45 { return nil }
+        if exit == 7 { observed = nil }
+        let message = String(decoding: errorData, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        let requestError = exit == 0 || (exit == 63 && code != nil) ? nil :
+            (exit == 28 ? "Request timed out" : (message.isEmpty ? "curl exited with code \(exit)" : message))
+        let actualRule = observed.map { [$0.rule, $0.rulePayload].compactMap { $0 }.joined(separator: ", ") }
+        return RuleTestResult(match: match(rule: rule, connection: observed), rule: actualRule,
+                              chain: observed?.chains, statusCode: code, requestError: requestError)
+    }
+}

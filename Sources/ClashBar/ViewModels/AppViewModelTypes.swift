@@ -320,3 +320,20 @@ struct SystemProxyPorts: Codable, Equatable, Sendable {
         self.httpPort ?? self.httpsPort ?? self.socksPort
     }
 }
+
+extension EditableSettingsSnapshot {
+    func withProxyPorts(_ ports: ProxyPortValues) -> EditableSettingsSnapshot {
+        EditableSettingsSnapshot(
+            mode: self.mode,
+            allowLan: self.allowLan,
+            ipv6: self.ipv6,
+            tcpConcurrent: self.tcpConcurrent,
+            tunEnabled: self.tunEnabled,
+            logLevel: self.logLevel,
+            port: String(ports.port),
+            socksPort: String(ports.socksPort),
+            mixedPort: String(ports.mixedPort),
+            redirPort: String(ports.redirPort),
+            tproxyPort: String(ports.tproxyPort))
+    }
+}
