@@ -57,25 +57,28 @@
 </div>
 
 <p>
-  <img src="./docs/public/clashbar-black.png" width="49%" alt="ClashBarPlus Dark" />
-  <img src="./docs/public/clashbar-light.png" width="49%" alt="ClashBarPlus Light" />
+  <img src="./docs/public/clashbar-black.png" width="49%" alt="ClashBarX Dark" />
+  <img src="./docs/public/clashbar-light.png" width="49%" alt="ClashBarX Light" />
 </p>
 
 ## 🔀 与上游的关系
 
-ClashBarPlus 是 [Sitoi/ClashBar](https://github.com/Sitoi/ClashBar) 的 fork，基线为上游 **v0.3.3**。上游的全部功能都在，这里只做增量改动，并会持续同步上游更新。
+ClashBarX 是 [Sitoi/ClashBar](https://github.com/Sitoi/ClashBar) 的整合发行版，基于上游 main 分支（v0.3.8 之后），整合四个社区 fork 的精选变更，并会持续同步上游更新。
 
-|                | ClashBarPlus                                    | 上游 ClashBar                    |
-| -------------- | ----------------------------------------------- | -------------------------------- |
-| 版本号         | 自 `v1.0.0` 起独立编号，不跟随上游              | `v0.3.x`                         |
-| 安装方式       | 仅 Releases 下载 DMG                            | Homebrew Cask / DMG              |
-| Bundle ID      | `com.clashbar`（与上游一致）                    | `com.clashbar`                   |
-| 数据目录       | `~/Library/Application Support/clashbar`（一致）| 同左                             |
+|                | ClashBarX                                        | 上游 ClashBar                    |
+| -------------- | ------------------------------------------------ | -------------------------------- |
+| 版本号         | 自 `v1.0.0` 起独立编号，不跟随上游               | `v0.3.x`                         |
+| 安装方式       | 仅 Releases 下载 DMG                             | Homebrew Cask / DMG              |
+| Bundle ID      | `com.clashbar`（与上游一致）                     | `com.clashbar`                   |
+| 数据目录       | `~/.config/clashbar`（首次运行自动从旧目录迁移）| `~/Library/Application Support/clashbar` |
 
 > [!IMPORTANT]
-> ClashBarPlus 刻意保留了上游的 Bundle ID、数据目录与特权助手标签。这意味着**覆盖安装即原地升级**——既有配置、订阅、设置以及「登录项」里的助手授权全部保留，无需重新配置。代价是它与原版 ClashBar **不能并存**，请先卸载原版再安装。
+> ClashBarX 保留了上游的 Bundle ID 与特权助手标签，且首启会自动把旧数据目录迁移到
+> `~/.config/clashbar`。这意味着**覆盖安装即原地升级**——既有配置、订阅、设置以及
+> 「登录项」里的助手授权全部保留，无需重新配置。代价是它与原版 ClashBar **不能并存**，
+> 请先卸载原版再安装。
 
-与上游的差异记录在 [CHANGELOG.md](./CHANGELOG.md)；v0.3.3 及更早的历史见[上游更新日志](https://github.com/Sitoi/ClashBar/blob/main/CHANGELOG.md)。
+与上游及各 fork 的差异记录在 [CHANGELOG.md](./CHANGELOG.md)；v0.3.6 及更早的历史见[上游更新日志](https://github.com/Sitoi/ClashBar/blob/main/CHANGELOG.md)。
 
 ## ✨ 特点
 
