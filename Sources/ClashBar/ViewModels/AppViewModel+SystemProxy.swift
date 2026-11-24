@@ -296,6 +296,7 @@ extension AppViewModel {
     func systemProxyErrorMessage(_ error: Error) -> String {
         guard let serviceError = error as? SystemProxyServiceError else { return error.localizedDescription }
         switch serviceError {
+        case .configurationUnavailable: return tr("ui.system_proxy.unavailable")
         case .invalidHost: return tr("app.system_proxy.error.invalid_host")
         case .invalidPort: return tr("app.system_proxy.error.invalid_port")
         case .helperNotBundled: return tr("app.system_proxy.error.helper_not_bundled")
@@ -314,6 +315,7 @@ extension AppViewModel {
     func systemProxyFailureHintMessage(for error: Error) -> String {
         guard let serviceError = error as? SystemProxyServiceError else { return tr("app.system_proxy.alert.unknown") }
         switch serviceError {
+        case .configurationUnavailable: return tr("ui.system_proxy.unavailable")
         case .invalidHost: return tr("app.system_proxy.alert.invalid_host")
         case .invalidPort: return tr("app.system_proxy.alert.invalid_port")
         case .helperNotBundled: return tr("app.system_proxy.alert.helper_not_bundled")

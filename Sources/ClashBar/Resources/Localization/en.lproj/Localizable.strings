@@ -261,6 +261,7 @@
 "app.system_proxy.error.helper_not_bundled" = "Privileged helper not found in app bundle. Use the packaged .app/.dmg build";
 "app.system_proxy.error.helper_install_location" = "Move ClashBarPlus.app to /Applications and reopen it before enabling system proxy";
 "app.system_proxy.error.helper_not_registered" = "Privileged helper is not installed";
+"ui.system_proxy.unavailable" = "Unable to read system proxy settings";
 "app.system_proxy.error.helper_needs_update" = "System proxy helper is outdated (installed v%d, requires v%d); please update in Settings";
 "app.system_proxy.alert.helper_needs_update" = "Helper is outdated; update it in the System Proxy Helper section of Settings";
 "app.system_proxy.error.helper_start_timed_out" = "Privileged helper did not respond. Turn on system proxy again to retry";
