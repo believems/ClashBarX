@@ -54,7 +54,7 @@ jobs:
             local candidate_tag="$1"
             local candidate_version="$2"
             if [[ "${candidate_version%%.*}" -lt "${MINIMUM_VERSION%%.*}" ]]; then
-              echo "Refusing to release ${candidate_tag}: ClashBarPlus numbers versions independently from v${MINIMUM_VERSION} and never reuses upstream's v0.x tags." >&2
+              echo "Refusing to release ${candidate_tag}: ClashBarX numbers versions independently from v${MINIMUM_VERSION} and never reuses upstream's v0.x tags." >&2
               exit 1
             fi
           }
@@ -103,7 +103,7 @@ jobs:
               if [[ -z "$last_tag" ]]; then
                 tag="v${MINIMUM_VERSION}"
                 version="${MINIMUM_VERSION}"
-                echo "No ClashBarPlus release yet, starting at $tag"
+                echo "No ClashBarX release yet, starting at $tag"
               else
                 base_version="${last_tag#v}"
                 range="${last_tag}..HEAD"
@@ -229,8 +229,8 @@ jobs:
         with:
           name: ${{ matrix.artifact_name }}
           path: |
-            dist/ClashBarPlus-${{ needs.prepare-version.outputs.version }}-${{ matrix.dmg_suffix }}.dmg
-            dist/ClashBarPlus-${{ needs.prepare-version.outputs.version }}-${{ matrix.dmg_suffix }}.dmg.sha256
+            dist/ClashBarX-${{ needs.prepare-version.outputs.version }}-${{ matrix.dmg_suffix }}.dmg
+            dist/ClashBarX-${{ needs.prepare-version.outputs.version }}-${{ matrix.dmg_suffix }}.dmg.sha256
           if-no-files-found: error
 
   release:
@@ -266,7 +266,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.prepare-version.outputs.tag }}
-          name: ClashBarPlus ${{ needs.prepare-version.outputs.version }}
+          name: ClashBarX ${{ needs.prepare-version.outputs.version }}
           body_path: release.md
           generate_release_notes: true
           fail_on_unmatched_files: true

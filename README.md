@@ -1,13 +1,14 @@
 <div align="center">
 
-<img src="./docs/public/clashbar-logo.png" width="220" alt="ClashBarPlus Logo" />
+<img src="./docs/public/clashbar-logo.png" width="220" alt="ClashBarX Logo" />
 
-# ClashBarPlus
+# ClashBarX
 
 原生 macOS 菜单栏代理客户端，基于 `SwiftUI + AppKit`，由 `mihomo` 驱动。
 轻量、稳定，在菜单栏完成配置、节点、规则、连接与系统代理管理。 ✨
 
-> **本仓库是 [Sitoi/ClashBar](https://github.com/Sitoi/ClashBar) 的 fork。**  
+> **本仓库是 [Sitoi/ClashBar](https://github.com/Sitoi/ClashBar) 的整合发行版（ClashBarX）。**  
+> 在上游基础上整合了 [mh567](https://github.com/mh567/ClashBar)、[kingcanfish](https://github.com/kingcanfish/ClashBar)、[Gongsc](https://github.com/Gongsc/ClashBar)、[flowke](https://github.com/flowke/ClashBar) 四个社区 fork 的优秀变更。  
 > 安装包、应用内更新、版本号与文档都以本仓库为准，与上游的 `0.3.x` 版本和 Homebrew tap 相互独立。
 
 <p>
@@ -212,6 +213,11 @@ make format                # swiftformat + swiftlint（需自行安装）
 ## 🙏 致谢
 
 - 感谢 [Sitoi/ClashBar](https://github.com/Sitoi/ClashBar) 提供上游项目，本仓库在其基础上维护。
+- 感谢四个社区 fork，ClashBarX 整合了它们的优秀变更：
+  - [mh567/ClashBar](https://github.com/mh567/ClashBar) —— 工程加固、测试体系与上游同步工具
+  - [kingcanfish/ClashBar](https://github.com/kingcanfish/ClashBar) —— Liquid Glass UI 重设计与测速/提供者体验优化
+  - [Gongsc/ClashBar](https://github.com/Gongsc/ClashBar) —— 流量曲线、延迟信号条、规则覆写与多项深度修复
+  - [flowke/ClashBar](https://github.com/flowke/ClashBar) —— 数据目录迁移、测速同步与多显示器面板锚定
 - 感谢 [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo) 提供内核能力。
 - 感谢 [Linux DO](https://linux.do/) 社区的支持与帮助 🙏
 

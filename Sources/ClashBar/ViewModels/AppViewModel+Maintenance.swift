@@ -365,7 +365,7 @@ extension AppViewModel {
     }
 
     var appReleaseIndexURL: URL? {
-        URL(string: "https://github.com/kingcanfish/ClashBar/releases")
+        URL(string: "https://github.com/believems/ClashBarX/releases")
     }
 
     func refreshLatestAppRelease() async {

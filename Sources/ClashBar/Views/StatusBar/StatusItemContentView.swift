@@ -95,7 +95,7 @@ final class StatusItemContentView {
             return brandIcon
         }
         guard let symbolName = display.symbolName else { return nil }
-        let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "ClashBarPlus")
+        let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "ClashBarX")
         let config = NSImage.SymbolConfiguration(pointSize: self.symbolPointSize, weight: .semibold)
         return image?.withSymbolConfiguration(config)
     }

@@ -1,3 +1,14 @@
+## ClashBarX 整合基线
+
+> ClashBarX 首个整合版基于上游 [Sitoi/ClashBar](https://github.com/Sitoi/ClashBar) main 分支，
+> 整合了 [mh567](https://github.com/mh567/ClashBar)（工程加固、测试体系）、
+> [kingcanfish](https://github.com/kingcanfish/ClashBar)（v0.4.x Liquid Glass UI/UX）、
+> [Gongsc](https://github.com/Gongsc/ClashBar)（v1.2.x 流量曲线、规则覆写、深度修复）、
+> [flowke](https://github.com/flowke/ClashBar)（数据目录迁移 `~/.config`、测速同步、多显示器锚定）的变更。
+> 以下保留各 fork 的原始版本记录，致谢与版权声明见 README 与各提交作者署名（GPL-3.0）。
+
+---
+
 ## v0.4.8
 
 ![macOS](https://img.shields.io/badge/macOS-Supported-000000?style=flat-square&logo=apple) ![Version](https://img.shields.io/badge/Release-v0.4.8-10B981?style=flat-square) ![Core](https://img.shields.io/badge/Core-Mihomo-6366f1?style=flat-square)
