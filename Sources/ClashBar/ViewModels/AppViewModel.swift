@@ -265,12 +265,57 @@ final class AppViewModel: ObservableObject {
     @Published var dashboardSubscriptionErrors: [String: String] = [:]
     @Published var isCoreBootstrapInFlight = false
     @Published var isDashboardPresented: Bool = false
+    @Published var dashboardTrafficAvailable = false
+    @Published var dashboardMemoryAvailable = false
+    @Published var dashboardConnectionsAvailable = false
     lazy var serviceStatusStore = ServiceStatusViewModel(
         storageURL: self.workingDirectoryManager.stateDirectoryURL.appendingPathComponent("service-status.json"))
     /// 由 AppDelegate 注入的仪表盘呈现动作（窗口归 AppDelegate 管理，视图层只发请求）。
     var dashboardPresenter: (() -> Void)?
     func presentDashboard() {
         self.dashboardPresenter?()
+    }
+
+    /// 代理端点的紧凑显示：本机只显示混合端口，远程目标显示 host:port。
+    var proxyEndpointDisplay: String {
+        guard let port = self.mixedProxyPort else {
+            return "-"
+        }
+
+        // Keep the compact local status-item header readable. The full host
+        // and management endpoint remain available in the help text and in
+        // the machine switcher popover.
+        if self.remoteMachineStore.activeTarget.isLocal {
+            return String(port)
+        }
+
+        let configuredHost = self.controllerHost(from: self.externalControllerDisplay) ?? "127.0.0.1"
+        let host = Self.isWildcardHost(configuredHost) ? "127.0.0.1" : configuredHost
+        let displayHost = host.contains(":") && !host.hasPrefix("[") ? "[\(host)]" : host
+        return "\(displayHost):\(port)"
+    }
+
+    var mixedProxyPort: Int? {
+        if self.mixedPort > 0 {
+            return self.mixedPort
+        }
+
+        guard let configuredPort = Int(self.settingsMixedPort.trimmingCharacters(in: .whitespacesAndNewlines)),
+              configuredPort > 0,
+              configuredPort <= 65535
+        else {
+            return nil
+        }
+        return configuredPort
+    }
+
+    private static func isWildcardHost(_ value: String) -> Bool {
+        switch value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "", "0.0.0.0", "::", "0:0:0:0:0:0:0:0":
+            true
+        default:
+            false
+        }
     }
 
     // —— 系统代理目标记忆与状态监控（flowke T4 同步链）——

@@ -412,12 +412,11 @@ struct DashboardConfigurationView: View {
                         let previousError = appViewModel.dashboardConfigError
                         appViewModel.dashboardConfigError = nil
                         if remote {
-                            await appViewModel.importRemoteConfigFile(
-                                manualOnly: true,
-                                dashboardErrors: true,
-                                source: .dashboard)
+                            // flowke 原版在此走订阅导入面板（T10 依赖，未整合），
+                            // 这里回退为命令行式输入并沿用面板错误展示。
+                            await appViewModel.importRemoteConfigFile()
                         }
-                        else { appViewModel.importLocalConfigFile(dashboardErrors: true) }
+                        else { appViewModel.importLocalConfigFile() }
                         if let details = appViewModel.dashboardConfigError {
                             sectionIssues[remote] = CardIssue(title: remote ? text("添加失败", "Add failed") : text("导入失败", "Import failed"), details: details)
                         }
