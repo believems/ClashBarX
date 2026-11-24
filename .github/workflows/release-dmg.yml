@@ -160,17 +160,6 @@ jobs:
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "build_number=${version}" >> "$GITHUB_OUTPUT"
 
-  test:
-    needs: prepare-version
-    runs-on: macos-15
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-      - name: Run Swift tests
-        run: swift test --parallel
-
   build-dmg:
     needs: prepare-version
     strategy:
@@ -237,8 +226,14 @@ jobs:
             dist/ClashBarX-${{ needs.prepare-version.outputs.version }}-${{ matrix.dmg_suffix }}.dmg.sha256
           if-no-files-found: error
 
+      # 测试与构建同 runner（省一次 macOS 排队），仅在 arm64 架构跑。
+      # 失败会令本 job 失败，从而阻塞 release——测试仍是发版门槛。
+      - name: Run Swift tests
+        if: matrix.target_arch == 'arm64'
+        run: swift test --parallel
+
   release:
-    needs: [prepare-version, build-dmg, test]
+    needs: [prepare-version, build-dmg]
     runs-on: ubuntu-latest
     permissions:
       contents: write

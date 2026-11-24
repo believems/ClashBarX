@@ -49,17 +49,6 @@ jobs:
           echo "build_number=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
           echo "source_ref=${source_ref}" >> "$GITHUB_OUTPUT"
 
-  test:
-    needs: prepare-beta
-    runs-on: macos-15
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-      - name: Run Swift tests
-        run: swift test --parallel
-
   build-dmg:
     needs: prepare-beta
     strategy:
@@ -125,6 +114,11 @@ jobs:
             dist/ClashBarX-${{ needs.prepare-beta.outputs.version }}-${{ matrix.dmg_suffix }}.dmg
             dist/ClashBarX-${{ needs.prepare-beta.outputs.version }}-${{ matrix.dmg_suffix }}.dmg.sha256
           if-no-files-found: error
+
+      # 测试与构建同 runner（省一次 macOS 排队），仅在 arm64 架构跑。
+      - name: Run Swift tests
+        if: matrix.target_arch == 'arm64'
+        run: swift test --parallel
 
   release:
     needs: [prepare-beta, build-dmg]
