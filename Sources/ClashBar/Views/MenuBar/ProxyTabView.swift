@@ -382,7 +382,7 @@ struct ProxyTabView: TranslatingView {
     var trafficOverview: some View {
         let sparklineHeight: CGFloat = 64
         let sparklineHorizontalInset = T.space4
-        VStack(spacing: T.space4) {
+        return VStack(spacing: T.space4) {
             HStack(spacing: T.space6) {
                 self.trafficRateMetric(
                     symbol: "arrow.up",
