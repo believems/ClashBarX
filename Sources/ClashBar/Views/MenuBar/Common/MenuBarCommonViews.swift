@@ -605,3 +605,21 @@ private struct FilterTextField: View {
             }
     }
 }
+
+extension RuntimeVisualStatus {
+    var color: Color {
+        switch self {
+        case .runningHealthy: Color(nsColor: .systemGreen).opacity(T.Opacity.solid)
+        case .runningDegraded: Color(nsColor: .systemOrange).opacity(T.Opacity.solid)
+        case .starting: Color(nsColor: .systemBlue).opacity(T.Opacity.solid)
+        case .failed: Color(nsColor: .systemRed).opacity(T.Opacity.solid)
+        case .stopped: Color(nsColor: .secondaryLabelColor)
+        }
+    }
+}
+
+extension View {
+    var isDarkAppearance: Bool {
+        NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+    }
+}

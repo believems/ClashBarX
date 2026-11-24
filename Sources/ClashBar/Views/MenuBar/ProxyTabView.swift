@@ -355,6 +355,30 @@ struct ProxyTabView: TranslatingView {
         .fixedSize(horizontal: false, vertical: true)
     }
 
+    func cornerMetric(
+        symbol: String,
+        value: String,
+        color: Color,
+        iconTrailing: Bool = false) -> some View
+    {
+        let icon = Image(systemName: symbol)
+            .font(.app(size: T.FontSize.caption, weight: .semibold))
+            .foregroundStyle(color)
+        let text = Text(value)
+            .font(.app(size: T.FontSize.body, weight: .regular))
+            .foregroundStyle(nativeSecondaryLabel)
+            .lineLimit(1)
+            .minimumScaleFactor(T.minimumScale)
+
+        return HStack(spacing: iconTrailing ? T.space1 : T.space2) {
+            if iconTrailing {
+                text; icon
+            } else {
+                icon; text
+            }
+        }
+    }
+
     var trafficOverview: some View {
         let sparklineHeight: CGFloat = 64
         let sparklineHorizontalInset = T.space4

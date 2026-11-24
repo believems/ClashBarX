@@ -49,6 +49,17 @@ jobs:
           echo "build_number=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
           echo "source_ref=${source_ref}" >> "$GITHUB_OUTPUT"
 
+  test:
+    needs: prepare-beta
+    runs-on: macos-15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Run Swift tests
+        run: swift test --parallel
+
   build-dmg:
     needs: prepare-beta
     strategy:

@@ -160,6 +160,17 @@ jobs:
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "build_number=${version}" >> "$GITHUB_OUTPUT"
 
+  test:
+    needs: prepare-version
+    runs-on: macos-15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Run Swift tests
+        run: swift test --parallel
+
   build-dmg:
     needs: prepare-version
     strategy:
@@ -227,7 +238,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    needs: [prepare-version, build-dmg]
+    needs: [prepare-version, build-dmg, test]
     runs-on: ubuntu-latest
     permissions:
       contents: write

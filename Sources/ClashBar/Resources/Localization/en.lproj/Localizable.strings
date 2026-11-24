@@ -27,8 +27,6 @@
 "ui.action.quit" = "Quit";
 "ui.action.test_latency" = "Test Latency";
 "ui.action.update_all_proxy_providers" = "Update All Providers";
-"ui.action.refresh_remote_config" = "Refresh current remote configuration";
-"ui.proxy.remaining_quota" = "%@ left";
 "ui.action.show_hidden_proxy_groups" = "Show hidden proxy groups";
 "ui.action.hide_hidden_proxy_groups" = "Hide hidden proxy groups";
 "ui.action.sort_nodes_by_latency" = "Sort Nodes by Latency";
@@ -272,8 +270,8 @@
 "app.system_proxy.error.helper_install_location" = "Move ClashBarX.app to /Applications and reopen it before enabling system proxy";
 "app.system_proxy.error.helper_not_registered" = "Privileged helper is not installed";
 "ui.system_proxy.unavailable" = "Unable to read system proxy settings";
-"app.system_proxy.error.helper_needs_update" = "System proxy helper is outdated (installed v%d, requires v%d); please update in Settings";
-"app.system_proxy.alert.helper_needs_update" = "Helper is outdated; update it in the System Proxy Helper section of Settings";
+"app.system_proxy.error.helper_needs_update" = "System proxy helper is outdated (installed v%d, requires v%d); toggle the system proxy switch once in Settings to trigger an update";
+"app.system_proxy.alert.helper_needs_update" = "Helper is outdated; toggle the system proxy switch once in Settings to trigger an update";
 "app.system_proxy.error.helper_start_timed_out" = "Privileged helper did not respond. Turn on system proxy again to retry";
 "app.system_proxy.error.helper_authorization_cancelled" = "Administrator authorization was cancelled";
 "app.system_proxy.error.helper_install_failed" = "Failed to install privileged helper: %@";
