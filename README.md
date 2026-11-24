@@ -199,6 +199,23 @@ make format                # swiftformat + swiftlint（需自行安装）
 - 发布流程见 [docs/MAINTENANCE.md](./docs/MAINTENANCE.md)，本地发布使用 `Scripts/release_local.sh <tag>`。
 - 文档站源码在 `docs/`，校验用 `cd docs && pnpm types:check`。
 
+## 🤖 自动化接口
+
+面向脚本与 AI 代理（大模型）的两条本地触发通道：
+
+- **代理守护检查**（详见 [#1](https://github.com/believems/ClashBarX/issues/1)）：
+
+  ```sh
+  ClashBarX.app/Contents/MacOS/ClashBarX --proxy-guard
+  ```
+
+  触发运行中的实例立即执行一次「探测 → 按需组内切换/订阅自愈」；无实例时启动后立即检查。
+  适合自动化工具在发现目标站点（如 GitHub）访问异常时自行调用。
+
+- **自定义规则操控**（源自 flowke）：`AgentRuleSocket` 本地 Unix Socket 接口
+  （数据目录下的 `rules.sock`，含属主与权限校验），支持对自定义规则做增删改查与快照读取，
+  供外部工具集成。协议细节见 `Sources/ClashBar/Services/AgentRuleService.swift` 顶部注释。
+
 ## 🙌 社区与反馈
 
 - 🐛 本仓库的 Issue / PR：<https://github.com/believems/ClashBarX/issues>
