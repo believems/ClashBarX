@@ -227,6 +227,9 @@ jobs:
 
       # 测试与构建同 runner（仅一次排队）；失败即 job 失败，阻塞 release——测试仍是发版门槛。
       - name: Run Swift tests
+        # 12 分钟超时：个别测试在 runner 上可能 hang（无内置 per-test 超时），
+        # 超时杀掉后日志可取，用于精确定位卡点。
+        timeout-minutes: 12
         run: swift test --parallel
 
       - name: Upload dmg artifacts
