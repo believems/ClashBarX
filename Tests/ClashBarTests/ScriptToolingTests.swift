@@ -44,12 +44,29 @@ final class ScriptToolingTests: XCTestCase {
             stdinPipe.fileHandleForWriting.write(data)
         }
         try? stdinPipe.fileHandleForWriting.close()
+
+        // 并发读干两个管道再等待退出：子进程输出超过管道缓冲（64KB）时，
+        // 「先 waitUntilExit 后读」会写阻塞导致死锁（CI 上大 git 输出必触发）。
+        let drainGroup = DispatchGroup()
+        var stdoutData = Data()
+        var stderrData = Data()
+        drainGroup.enter()
+        DispatchQueue.global().async {
+            stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+            drainGroup.leave()
+        }
+        drainGroup.enter()
+        DispatchQueue.global().async {
+            stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+            drainGroup.leave()
+        }
         process.waitUntilExit()
+        drainGroup.wait()
 
         return ScriptResult(
             status: process.terminationStatus,
-            stdout: String(data: stdoutPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "",
-            stderr: String(data: stderrPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "")
+            stdout: String(data: stdoutData, encoding: .utf8) ?? "",
+            stderr: String(data: stderrData, encoding: .utf8) ?? "")
     }
 
     private func bump(forMessage message: String) throws -> ScriptResult {

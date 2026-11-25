@@ -24,18 +24,26 @@ struct ConnectionsSnapshot: Decodable, Equatable, Sendable {
             return
         }
 
-        var connections: [ConnectionSummary] = []
-        connections.reserveCapacity(connectionsContainer.count ?? Self.retainedConnectionLimit)
+        // Retain at most `retainedConnectionLimit` summaries but keep counting the
+        // full payload so the header can still show the true connection total.
+        var retained: [ConnectionSummary] = []
+        retained.reserveCapacity(min(
+            Self.retainedConnectionLimit,
+            connectionsContainer.count ?? Self.retainedConnectionLimit))
 
+        var totalCount = 0
         while !connectionsContainer.isAtEnd {
             let connection = try ConnectionSummary(
                 from: connectionsContainer.superDecoder(),
                 parseStartTimestamp: false)
-            connections.append(connection)
+            totalCount += 1
+            if retained.count < Self.retainedConnectionLimit {
+                retained.append(connection)
+            }
         }
 
-        self.connections = connections
-        self.totalCount = connections.count
+        self.connections = retained
+        self.totalCount = totalCount
     }
 }
 
