@@ -32,11 +32,28 @@ final class ScriptToolingTests: XCTestCase {
         process.currentDirectoryURL = self.repoRoot
         process.environment = ProcessInfo.processInfo.environment.merging(environment) { _, new in new }
 
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
+        // 输出重定向到临时文件而不是管道：管道在 CI 上出现过两种等待死锁
+        // （64KB 缓冲写阻塞 / EOF 判定悬置），文件重定向从根本上消除该类问题。
+        let stdoutURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("clashbar-test-\(UUID().uuidString).out")
+        let stderrURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("clashbar-test-\(UUID().uuidString).err")
+        FileManager.default.createFile(atPath: stdoutURL.path, contents: nil)
+        FileManager.default.createFile(atPath: stderrURL.path, contents: nil)
+        defer {
+            try? FileManager.default.removeItem(at: stdoutURL)
+            try? FileManager.default.removeItem(at: stderrURL)
+        }
+        let stdoutHandle = try FileHandle(forWritingTo: stdoutURL)
+        let stderrHandle = try FileHandle(forWritingTo: stderrURL)
+        defer {
+            try? stdoutHandle.close()
+            try? stderrHandle.close()
+        }
+        process.standardOutput = stdoutHandle
+        process.standardError = stderrHandle
+
         let stdinPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
         process.standardInput = stdinPipe
 
         try process.run()
@@ -44,29 +61,11 @@ final class ScriptToolingTests: XCTestCase {
             stdinPipe.fileHandleForWriting.write(data)
         }
         try? stdinPipe.fileHandleForWriting.close()
-
-        // 并发读干两个管道再等待退出：子进程输出超过管道缓冲（64KB）时，
-        // 「先 waitUntilExit 后读」会写阻塞导致死锁（CI 上大 git 输出必触发）。
-        let drainGroup = DispatchGroup()
-        var stdoutData = Data()
-        var stderrData = Data()
-        drainGroup.enter()
-        DispatchQueue.global().async {
-            stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-            drainGroup.leave()
-        }
-        drainGroup.enter()
-        DispatchQueue.global().async {
-            stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-            drainGroup.leave()
-        }
         process.waitUntilExit()
-        drainGroup.wait()
 
-        return ScriptResult(
-            status: process.terminationStatus,
-            stdout: String(data: stdoutData, encoding: .utf8) ?? "",
-            stderr: String(data: stderrData, encoding: .utf8) ?? "")
+        let stdout = (try? String(contentsOf: stdoutURL, encoding: .utf8)) ?? ""
+        let stderr = (try? String(contentsOf: stderrURL, encoding: .utf8)) ?? ""
+        return ScriptResult(status: process.terminationStatus, stdout: stdout, stderr: stderr)
     }
 
     private func bump(forMessage message: String) throws -> ScriptResult {
