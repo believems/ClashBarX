@@ -140,6 +140,7 @@
 
 "ui.empty.proxy_providers" = "No proxy providers";
 "ui.empty.proxy_groups" = "No proxy groups loaded";
+"ui.empty.proxy_nodes.no_match" = "No matching nodes";
 "ui.empty.rules" = "No rules data";
 "ui.empty.rules.no_match" = "No matching rules";
 "ui.empty.connections" = "No active connections";
@@ -155,6 +156,8 @@
 "log.statistics.process_matching_failed" = "Failed to enable app traffic identification: %@";
 "ui.empty.logs" = "No logs";
 
+"ui.placeholder.search_nodes" = "Search nodes...";
+"ui.action.clear_search" = "Clear Search";
 "ui.placeholder.filter_connection" = "Filter domain, IP...";
 "ui.placeholder.filter_rule" = "Filter target, type, policy...";
 "ui.placeholder.search_logs" = "Search logs...";

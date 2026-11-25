@@ -142,6 +142,7 @@
 
 "ui.empty.proxy_providers" = "暂无代理提供者";
 "ui.empty.proxy_groups" = "暂无代理组";
+"ui.empty.proxy_nodes.no_match" = "无匹配节点";
 "ui.empty.rules" = "暂无规则数据";
 "ui.empty.rules.no_match" = "无匹配规则";
 "ui.empty.connections" = "暂无活动连接";
@@ -157,6 +158,8 @@
 "log.statistics.process_matching_failed" = "启用应用流量识别失败：%@";
 "ui.empty.logs" = "暂无日志";
 
+"ui.placeholder.search_nodes" = "搜索节点...";
+"ui.action.clear_search" = "清空搜索";
 "ui.placeholder.filter_connection" = "过滤域名、IP...";
 "ui.placeholder.filter_rule" = "搜索目标、类型、策略...";
 "ui.placeholder.search_logs" = "搜索日志...";

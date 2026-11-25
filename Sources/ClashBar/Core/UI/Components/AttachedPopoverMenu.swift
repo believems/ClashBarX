@@ -8,6 +8,8 @@ struct AttachedPopoverMenu<Label: View, Content: View>: View {
     let width: CGFloat?
     let maxHeight: CGFloat?
     let expandAnchor: Bool
+    let allowsKeyFocus: Bool
+    let scrollsContent: Bool
     let onWillPresent: (() -> Void)?
     let label: (_ isHovered: Bool) -> Label
     let content: (_ dismiss: @escaping () -> Void) -> Content
@@ -22,6 +24,8 @@ struct AttachedPopoverMenu<Label: View, Content: View>: View {
         width: CGFloat? = nil,
         maxHeight: CGFloat? = nil,
         expandAnchor: Bool = true,
+        allowsKeyFocus: Bool = false,
+        scrollsContent: Bool = true,
         onWillPresent: (() -> Void)? = nil,
         @ViewBuilder label: @escaping (_ isHovered: Bool) -> Label,
         @ViewBuilder content: @escaping (_ dismiss: @escaping () -> Void) -> Content)
@@ -29,6 +33,8 @@ struct AttachedPopoverMenu<Label: View, Content: View>: View {
         self.width = width
         self.maxHeight = maxHeight
         self.expandAnchor = expandAnchor
+        self.allowsKeyFocus = allowsKeyFocus
+        self.scrollsContent = scrollsContent
         self.onWillPresent = onWillPresent
         self.label = label
         self.content = content
@@ -74,6 +80,7 @@ struct AttachedPopoverMenu<Label: View, Content: View>: View {
                 suppressAutoOpen: self.$suppressAutoOpen,
                 width: self.width,
                 maxHeight: self.maxHeight,
+                allowsKeyFocus: self.allowsKeyFocus,
                 onVisibilityChanged: { visible in
                     self.shouldBuildPopoverContent = visible
                 },
@@ -95,16 +102,24 @@ struct AttachedPopoverMenu<Label: View, Content: View>: View {
     @ViewBuilder
     var popoverContent: some View {
         if self.shouldBuildPopoverContent {
-            ScrollView(.vertical) {
-                VStack(alignment: .leading, spacing: 0) {
+            Group {
+                if self.scrollsContent {
+                    ScrollView(.vertical) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            self.content {
+                                self.dismissPopover()
+                            }
+                        }
+                    }
+                    .scrollIndicators(.never)
+                } else {
                     self.content {
                         self.dismissPopover()
                     }
                 }
             }
-            .scrollIndicators(.never)
-            .frame(width: self.width, alignment: .leading)
-            .frame(maxHeight: self.maxHeight)
+            .frame(width: self.width, alignment: .topLeading)
+            .frame(maxHeight: self.maxHeight, alignment: .topLeading)
             .padding(T.space8)
             .rootPanelSurface(cornerRadius: T.panelCornerRadius, stroke: self.nativeSeparator.opacity(0.46))
         }
@@ -257,11 +272,24 @@ struct AttachedPopoverMenuDivider: View {
 @MainActor
 private protocol SideAttachedPopoverManaging: AnyObject {
     func deactivateAndClose()
+    func requestKeyFocus()
+    func updatePreferredContentHeight(_ contentHeight: CGFloat)
 }
 
 @MainActor
 private enum SideAttachedPopoverRegistry {
     static var activeCoordinator: (any SideAttachedPopoverManaging)?
+}
+
+@MainActor
+enum SideAttachedPopoverFocus {
+    static func requestKeyFocus() {
+        SideAttachedPopoverRegistry.activeCoordinator?.requestKeyFocus()
+    }
+
+    static func updatePreferredContentHeight(_ contentHeight: CGFloat) {
+        SideAttachedPopoverRegistry.activeCoordinator?.updatePreferredContentHeight(contentHeight)
+    }
 }
 
 @MainActor
@@ -271,6 +299,7 @@ private struct SideAttachedPopoverHost<Content: View>: NSViewRepresentable {
     @Binding var suppressAutoOpen: Bool
     let width: CGFloat?
     let maxHeight: CGFloat?
+    let allowsKeyFocus: Bool
     let onVisibilityChanged: ((Bool) -> Void)?
     let content: Content
 
@@ -279,6 +308,7 @@ private struct SideAttachedPopoverHost<Content: View>: NSViewRepresentable {
             anchorHovered: self.$anchorHovered,
             popoverRequested: self.$popoverRequested,
             suppressAutoOpen: self.$suppressAutoOpen,
+            allowsKeyFocus: self.allowsKeyFocus,
             onVisibilityChanged: self.onVisibilityChanged,
             content: self.content)
     }
@@ -293,6 +323,7 @@ private struct SideAttachedPopoverHost<Content: View>: NSViewRepresentable {
         context.coordinator.suppressAutoOpen = self.$suppressAutoOpen
         context.coordinator.width = self.width
         context.coordinator.maxHeight = self.maxHeight
+        context.coordinator.updateAllowsKeyFocus(self.allowsKeyFocus)
         context.coordinator.onVisibilityChanged = self.onVisibilityChanged
         context.coordinator.hostingController.rootView = self.content
         context.coordinator.sync(anchorView: nsView)
@@ -317,11 +348,18 @@ private struct SideAttachedPopoverHost<Content: View>: NSViewRepresentable {
         private var containerController: NSViewController?
         private let shadowMargin = PanelGlassContainerController.effectiveShadowMargin
 
+        private var allowsKeyFocus: Bool
+        private var hasLockedVisibleFrame = false
+        private var anchoredTopY: CGFloat?
+        private var anchoredOriginX: CGFloat?
+        private var anchoredWidth: CGFloat?
+        private var anchoredVisibleFrame: CGRect?
         private weak var anchorView: NSView?
         private weak var hostWindow: NSWindow?
         private var panelTrackingArea: NSTrackingArea?
         private var panelHovering = false
         private var localMouseMonitor: Any?
+        private var observingResignKey = false
         private var closeWorkItem: DispatchWorkItem?
         private var attachmentSide: PanelAttachmentSide = .right
         private let bridgeVerticalPadding: CGFloat = 14
@@ -333,12 +371,14 @@ private struct SideAttachedPopoverHost<Content: View>: NSViewRepresentable {
             anchorHovered: Binding<Bool>,
             popoverRequested: Binding<Bool>,
             suppressAutoOpen: Binding<Bool>,
+            allowsKeyFocus: Bool,
             onVisibilityChanged: ((Bool) -> Void)?,
             content: Content)
         {
             self.anchorHovered = anchorHovered
             self.popoverRequested = popoverRequested
             self.suppressAutoOpen = suppressAutoOpen
+            self.allowsKeyFocus = allowsKeyFocus
             self.onVisibilityChanged = onVisibilityChanged
             self.hostingController = NSHostingController(rootView: content)
             self.panel = SideAttachedMenuPanel(
@@ -358,6 +398,11 @@ private struct SideAttachedPopoverHost<Content: View>: NSViewRepresentable {
             self.panel.hidesOnDeactivate = true
             self.panel.level = .statusBar
             self.panel.collectionBehavior = [.transient, .moveToActiveSpace, .ignoresCycle]
+            self.panel.allowsKeyWindow = allowsKeyFocus
+            self.panel.becomesKeyOnlyIfNeeded = allowsKeyFocus
+            self.panel.onCancel = { [weak self] in
+                self?.deactivateAndClose()
+            }
             let container = PanelGlassContainerController.wrapping(
                 self.hostingController,
                 cornerRadius: T.panelCornerRadius)
@@ -366,6 +411,13 @@ private struct SideAttachedPopoverHost<Content: View>: NSViewRepresentable {
             self.panel.acceptsMouseMovedEvents = true
 
             self.installTrackingAreaIfNeeded()
+        }
+
+        func updateAllowsKeyFocus(_ allowsKeyFocus: Bool) {
+            guard self.allowsKeyFocus != allowsKeyFocus else { return }
+            self.allowsKeyFocus = allowsKeyFocus
+            self.panel.allowsKeyWindow = allowsKeyFocus
+            self.panel.becomesKeyOnlyIfNeeded = allowsKeyFocus
         }
 
         func sync(anchorView: NSView) {
@@ -396,41 +448,56 @@ private struct SideAttachedPopoverHost<Content: View>: NSViewRepresentable {
             self.panel.appearance = hostWindow.effectiveAppearance
             self.hostingController.view.appearance = hostWindow.effectiveAppearance
 
-            let fitting = self.hostingController.view.fittingSize
-            guard let anchorContext = PanelAnchorContext.resolve(for: anchorView) else { return }
-            guard let placement = anchorContext.sideAttachedPlacement(
-                contentSize: fitting,
-                // `width` sizes the content; the surface adds `T.space8` padding on each side.
-                preferredWidth: self.width.map { $0 + T.space8 * 2 },
-                maximumHeight: self.maxHeight,
-                screenPadding: 6,
-                edgeOverlap: self.edgeOverlap)
-            else {
-                return
+            let wasVisible = self.panel.isVisible
+            let shouldUpdateFrame = !wasVisible || !self.allowsKeyFocus || !self.hasLockedVisibleFrame
+            if shouldUpdateFrame {
+                self.hostingController.view.layoutSubtreeIfNeeded()
+                let fitting = self.hostingController.view.fittingSize
+                guard let anchorContext = PanelAnchorContext.resolve(for: anchorView) else { return }
+                guard let placement = anchorContext.sideAttachedPlacement(
+                    contentSize: fitting,
+                    // `width` sizes the content; the surface adds `T.space8` padding on each side.
+                    preferredWidth: self.width.map { $0 + T.space8 * 2 },
+                    maximumHeight: self.maxHeight,
+                    screenPadding: 6,
+                    edgeOverlap: self.edgeOverlap)
+                else {
+                    return
+                }
+
+                if let attachmentSide = placement.attachmentSide {
+                    self.attachmentSide = attachmentSide
+                }
+
+                // Placement is for the visible glass; the window extends by the shadow margin.
+                self.panel.setFrame(
+                    placement.frame.insetBy(dx: -self.shadowMargin, dy: -self.shadowMargin),
+                    display: true)
+                self.anchoredTopY = placement.frame.maxY
+                self.anchoredOriginX = placement.frame.origin.x
+                self.anchoredWidth = placement.frame.width
+                self.anchoredVisibleFrame = anchorContext.visibleFrame
+                if self.allowsKeyFocus, fitting.height > 40 {
+                    self.hasLockedVisibleFrame = true
+                }
             }
 
-            if let attachmentSide = placement.attachmentSide {
-                self.attachmentSide = attachmentSide
-            }
-
-            // Placement is for the visible glass; the window extends by the shadow margin.
-            self.panel.setFrame(
-                placement.frame.insetBy(dx: -self.shadowMargin, dy: -self.shadowMargin),
-                display: true)
             self.ensureExclusiveVisibility()
 
-            if !self.panel.isVisible {
+            if !wasVisible {
                 self.panel.orderFront(nil)
             }
             ScrollIndicatorPolicy.suppressRecursively(in: self.panel.contentView)
             self.reportVisibility(true)
             self.startLocalMouseMonitorIfNeeded()
+            self.startResignKeyObserverIfNeeded()
         }
 
         private func evaluateAndCloseIfNeeded() {
             guard self.panel.isVisible else {
                 self.cancelPendingClose()
                 self.stopLocalMouseMonitor()
+                self.stopResignKeyObserver()
                 return
             }
             if self.panelHovering {
@@ -446,16 +513,82 @@ private struct SideAttachedPopoverHost<Content: View>: NSViewRepresentable {
         }
 
         func closeNow() {
+            let wasKeyWindow = self.panel.isKeyWindow
             self.cancelPendingClose()
             self.stopLocalMouseMonitor()
+            self.stopResignKeyObserver()
+            if wasKeyWindow {
+                self.panel.makeFirstResponder(nil)
+            }
             if self.panel.isVisible {
                 self.panel.orderOut(nil)
             }
+            if wasKeyWindow, let hostWindow = self.hostWindow, hostWindow.isVisible {
+                hostWindow.makeKey()
+            }
+            self.hasLockedVisibleFrame = false
+            self.anchoredTopY = nil
+            self.anchoredOriginX = nil
+            self.anchoredWidth = nil
+            self.anchoredVisibleFrame = nil
             self.panelHovering = false
             self.reportVisibility(false)
             if SideAttachedPopoverRegistry.activeCoordinator === self {
                 SideAttachedPopoverRegistry.activeCoordinator = nil
             }
+        }
+
+        func requestKeyFocus() {
+            guard self.allowsKeyFocus, self.panel.isVisible else { return }
+            if !NSApp.isActive {
+                NSApp.activate(ignoringOtherApps: true)
+            }
+            if !self.panel.isKeyWindow {
+                self.panel.makeKey()
+            }
+        }
+
+        func updatePreferredContentHeight(_ contentHeight: CGFloat) {
+            guard
+                self.allowsKeyFocus,
+                self.panel.isVisible,
+                contentHeight > 0,
+                let anchoredTopY = self.anchoredTopY,
+                let anchoredOriginX = self.anchoredOriginX,
+                let anchoredWidth = self.anchoredWidth,
+                let visibleFrame = self.anchoredVisibleFrame
+            else {
+                return
+            }
+
+            let screenPadding: CGFloat = 6
+            let desiredHeight = contentHeight + T.space8 * 2
+            let maxScreenHeight = max(40, visibleFrame.height - (screenPadding * 2))
+            let cappedHeight = self.maxHeight.map { min(desiredHeight, $0 + (screenPadding * 2)) } ?? desiredHeight
+            let targetHeight = min(max(40, cappedHeight), maxScreenHeight)
+
+            let minY = visibleFrame.minY + screenPadding
+            let maxTopY = visibleFrame.maxY - screenPadding
+            let clampedTopY = min(anchoredTopY, maxTopY)
+            var targetOriginY = clampedTopY - targetHeight
+            if targetOriginY < minY {
+                targetOriginY = minY
+            }
+
+            let visibleRect = NSRect(
+                x: anchoredOriginX,
+                y: targetOriginY,
+                width: anchoredWidth,
+                height: targetHeight)
+            let targetPanelFrame = visibleRect.insetBy(dx: -self.shadowMargin, dy: -self.shadowMargin)
+
+            let heightChanged = abs(self.panel.frame.height - targetPanelFrame.height) > 0.5
+            let originYChanged = abs(self.panel.frame.origin.y - targetPanelFrame.origin.y) > 0.5
+            guard heightChanged || originYChanged else { return }
+
+            self.panel.setFrame(targetPanelFrame, display: true, animate: false)
+            self.panelHovering = visibleRect.contains(NSEvent.mouseLocation)
+            ScrollIndicatorPolicy.suppressRecursively(in: self.panel.contentView)
         }
 
         private func reportVisibility(_ visible: Bool) {
@@ -523,6 +656,30 @@ private struct SideAttachedPopoverHost<Content: View>: NSViewRepresentable {
             self.localMouseMonitor = nil
         }
 
+        private func startResignKeyObserverIfNeeded() {
+            guard self.allowsKeyFocus, !self.observingResignKey else { return }
+            self.observingResignKey = true
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(self.handlePanelDidResignKey(_:)),
+                name: NSWindow.didResignKeyNotification,
+                object: self.panel)
+        }
+
+        private func stopResignKeyObserver() {
+            guard self.observingResignKey else { return }
+            self.observingResignKey = false
+            NotificationCenter.default.removeObserver(
+                self,
+                name: NSWindow.didResignKeyNotification,
+                object: self.panel)
+        }
+
+        @objc
+        private func handlePanelDidResignKey(_ notification: Notification) {
+            self.evaluateAndCloseIfNeeded()
+        }
+
         private func isMouseInActiveArea(_ point: NSPoint) -> Bool {
             guard let rects = activityRects() else { return false }
             return rects.trigger.contains(point) || rects.panel.contains(point) || rects.bridge.contains(point)
@@ -582,11 +739,18 @@ private struct SideAttachedPopoverHost<Content: View>: NSViewRepresentable {
 
 @MainActor
 private final class SideAttachedMenuPanel: NSPanel {
+    var allowsKeyWindow = false
+    var onCancel: (() -> Void)?
+
     override var canBecomeKey: Bool {
-        false
+        self.allowsKeyWindow
     }
 
     override var canBecomeMain: Bool {
         false
+    }
+
+    override func cancelOperation(_ sender: Any?) {
+        self.onCancel?()
     }
 }

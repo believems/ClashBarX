@@ -254,14 +254,17 @@ extension ProxyTabView {
             group: group.name,
             node: currentNode,
             fallbackToGroupHistory: true)
-        let nodeCount = group.all.count
         let iconURL = self.proxyGroupIconURL(group)
         let hasLeadingIcon = iconURL != nil
         let rowHorizontalPadding = T.space6
         let rowVerticalPadding: CGFloat = 2
         let isLatencyLoading = proxyStore.groupLatencyLoading.contains(group.name)
 
-        return AttachedPopoverMenu(width: self.nodePopoverContentWidth(group)) { isHovered in
+        return AttachedPopoverMenu(
+            width: self.nodePopoverContentWidth(group),
+            allowsKeyFocus: true,
+            scrollsContent: false)
+        { isHovered in
             GeometryReader { geo in
                 let columns = self.proxyGroupMainColumnWidths(
                     totalWidth: geo.size.width,
@@ -327,43 +330,52 @@ extension ProxyTabView {
             .padding(.vertical, rowVerticalPadding)
             .background(nativeHoverRowBackground(isHovered))
         } content: { dismiss in
-            self.popoverHeader(name: group.name, count: nodeCount) {
-                if let iconURL {
-                    self.proxyGroupLeadingIcon(iconURL)
-                }
-            } trailing: {
-                self.providerActionButton(
-                    .healthcheck,
-                    isLoading: proxyStore.groupLatencyLoading.contains(group.name))
-                {
-                    await appViewModel.refreshGroupLatency(group)
-                }
-                .help(tr("ui.action.test_latency"))
-            }
-
             let nodes = sortGroupNodesByLatency
                 ? self.sortedGroupNodes(group)
                 : self.defaultGroupNodes(group)
-            FrozenPopoverNodesList(nodes: nodes, emptyText: tr("ui.common.na")) { node in
-                let nodeSamples = appViewModel.delaySamples(group: group.name, node: node)
-                let nodeDelay = nodeSamples.last
-                ProxyGroupPopoverNodeItem(
-                    title: node,
-                    typeText: proxyStore.proxyNodeTypes[node].trimmedNonEmpty,
-                    delayText: appViewModel.delayText(group: group.name, node: node),
-                    delaySamples: nodeSamples,
-                    delayColor: latencyColor(nodeDelay),
-                    isTesting: appViewModel.isProxyLatencyTesting(group: group.name, node: node),
-                    selected: node == group.now,
-                    testLatencyLabel: tr("ui.action.test_latency"),
-                    onTestLatency: {
-                        await appViewModel.refreshProxyLatency(group: group.name, node: node)
-                    },
-                    action: {
-                        dismiss()
-                        Task { await appViewModel.switchProxy(group: group.name, target: node) }
-                    })
-            }
+            ProxyGroupNodesPopoverContent(
+                groupName: group.name,
+                nodes: nodes,
+                searchPlaceholder: tr("ui.placeholder.search_nodes"),
+                clearSearchLabel: tr("ui.action.clear_search"),
+                emptyText: tr("ui.common.na"),
+                noMatchText: tr("ui.empty.proxy_nodes.no_match"),
+                nodeType: { proxyStore.proxyNodeTypes[$0].trimmedNonEmpty },
+                dismiss: dismiss,
+                leading: {
+                    if let iconURL {
+                        self.proxyGroupLeadingIcon(iconURL)
+                    }
+                },
+                trailing: {
+                    self.providerActionButton(
+                        .healthcheck,
+                        isLoading: proxyStore.groupLatencyLoading.contains(group.name))
+                    {
+                        await appViewModel.refreshGroupLatency(group)
+                    }
+                    .help(tr("ui.action.test_latency"))
+                },
+                row: { node in
+                    let nodeSamples = appViewModel.delaySamples(group: group.name, node: node)
+                    let nodeDelay = nodeSamples.last
+                    ProxyGroupPopoverNodeItem(
+                        title: node,
+                        typeText: proxyStore.proxyNodeTypes[node].trimmedNonEmpty,
+                        delayText: appViewModel.delayText(group: group.name, node: node),
+                        delaySamples: nodeSamples,
+                        delayColor: latencyColor(nodeDelay),
+                        isTesting: appViewModel.isProxyLatencyTesting(group: group.name, node: node),
+                        selected: node == group.now,
+                        testLatencyLabel: tr("ui.action.test_latency"),
+                        onTestLatency: {
+                            await appViewModel.refreshProxyLatency(group: group.name, node: node)
+                        },
+                        action: {
+                            dismiss()
+                            Task { await appViewModel.switchProxy(group: group.name, target: node) }
+                        })
+                })
         }
     }
 
@@ -448,41 +460,6 @@ extension ProxyTabView {
         .padding(.trailing, T.space4)
     }
 
-    func popoverHeader(
-        name: String,
-        count: Int,
-        @ViewBuilder leading: () -> some View = { EmptyView() },
-        @ViewBuilder trailing: () -> some View = { EmptyView() }) -> some View
-    {
-        VStack(spacing: 0) {
-            HStack(spacing: T.space1) {
-                leading()
-
-                Text(name)
-                    .font(.app(size: T.FontSize.body, weight: .semibold))
-                    .foregroundStyle(nativePrimaryLabel)
-                    .lineLimit(1)
-
-                Text("\(count)")
-                    .font(.app(size: T.FontSize.caption, weight: .medium))
-                    .foregroundStyle(nativeSecondaryLabel)
-                    .padding(.horizontal, T.space4)
-                    .padding(.vertical, T.space1)
-                    .background(nativeBadgeCapsule())
-
-                Spacer(minLength: 0)
-
-                trailing()
-            }
-            .padding(.horizontal, T.space4)
-            .padding(.bottom, T.space2)
-
-            Divider()
-                .overlay(nativeSeparator)
-                .padding(.bottom, T.space1)
-        }
-    }
-
     func orderedUniqueNames(_ names: [String]) -> [String] {
         var seen: Set<String> = []
         var ordered: [String] = []
@@ -519,23 +496,196 @@ extension ProxyTabView {
     }
 }
 
-private struct FrozenPopoverNodesList<Row: View>: View {
-    let nodes: [String]
+private struct ProxyGroupNodesPopoverContent<Leading: View, Trailing: View, Row: View>: View {
+    let groupName: String
+    let searchPlaceholder: String
+    let clearSearchLabel: String
     let emptyText: String
+    let noMatchText: String
+    let nodeType: (String) -> String?
+    let dismiss: () -> Void
+    let leading: () -> Leading
+    let trailing: () -> Trailing
     let row: (String) -> Row
 
     @State private var frozenNodes: [String]
+    @State private var searchText: String = ""
+    @State private var topChromeHeight: CGFloat = 0
+    @State private var listContentHeight: CGFloat = 0
+    @FocusState private var isSearchFocused: Bool
 
-    init(nodes: [String], emptyText: String, @ViewBuilder row: @escaping (String) -> Row) {
-        self.nodes = nodes
+    init(
+        groupName: String,
+        nodes: [String],
+        searchPlaceholder: String,
+        clearSearchLabel: String,
+        emptyText: String,
+        noMatchText: String,
+        nodeType: @escaping (String) -> String?,
+        dismiss: @escaping () -> Void,
+        @ViewBuilder leading: @escaping () -> Leading,
+        @ViewBuilder trailing: @escaping () -> Trailing,
+        @ViewBuilder row: @escaping (String) -> Row)
+    {
+        self.groupName = groupName
+        self.searchPlaceholder = searchPlaceholder
+        self.clearSearchLabel = clearSearchLabel
         self.emptyText = emptyText
+        self.noMatchText = noMatchText
+        self.nodeType = nodeType
+        self.dismiss = dismiss
+        self.leading = leading
+        self.trailing = trailing
         self.row = row
         self._frozenNodes = State(initialValue: nodes)
     }
 
+    private var searchTokens: [Substring] {
+        self.searchText.trimmed.split(whereSeparator: \.isWhitespace)
+    }
+
+    private var isFiltering: Bool {
+        !self.searchTokens.isEmpty
+    }
+
+    private var filteredNodes: [String] {
+        let tokens = self.searchTokens
+        guard !tokens.isEmpty else { return self.frozenNodes }
+        return self.frozenNodes.filter { node in
+            let typeText = self.nodeType(node)
+            return tokens.allSatisfy { token in
+                node.localizedCaseInsensitiveContains(token)
+                    || (typeText?.localizedCaseInsensitiveContains(token) == true)
+            }
+        }
+    }
+
+    private var countBadgeText: String {
+        if self.isFiltering {
+            return "\(self.filteredNodes.count)/\(self.frozenNodes.count)"
+        }
+        return "\(self.frozenNodes.count)"
+    }
+
     var body: some View {
-        if self.frozenNodes.isEmpty {
-            Text(self.emptyText)
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
+                self.headerSection
+                self.searchBarSection
+
+                Divider()
+                    .overlay(self.nativeSeparator)
+                    .padding(.bottom, T.space1)
+            }
+            .reportHeight { height in
+                self.topChromeHeight = height
+                self.publishPreferredHeight()
+            }
+
+            ScrollView(.vertical) {
+                self.nodesListContent
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .reportHeight { height in
+                        self.listContentHeight = height
+                        self.publishPreferredHeight()
+                    }
+            }
+            .scrollIndicators(.never)
+        }
+        .onExitCommand {
+            if !self.searchText.isEmpty {
+                self.searchText = ""
+            } else {
+                self.dismiss()
+            }
+        }
+    }
+
+    private func publishPreferredHeight() {
+        guard self.topChromeHeight > 0, self.listContentHeight > 0 else { return }
+        SideAttachedPopoverFocus.updatePreferredContentHeight(self.topChromeHeight + self.listContentHeight)
+    }
+
+    private var headerSection: some View {
+        HStack(spacing: T.space1) {
+            self.leading()
+
+            Text(self.groupName)
+                .font(.app(size: T.FontSize.body, weight: .semibold))
+                .foregroundStyle(self.nativePrimaryLabel)
+                .lineLimit(1)
+
+            Text(self.countBadgeText)
+                .font(.app(size: T.FontSize.caption, weight: .medium))
+                .monospacedDigit()
+                .foregroundStyle(self.nativeSecondaryLabel)
+                .padding(.horizontal, T.space4)
+                .padding(.vertical, T.space1)
+                .background(self.nativeBadgeCapsule())
+
+            Spacer(minLength: 0)
+
+            self.trailing()
+        }
+        .padding(.horizontal, T.space4)
+        .padding(.bottom, T.space4)
+    }
+
+    private var searchBarSection: some View {
+        let shape = RoundedRectangle(cornerRadius: 6, style: .continuous)
+
+        return HStack(spacing: T.space4) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: T.FontSize.caption, weight: .medium))
+                .foregroundStyle(self.nativeSecondaryLabel)
+                .onTapGesture {
+                    SideAttachedPopoverFocus.requestKeyFocus()
+                    self.isSearchFocused = true
+                }
+
+            TextField(self.searchPlaceholder, text: self.$searchText)
+                .textFieldStyle(.plain)
+                .font(.app(size: T.FontSize.callout))
+                .foregroundStyle(self.nativePrimaryLabel)
+                .focused(self.$isSearchFocused)
+                .onChange(of: self.isSearchFocused) { focused in
+                    if focused {
+                        SideAttachedPopoverFocus.requestKeyFocus()
+                    }
+                }
+
+            if !self.searchText.isEmpty {
+                Button {
+                    self.searchText = ""
+                    SideAttachedPopoverFocus.requestKeyFocus()
+                    self.isSearchFocused = true
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: T.FontSize.caption, weight: .medium))
+                        .foregroundStyle(self.nativeTertiaryLabel)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(self.clearSearchLabel)
+                .help(self.clearSearchLabel)
+            }
+        }
+        .padding(.horizontal, T.space6)
+        .frame(height: 24)
+        .background(shape.fill(NeutralFill.track))
+        .overlay(
+            shape.strokeBorder(
+                self.isSearchFocused ? self.nativeAccent : NeutralFill.hairline,
+                lineWidth: self.isSearchFocused ? 1.5 : T.stroke))
+        .animation(.easeOut(duration: 0.12), value: self.isSearchFocused)
+        .padding(.horizontal, T.space4)
+        .padding(.bottom, T.space4)
+    }
+
+    @ViewBuilder
+    private var nodesListContent: some View {
+        let nodes = self.filteredNodes
+        if nodes.isEmpty {
+            Text(self.frozenNodes.isEmpty ? self.emptyText : self.noMatchText)
                 .font(.app(size: T.FontSize.caption, weight: .regular))
                 .foregroundStyle(self.nativeSecondaryLabel)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -543,7 +693,7 @@ private struct FrozenPopoverNodesList<Row: View>: View {
                 .padding(.vertical, T.space4)
         } else {
             VStack(spacing: 0) {
-                ForEach(self.frozenNodes, id: \.self) { node in
+                ForEach(nodes, id: \.self) { node in
                     self.row(node)
                 }
             }
