@@ -22,6 +22,7 @@
 - 运行时数据目录迁移至 `~/.config/clashbar`（源自 flowke）：首次运行自动从 `~/Library/Application Support/clashbar` 平滑迁移；系统代理 Helper 支持备份恢复与 v5 协议版本协商。
 - 运行时端口保持（源自 flowke）：端口草稿自动落盘，内核重载 / 订阅更新后核对并恢复配置端口。
 - macOS 26+ 原生 Liquid Glass 菜单栏面板与侧边子菜单（源自 kingcanfish v0.4.x）。
+- 代理组节点弹窗支持搜索过滤（源自 kingcanfish v0.4.9）。
 - 连接按实时速度排序，排序依据与方向分离（源自 kingcanfish）。
 - 「切换节点时断开经由旧节点的连接」开关（默认关闭，源自 kingcanfish）。
 - 代理提供者「全部更新」按钮，单个失败不影响其余提供者（源自 kingcanfish）。
