@@ -116,17 +116,52 @@ jobs:
 
       # 测试与构建同 runner（仅一次排队）；失败即 job 失败，阻塞 release。
       - name: Run Swift tests
-        # 12 分钟超时仅作兜底。输出必须落文件再 cat：swift test 转发子进程输出时
-        # 不排水内部管道（SwiftPM #6592），测试输出写满 16KB 管道容量后 write()
-        # 确定性阻塞死锁（CI 实测挂在 16333/16384 字节处）。
+        # 直接执行测试 bundle 可执行文件，绕开 swift test 的子进程输出转发层
+        # （SwiftPM #6592：转发层不排水内部管道，曾致 16KB 管道写满死锁）。
+        # 后台运行 + 30 秒监控 tail：hang 时日志尾部实时可见；超时被杀后
+        # 日志文件仍可由下方 always() 上传步取证。
         timeout-minutes: 12
         run: |
           set +e
-          swift test --no-parallel > test-output.log 2>&1
+          swift build --build-tests > test-output.log 2>&1
+          build_status=$?
+          if [ $build_status -ne 0 ]; then
+            set -e
+            cat test-output.log
+            exit $build_status
+          fi
+          test_bin=$(find .build -type f -path '*ClashBarPackageTests.xctest/Contents/MacOS/*' | head -n 1)
+          if [ -z "$test_bin" ]; then
+            echo "[monitor] test bundle not found, falling back to swift test"
+            swift test --no-parallel >> test-output.log 2>&1 &
+          else
+            echo "[monitor] build ok, running test bundle directly: $test_bin"
+            "$test_bin" >> test-output.log 2>&1 &
+          fi
+          test_pid=$!
+          elapsed=0
+          while kill -0 "$test_pid" 2>/dev/null; do
+            sleep 30
+            elapsed=$((elapsed + 30))
+            echo "[monitor] ${elapsed}s elapsed, log tail:"
+            tail -n 4 test-output.log
+            echo "[monitor] ---"
+          done
+          wait "$test_pid"
           status=$?
           set -e
+          echo "[monitor] tests exited with ${status} after ${elapsed}s"
           cat test-output.log
           exit $status
+
+      - name: Upload test output
+        # 超时被杀时 cat 不会执行，此步兜底取证 hang 位置
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-output
+          path: test-output.log
+          if-no-files-found: warn
 
       - name: Upload dmg artifacts
         uses: actions/upload-artifact@v7
