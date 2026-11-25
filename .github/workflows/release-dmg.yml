@@ -165,7 +165,10 @@ jobs:
     # 单 job 串行构建双架构（发布策略：不打包 mihomo 内核，保留 arm64 与 intel）：
     # 矩阵并行会在 macOS runner 池紧张时出现「整组排队被丢」（免费优先级排队上限
     # 约 15 分钟）；串行只需一个排队窗口，arm64 优先构建并顺带跑测试，intel 交叉编译随后。
-    runs-on: macos-15
+    # macos-26 镜像（Xcode 27 / Swift 6.4）：Xcode 26.3/Swift 6.2 的 swift test
+    # 执行层有输出转发死锁（外层文件重定向也无法规避）；Xcode 27.2 本机实测
+    # 94 测试 6 秒全绿。arm64 单 runner 串行构建双架构（Intel 为交叉编译）。
+    runs-on: macos-26
     permissions:
       contents: read
     steps:
@@ -227,28 +230,12 @@ jobs:
 
       # 测试与构建同 runner（仅一次排队）；失败即 job 失败，阻塞 release——测试仍是发版门槛。
       - name: Run Swift tests
-        # 直接执行测试 bundle 可执行文件，绕开 swift test 的子进程输出转发层
-        # （SwiftPM #6592：转发层不排水内部管道，曾致 16KB 管道写满死锁）。
-        # 后台运行 + 30 秒监控 tail：hang 时日志尾部实时可见；超时被杀后
-        # 日志文件仍可由下方 always() 上传步取证。
+        # 输出落文件 + 后台 30 秒监控 tail：hang 时日志尾部实时可见；
+        # 超时被杀后日志文件仍可由下方 always() 上传步取证。
         timeout-minutes: 12
         run: |
           set +e
-          swift build --build-tests > test-output.log 2>&1
-          build_status=$?
-          if [ $build_status -ne 0 ]; then
-            set -e
-            cat test-output.log
-            exit $build_status
-          fi
-          test_bin=$(find .build -type f -path '*ClashBarPackageTests.xctest/Contents/MacOS/*' | head -n 1)
-          if [ -z "$test_bin" ]; then
-            echo "[monitor] test bundle not found, falling back to swift test"
-            swift test --no-parallel >> test-output.log 2>&1 &
-          else
-            echo "[monitor] build ok, running test bundle directly: $test_bin"
-            "$test_bin" >> test-output.log 2>&1 &
-          fi
+          swift test --no-parallel > test-output.log 2>&1 &
           test_pid=$!
           elapsed=0
           while kill -0 "$test_pid" 2>/dev/null; do
