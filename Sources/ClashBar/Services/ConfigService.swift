@@ -305,22 +305,14 @@ struct ConfigImportService {
         return candidate
     }
 
+    /// 订阅文件名取 host 而不是路径/查询：不同订阅的路径常为 /config.yaml
+    /// 这类通用名，用 host 命名可避免撞名（源自 flowke）。
     func inferredRemoteConfigFileName(from remoteURL: URL) -> String {
-        let rawName = remoteURL.lastPathComponent.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !rawName.isEmpty else { return "remote-config.yaml" }
-
-        let ext = (rawName as NSString).pathExtension.lowercased()
-        if ext == "yaml" || ext == "yml" {
-            return rawName
+        guard let host = remoteURL.host?.trimmingCharacters(in: .whitespacesAndNewlines), !host.isEmpty else {
+            return "remote-config.yaml"
         }
-
-        if ext.isEmpty {
-            return "\(rawName).yaml"
-        }
-
-        let stem = (rawName as NSString).deletingPathExtension
-        let base = stem.trimmingCharacters(in: .whitespacesAndNewlines)
-        return base.isEmpty ? "remote-config.yaml" : "\(base).yaml"
+        let safeHost = host.replacingOccurrences(of: ":", with: "-")
+        return "\(safeHost).yaml"
     }
 
     /// Subscriptions often embed a human-readable title in the document itself.
