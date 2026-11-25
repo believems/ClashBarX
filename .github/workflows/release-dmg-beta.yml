@@ -116,10 +116,17 @@ jobs:
 
       # 测试与构建同 runner（仅一次排队）；失败即 job 失败，阻塞 release。
       - name: Run Swift tests
-        # 12 分钟超时：个别测试在 runner 上可能 hang（无内置 per-test 超时），
-        # 超时杀掉后日志可取，用于精确定位卡点。
+        # 12 分钟超时仅作兜底。输出必须落文件再 cat：swift test 转发子进程输出时
+        # 不排水内部管道（SwiftPM #6592），测试输出写满 16KB 管道容量后 write()
+        # 确定性阻塞死锁（CI 实测挂在 16333/16384 字节处）。
         timeout-minutes: 12
-        run: swift test --no-parallel
+        run: |
+          set +e
+          swift test --no-parallel > test-output.log 2>&1
+          status=$?
+          set -e
+          cat test-output.log
+          exit $status
 
       - name: Upload dmg artifacts
         uses: actions/upload-artifact@v7
