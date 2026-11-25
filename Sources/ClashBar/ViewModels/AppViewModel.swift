@@ -347,6 +347,32 @@ final class AppViewModel: ObservableObject {
     var proxyGuardRecoveryInFlight = false
     var proxyGuardTriggerObserver: (any NSObjectProtocol)?
 
+    // —— 内核可用性（flowke T10 的检测/目录监控未整合，字段以「未检测」语义存在）——
+    @Published var isMihomoCoreAvailable = false
+    var needsMihomoCoreInstallation: Bool {
+        !self.isRemoteTarget && !self.isRuntimeRunning && !self.isMihomoCoreAvailable
+    }
+
+    var canEnableSystemProxy: Bool {
+        let coreRunning = self.isRemoteTarget || self.processManager.isRunning
+        return coreRunning && self.apiStatus == .healthy
+            && !self.isCoreActionProcessing && !self.isCoreBootstrapInFlight
+    }
+
+    var isSystemProxyToggleEnabled: Bool {
+        if self.systemProxyStatus.needsAttention { return !self.isProxySyncing && self.canEnableSystemProxy }
+        return !self.isProxySyncing && (self.isSystemProxyEnabled || self.canEnableSystemProxy)
+    }
+
+    func cancelCoreBootstrap() {
+        self.cancelProxyPortRetry()
+        self.isCoreBootstrapInFlight = false
+        self.cancelDeferredEditableSettingsOverlaySync()
+    }
+
+    /// 内核目录监控本体（flowke T10）未整合；保留 API 钩子供测试与后续整合。
+    func startCoreDirectoryMonitoring() {}
+
     var runtimeVisualStatus: RuntimeVisualStatus {
         let normalized = self.statusText.lowercased()
         if normalized == "starting" {
