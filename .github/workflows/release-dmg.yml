@@ -162,19 +162,9 @@ jobs:
 
   build-dmg:
     needs: prepare-version
-    strategy:
-      fail-fast: false
-      # 发布策略：不打包 mihomo 内核（用户自备），保留 arm64 与 intel 双架构。
-      matrix:
-        include:
-          - target_arch: arm64
-            dmg_suffix: apple-silicon
-            artifact_name: dmg-arm64
-            bundle_mihomo_binary: '0'
-          - target_arch: x86_64
-            dmg_suffix: intel
-            artifact_name: dmg-x86_64
-            bundle_mihomo_binary: '0'
+    # 单 job 串行构建双架构（发布策略：不打包 mihomo 内核，保留 arm64 与 intel）：
+    # 矩阵并行会在 macOS runner 池紧张时出现「整组排队被丢」（免费优先级排队上限
+    # 约 15 分钟）；串行只需一个排队窗口，arm64 优先构建并顺带跑测试，intel 交叉编译随后。
     runs-on: macos-15
     permissions:
       contents: read
@@ -200,37 +190,40 @@ jobs:
             exit 1
           fi
 
-      - name: Build app
+      - name: Build both architectures serially
         shell: bash
         run: |
-          APP_VERSION="${{ needs.prepare-version.outputs.version }}" \
-          BUILD_NUMBER="${{ needs.prepare-version.outputs.build_number }}" \
-          PREPARE_MIHOMO_BINARY="${{ matrix.bundle_mihomo_binary }}" \
-          BUNDLE_MIHOMO_BINARY="${{ matrix.bundle_mihomo_binary }}" \
-          TARGET_ARCH="${{ matrix.target_arch }}" \
-          ./Scripts/build.sh app
+          set -euo pipefail
+          build_one() {
+            local arch="$1" suffix="$2"
+            echo "::group::Build $arch ($suffix)"
+            APP_VERSION="${{ needs.prepare-version.outputs.version }}" \
+            BUILD_NUMBER="${{ needs.prepare-version.outputs.build_number }}" \
+            PREPARE_MIHOMO_BINARY=0 \
+            BUNDLE_MIHOMO_BINARY=0 \
+            TARGET_ARCH="$arch" \
+            ./Scripts/build.sh app
+            APP_VERSION="${{ needs.prepare-version.outputs.version }}" \
+            DMG_SUFFIX="$suffix" \
+            ./Scripts/build.sh dmg
+            echo "::endgroup::"
+          }
+          build_one arm64 apple-silicon
+          build_one x86_64 intel
+          ls -la dist/
 
-      - name: Build dmg
-        shell: bash
-        run: |
-          APP_VERSION="${{ needs.prepare-version.outputs.version }}" \
-          DMG_SUFFIX="${{ matrix.dmg_suffix }}" \
-          ./Scripts/build.sh dmg
+      # 测试与构建同 runner（仅一次排队）；失败即 job 失败，阻塞 release——测试仍是发版门槛。
+      - name: Run Swift tests
+        run: swift test --parallel
 
-      - name: Upload dmg artifact
+      - name: Upload dmg artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.artifact_name }}
+          name: dmg-both-arch
           path: |
-            dist/ClashBarX-${{ needs.prepare-version.outputs.version }}-${{ matrix.dmg_suffix }}.dmg
-            dist/ClashBarX-${{ needs.prepare-version.outputs.version }}-${{ matrix.dmg_suffix }}.dmg.sha256
+            dist/*.dmg
+            dist/*.dmg.sha256
           if-no-files-found: error
-
-      # 测试与构建同 runner（省一次 macOS 排队），仅在 arm64 架构跑。
-      # 失败会令本 job 失败，从而阻塞 release——测试仍是发版门槛。
-      - name: Run Swift tests
-        if: matrix.target_arch == 'arm64'
-        run: swift test --parallel
 
   release:
     needs: [prepare-version, build-dmg]
