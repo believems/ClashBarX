@@ -230,7 +230,7 @@ jobs:
         # 12 分钟超时：个别测试在 runner 上可能 hang（无内置 per-test 超时），
         # 超时杀掉后日志可取，用于精确定位卡点。
         timeout-minutes: 12
-        run: swift test --parallel
+        run: swift test --no-parallel
 
       - name: Upload dmg artifacts
         uses: actions/upload-artifact@v7

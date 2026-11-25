@@ -41,7 +41,9 @@ final class ServiceStatusViewModel: ObservableObject {
         }
     }
 
-    isolated deinit { task?.cancel() }
+    // Task.cancel 线程安全，无需 isolated deinit（后者在非主线程释放时会触发
+    // Swift 运行时 trap（signal 6），并在并行测试 worker 崩溃后导致调度死锁）。
+    deinit { task?.cancel() }
 
     var hasStaleResults: Bool { results.values.contains { $0.current.isStale || $0.direct.isStale } }
     var activeServiceCount: Int {
