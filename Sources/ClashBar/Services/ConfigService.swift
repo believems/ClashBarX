@@ -322,6 +322,56 @@ struct ConfigImportService {
         return base.isEmpty ? "remote-config.yaml" : "\(base).yaml"
     }
 
+    /// Subscriptions often embed a human-readable title in the document itself.
+    /// Clash itself does not require a name field, so callers must
+    /// always retain a URL-based fallback.（源自 flowke，订阅展示名推断）
+    func inferredRemoteConfigDisplayName(from data: Data) -> String? {
+        guard let text = String(data: data, encoding: .utf8),
+              let document = try? Yams.compose(yaml: text),
+              document.mapping != nil else {
+            return nil
+        }
+
+        let topLevelKeys = ["name", "display-name", "display_name", "profile-name", "profile_name", "title", "remarks"]
+        for key in topLevelKeys {
+            if let name = self.normalizedRemoteConfigDisplayName(document[key]?.string) {
+                return name
+            }
+        }
+
+        // A few providers wrap metadata under profile or metadata. Do not
+        // inspect proxy names/groups: those are not subscription titles.
+        for containerKey in ["profile", "metadata", "meta"] {
+            guard let container = document[containerKey] else { continue }
+            for key in ["name", "display-name", "display_name", "title", "remarks"] {
+                if let name = self.normalizedRemoteConfigDisplayName(container[key]?.string) {
+                    return name
+                }
+            }
+        }
+        return nil
+    }
+
+    private func normalizedRemoteConfigDisplayName(_ raw: String?) -> String? {
+        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
+            return nil
+        }
+        guard !value.contains("/"), !value.contains("\\"), !value.contains(":") else { return nil }
+        value = value.unicodeScalars
+            .filter { !CharacterSet.controlCharacters.contains($0) }
+            .map(String.init)
+            .joined()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty, value != ".", value != "..", value.count <= 120 else { return nil }
+        if value.lowercased().hasSuffix(".yaml") {
+            value = String(value.dropLast(5)).trimmingCharacters(in: .whitespacesAndNewlines)
+        } else if value.lowercased().hasSuffix(".yml") {
+            value = String(value.dropLast(4)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard !value.isEmpty else { return nil }
+        return value
+    }
+
     func isSupportedRemoteConfigURL(_ url: URL) -> Bool {
         guard let scheme = url.scheme?.lowercased() else { return false }
         return scheme == "http" || scheme == "https"

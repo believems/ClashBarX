@@ -108,7 +108,6 @@ final class ServiceStatusRenderingTests: XCTestCase {
             networkReachabilityMonitor: NetworkReachabilityMonitor(), ssidMonitorService: SSIDMonitorService(),
             remoteMachineStore: RemoteMachineStore(session: session),
             proxyGroupIconCache: ProxyGroupIconCache(iconDirectory: directory.iconDirectoryURL, session: session),
-            webUIAssetService: WebUIAssetService(workingDirectoryManager: directory, session: session),
             clashbarLogStore: AppLogStore(logFileURL: directory.logsDirectoryURL.appendingPathComponent("clashbar.log")),
             mihomoLogStore: AppLogStore(logFileURL: directory.logsDirectoryURL.appendingPathComponent("mihomo.log"))))
         app.uiLanguage = .zhHans
