@@ -14,8 +14,22 @@ private struct SettingsSelectionRowConfiguration<Option: Hashable> {
 }
 
 struct SystemTabView: TranslatingView {
+    /// 同一视图按 scope 渲染两个 tab：设置（应用/外观向）与网络（代理/核心向），
+    /// 共享全部行组件，避免组件抽协议的成本。
+    enum ContentScope {
+        case appSettings
+        case network
+    }
+
     @EnvironmentObject var appViewModel: AppViewModel
+    let scope: ContentScope
+    @AppStorage("clashbar.proxy.traffic_overview.visible") var showTrafficOverview: Bool = true
     @State private var isExceptionsExpanded = false
+
+    init(scope: ContentScope) {
+        self.scope = scope
+    }
+
 
     func settingsSection(_ title: String, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: T.space2) {
@@ -202,6 +216,28 @@ struct SystemTabView: TranslatingView {
         .opacity(self.maintenanceActionEnabled ? 1 : 0.62)
     }
 
+    func proxyGuardOutcomeRow(_ outcome: ProxyGuardProbeOutcome) -> some View {
+        let isReachable = outcome == .reachable
+        let symbol = isReachable ? "checkmark.circle" : "exclamationmark.triangle"
+        let text = {
+            switch outcome {
+            case .reachable:
+                self.tr("ui.settings.proxy_guard_probe_ok")
+            case let .failed(consecutiveCount):
+                self.tr("ui.settings.proxy_guard_probe_failed", consecutiveCount)
+            }
+        }()
+        return HStack(spacing: T.space6) {
+            Image(systemName: symbol)
+                .font(.app(size: T.FontSize.caption, weight: .semibold))
+                .foregroundStyle(isReachable ? nativePositive : nativeWarning)
+            Text(text)
+                .font(.app(size: T.FontSize.caption, weight: .regular))
+                .foregroundStyle(nativeSecondaryLabel)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     func settingsFeedbackBanner(text: String, color: Color, symbol: String) -> some View {
         HStack(spacing: T.space6) {
             Image(systemName: symbol)
@@ -376,6 +412,7 @@ struct SystemTabView: TranslatingView {
             : self.tr("ui.section.system_proxy_exceptions")
 
         return VStack(alignment: .leading, spacing: T.space6) {
+            if self.scope == .appSettings {
             self.settingsSection(
                     isRemote ? self.tr("ui.section.local_app_settings") : self.tr("ui.section.basic_settings"))
             {
@@ -393,20 +430,10 @@ struct SystemTabView: TranslatingView {
                     optionTitle: self.statusBarModeLabel,
                     isSelected: { self.appViewModel.statusBarDisplayMode == $0 },
                     onSelect: { self.appViewModel.statusBarDisplayMode = $0 }))
-                self.settingsSelectionRow(.init(
-                    title: self.tr("ui.settings.traffic_window"),
-                    symbol: "chart.xyaxis.line",
-                    valueText: self.tr(self.appViewModel.trafficHistoryWindow.titleKey),
-                    options: TrafficHistoryWindow.allCases,
-                    optionTitle: { self.tr($0.titleKey) },
-                    isSelected: { self.appViewModel.trafficHistoryWindow == $0 },
-                    onSelect: { self.appViewModel.trafficHistoryWindow = $0 }))
                 self.settingsToggleRow(
-                    self.tr("ui.settings.record_traffic_hidden"),
-                    symbol: "waveform.path.ecg",
-                    isOn: Binding(
-                        get: { self.appViewModel.recordsTrafficWhileHidden },
-                        set: { self.appViewModel.recordsTrafficWhileHidden = $0 }))
+                    self.tr("ui.settings.show_traffic_overview"),
+                    symbol: "chart.xyaxis.line",
+                    isOn: self.$showTrafficOverview)
                 self.settingsSelectionRow(.init(
                     title: self.tr("ui.settings.language"),
                     symbol: "character.book.closed",
@@ -424,16 +451,11 @@ struct SystemTabView: TranslatingView {
                     optionTitle: self.appearanceModeLabel,
                     isSelected: { self.appViewModel.appearanceMode == $0 },
                     onSelect: self.appViewModel.setAppearanceMode))
-                self.settingsSelectionRow(.init(
-                    title: self.tr("ui.settings.log_level"),
-                    symbol: "text.alignleft",
-                    valueText: selectedLogLevel,
-                    options: ConfigLogLevel.allCases,
-                    optionTitle: \.rawValue,
-                    isSelected: { selectedLogLevel.caseInsensitiveCompare($0.rawValue) == .orderedSame },
-                    onSelect: { level in
-                        Task { await self.appViewModel.applyEditableCoreSetting(.logLevel, to: level.rawValue) }
-                    }))
+            }
+            }
+
+            if self.scope == .network {
+                self.settingsSection(systemProxyExceptionsTitle) {
                 Button {
                     self.isExceptionsExpanded.toggle()
                 } label: {
@@ -527,35 +549,48 @@ struct SystemTabView: TranslatingView {
             }
             .animation(.spring(response: 0.30, dampingFraction: 0.80), value: self.isExceptionsExpanded)
 
-            self.settingsSection(self.tr("ui.section.dashboard")) {
-                Button {
-                    self.appViewModel.presentDashboard()
-                } label: {
-                    Label(self.tr("ui.action.open_dashboard"), systemImage: "square.grid.2x2")
-                        .frame(maxWidth: .infinity, alignment: .center)
-                }
-                .appBorderedButtonStyle(prominent: true)
-                .controlSize(.small)
-            }
-
             self.settingsSection(self.tr("ui.section.proxy_guard")) {
                 self.settingsToggleRow(
                     self.tr("ui.settings.proxy_guard_enabled"),
                     symbol: "shield.checkerboard",
                     isOn: self.$appViewModel.proxyGuardEnabled)
-                self.settingsPortFieldRow(
-                    self.tr("ui.settings.proxy_guard_interval"),
-                    symbol: "timer",
-                    text: self.proxyGuardIntervalText)
-                Button {
-                    Task { await self.appViewModel.proxyGuardProbe() }
-                } label: {
-                    Label(self.tr("ui.action.proxy_guard_check_now"), systemImage: "bolt.badge.clock")
-                        .frame(maxWidth: .infinity, alignment: .center)
+
+                if self.appViewModel.proxyGuardEnabled {
+                    VStack(alignment: .leading, spacing: T.space4) {
+                        self.settingsPortFieldRow(
+                            self.tr("ui.settings.proxy_guard_interval"),
+                            symbol: "timer",
+                            text: self.proxyGuardIntervalText)
+                        Button {
+                            Task { await self.appViewModel.proxyGuardProbe() }
+                        } label: {
+                            Label(
+                                self.appViewModel.isProxyGuardProbing
+                                    ? self.tr("ui.action.proxy_guard_check_running")
+                                    : self.tr("ui.action.proxy_guard_check_now"),
+                                systemImage: "bolt.badge.clock")
+                                .frame(maxWidth: .infinity, alignment: .center)
+                        }
+                        .appBorderedButtonStyle()
+                        .controlSize(.small)
+                        .disabled(!self.appViewModel.isRuntimeRunning || self.appViewModel.isProxyGuardProbing)
+
+                        if let outcome = self.appViewModel.proxyGuardLastProbeOutcome {
+                            self.proxyGuardOutcomeRow(outcome)
+                        }
+                    }
+                    .menuRowPadding(vertical: T.space4)
+                } else {
+                    HStack(spacing: T.space6) {
+                        Image(systemName: "info.circle")
+                            .foregroundStyle(nativeTertiaryLabel)
+                        Text(self.tr("ui.settings.proxy_guard_disabled_hint"))
+                            .font(.app(size: T.FontSize.caption, weight: .regular))
+                            .foregroundStyle(nativeSecondaryLabel)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .menuRowPadding(vertical: T.space4)
                 }
-                .appBorderedButtonStyle()
-                .controlSize(.small)
-                .disabled(!self.appViewModel.isRuntimeRunning)
             }
             .onChange(of: self.appViewModel.proxyGuardEnabled) { enabled in
                 if enabled {
@@ -581,6 +616,16 @@ struct SystemTabView: TranslatingView {
                     self.tr("ui.settings.close_connections_on_proxy_switch"),
                     symbol: "bolt.horizontal.circle",
                     isOn: self.$appViewModel.closeConnectionsOnProxySwitch)
+                self.settingsSelectionRow(.init(
+                    title: self.tr("ui.settings.log_level"),
+                    symbol: "text.alignleft",
+                    valueText: selectedLogLevel,
+                    options: ConfigLogLevel.allCases,
+                    optionTitle: \.rawValue,
+                    isSelected: { selectedLogLevel.caseInsensitiveCompare($0.rawValue) == .orderedSame },
+                    onSelect: { level in
+                        Task { await self.appViewModel.applyEditableCoreSetting(.logLevel, to: level.rawValue) }
+                    }))
             }
 
             self.settingsSection(
@@ -597,7 +642,9 @@ struct SystemTabView: TranslatingView {
                 }
                 .menuRowPadding(vertical: T.space4)
             }
+            }
 
+            if self.scope == .appSettings {
             self.settingsSection(
                     self.tr("ui.section.maintenance"))
             {
@@ -648,6 +695,7 @@ struct SystemTabView: TranslatingView {
                     }
                 }
                 .menuRowPadding(vertical: T.space4)
+            }
             }
         }
         .overlay(alignment: .top) {

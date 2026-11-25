@@ -4,6 +4,7 @@
 "ui.tab.connections" = "连接";
 "ui.tab.logs" = "日志";
 "ui.tab.system" = "设置";
+"ui.tab.network" = "网络";
 
 "ui.log_filter.all" = "全部";
 "ui.log_filter.info" = "信息";
@@ -182,6 +183,7 @@
 "ui.settings.close_connections_on_proxy_switch" = "切换节点时断开旧连接";
 "ui.settings.launch_at_login" = "开机自启";
 "ui.settings.menu_bar_style" = "状态栏样式";
+"ui.settings.show_traffic_overview" = "显示节点页流量概览";
 "ui.settings.language" = "界面语言";
 "ui.settings.appearance" = "外观模式";
 "ui.settings.appearance.system" = "跟随系统";
@@ -443,13 +445,6 @@
 "log.config.delete.failed" = "删除配置失败（%@）：%@";
 
 /* ===== fork custom ===== */
-"ui.settings.traffic_window" = "流量曲线时长";
-"ui.traffic_window.1min" = "1 分钟";
-"ui.traffic_window.5min" = "5 分钟";
-"ui.traffic_window.15min" = "15 分钟";
-"ui.traffic_window.30min" = "30 分钟";
-"ui.settings.record_traffic_hidden" = "保持流量曲线";
-"ui.tab.overrides" = "覆写";
 "ui.section.rule_override" = "规则覆写";
 "ui.rule_override.enabled" = "启用规则覆写";
 "ui.rule_override.prepend" = "前置规则";
@@ -474,12 +469,14 @@
 "log.rule_override.failed" = "规则覆写失败：%@";
 "log.rule_override.open_failed" = "无法打开 %@：%@";
 "fmt.remote_config.next_update_hours" = "自动 %d 小时后";
-"ui.action.open_dashboard" = "内部看板";
-"ui.section.dashboard" = "仪表盘";
 
 "ui.section.proxy_guard" = "自动代理守护";
 "ui.settings.proxy_guard_enabled" = "自动切换可用节点";
 "ui.settings.proxy_guard_interval" = "探测周期（秒）";
+"ui.action.proxy_guard_check_running" = "检查中…";
+"ui.settings.proxy_guard_probe_ok" = "网络连通正常";
+"ui.settings.proxy_guard_probe_failed" = "探测失败（连续第 %d 次）";
+"ui.settings.proxy_guard_disabled_hint" = "开启后自动检测连通性，故障时切换组内节点并自愈订阅";
 "ui.action.proxy_guard_check_now" = "立即检查一次";
 "app.proxyguard.started" = "代理守护已开启，每 %d 秒探测一次。";
 "app.proxyguard.probe_failed" = "代理探测失败（%d/%d 次）。";

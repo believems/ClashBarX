@@ -7,21 +7,21 @@
 
 ## [Unreleased]
 
-### Added
+暂无内容。
 
-- **自动代理守护**（本仓库新功能）：周期性经当前代理端口探测外网连通性，连续失败后自动恢复——
-  先在策略组内测速并切换到组内最快可用节点，组内全挂时自动更新全部订阅再重测切换。
-  「设置 → 自动代理守护」提供开关、探测周期（秒，30–86400）与「立即检查一次」。
-  CLI：`ClashBarX.app/Contents/MacOS/ClashBarX --proxy-guard` 触发运行中实例立即检查
-  （无实例则启动后立即检查一次），方便自动化工具在大模型发现网络异常时自行触发。
+## v1.0.0
+
+> 2026-11-25 · 首个正式版：以上游 Sitoi/ClashBar 为基座，整合 mh567 / kingcanfish / Gongsc / flowke
+> 四条社区发行线的全量精选与上游 #128 / #123 修复，并新增本仓库自研的「自动代理守护」。
+> 品牌独立为 ClashBarX，版本号自 v1.0.0 起独立编号。
+
+**✨ 新增功能**
+
+- **自动代理守护**（本仓库新功能）：周期性经当前代理端口探测外网连通性，连续失败后自动恢复——先在策略组内测速并切换到组内最快可用节点，组内全挂时自动更新全部订阅再重测切换。「设置 → 自动代理守护」提供开关、探测周期（秒，30–86400）与「立即检查一次」。 CLI：`ClashBarX.app/Contents/MacOS/ClashBarX --proxy-guard` 触发运行中实例立即检查（无实例则启动后立即检查一次），方便自动化工具在大模型发现网络异常时自行触发。
 - 节点 / 应用 / 域名三维度流量统计（上游 #123）：连接页可切换统计视图，配置重载后自动重挂进程匹配。
-- 独立仪表盘窗口（源自 flowke）：概览（流量 / 连接 / 内存 / 路由对比）、配置管理（本地与远程订阅）、
-  自定义规则引擎（规则与规则集增删改、每条独立启用开关、事务化合并进生效配置并支持回滚）、
-  服务连通性诊断（同一目标经代理与直连实测并以颜色呈现状态）。入口在「设置 → 仪表盘」。
-- `AgentRuleSocket` 本地自动化接口（源自 flowke）：外部工具可经 Unix Socket 操控自定义规则，
-  含属主与权限校验。
-- 运行时数据目录迁移至 `~/.config/clashbar`（源自 flowke）：首次运行自动从
-  `~/Library/Application Support/clashbar` 平滑迁移；系统代理 Helper 支持备份恢复与 v5 协议版本协商。
+- 独立仪表盘窗口（源自 flowke）：概览（流量 / 连接 / 内存 / 路由对比）、配置管理（本地与远程订阅）、自定义规则引擎（规则与规则集增删改、每条独立启用开关、事务化合并进生效配置并支持回滚）、服务连通性诊断（同一目标经代理与直连实测并以颜色呈现状态）。入口在「设置 → 仪表盘」。
+- `AgentRuleSocket` 本地自动化接口（源自 flowke）：外部工具可经 Unix Socket 操控自定义规则，含属主与权限校验。
+- 运行时数据目录迁移至 `~/.config/clashbar`（源自 flowke）：首次运行自动从 `~/Library/Application Support/clashbar` 平滑迁移；系统代理 Helper 支持备份恢复与 v5 协议版本协商。
 - 运行时端口保持（源自 flowke）：端口草稿自动落盘，内核重载 / 订阅更新后核对并恢复配置端口。
 - macOS 26+ 原生 Liquid Glass 菜单栏面板与侧边子菜单（源自 kingcanfish v0.4.x）。
 - 连接按实时速度排序，排序依据与方向分离（源自 kingcanfish）。
@@ -36,17 +36,16 @@
 - WebSocket 默认最大消息上限提升至 4 MB（源自 flowke）。
 - 本地测试体系与 `make test`（源自 mh567）。
 
-### Changed
+**🚀 优化改进**
 
-- 品牌与发布线独立为 ClashBarX：应用内更新源、DMG 产物名与界面文案统一更名；
-  Bundle ID 与特权助手标签保持不变，覆盖安装即原地升级。
-- 订阅元数据模型融合双方语义：`displayName` / 用量信息 / 启用开关（flowke）
-  与更新成功时间 / 失败退避重试（Gongsc）。
+- 品牌与发布线独立为 ClashBarX：应用内更新源、DMG 产物名与界面文案统一更名； Bundle ID 与特权助手标签保持不变，覆盖安装即原地升级。
+- 订阅元数据模型融合双方语义：`displayName` / 用量信息 / 启用开关（flowke）与更新成功时间 / 失败退避重试（Gongsc）。
 - 超高屏上面板保持菜单尺寸（上限 640 pt），超出部分内容内部滚动（kingcanfish 与 flowke 融合）。
 - 发布版本号推导脚本化（`Scripts/resolve_version_bump.sh`，源自 mh567）。
 - 界面按 Apple HIG 梳理配色：强调色仅用于交互状态，支持「增强对比度」（源自 kingcanfish）。
+- 新增 [Yams](https://github.com/jpsim/Yams) 5.4+ 依赖（YAML 配置解析，规则合并引擎使用）。
 
-### Fixed
+**🐞 修复问题**
 
 - 节点故障后延迟徽标永远冻结在最后一次成功值，手动测速也无法纠正（上游 #128）。
 - 日志搜索仅覆盖最近 120 条（源自 mh567）。
@@ -63,19 +62,12 @@
 - TUN 图标状态错位后无法自愈（源自 Gongsc）。
 - 启动时弹出空白 Settings 窗口（源自 Gongsc）。
 
-### Dependencies
-
-- 新增 [Yams](https://github.com/jpsim/Yams) 5.4+（YAML 配置解析，规则合并引擎使用）。
-
 ## 历史版本（整合前）
 
 ClashBarX 的首个版本 v1.0.0 之前的变更来自上游与各社区发行线，
 详细记录见各自仓库的 CHANGELOG：
 
-- 上游 [Sitoi/ClashBar](https://github.com/Sitoi/ClashBar)（v0.3.x 及更早）
-- [mh567/ClashBar](https://github.com/mh567/ClashBar)（工程加固线）
-- [kingcanfish/ClashBar](https://github.com/kingcanfish/ClashBar)（v0.4.x，Liquid Glass UI 线）
-- [Gongsc/ClashBar](https://github.com/Gongsc/ClashBar)（v1.x，ClashBarPlus 功能线）
-- [flowke/ClashBar](https://github.com/flowke/ClashBar)（Dashboard 与数据目录线）
+上游 [Sitoi/ClashBar](https://github.com/Sitoi/ClashBar)（v0.3.x 及更早）、[mh567/ClashBar](https://github.com/mh567/ClashBar)（工程加固线）、[kingcanfish/ClashBar](https://github.com/kingcanfish/ClashBar)（v0.4.x，Liquid Glass UI 线）、[Gongsc/ClashBar](https://github.com/Gongsc/ClashBar)（v1.x，ClashBarPlus 功能线）、[flowke/ClashBar](https://github.com/flowke/ClashBar)（Dashboard 与数据目录线）。
 
 [Unreleased]: https://github.com/believems/ClashBarX/compare/main...integration
+[1.0.0]: https://github.com/believems/ClashBarX/releases/tag/v1.0.0

@@ -47,6 +47,8 @@ struct ProxyTabView: TranslatingView {
     @AppStorage("clashbar.proxy.group.show_latency_history") var showLatencyHistory: Bool = false
     @AppStorage("clashbar.proxy.group.hide_hidden") var hideHiddenProxyGroups: Bool = true
     @AppStorage("clashbar.proxy.providers.collapsed") var isProxyProvidersCollapsed: Bool = false
+    /// 节点页顶部流量概览（速率/总量/连接数/内存摘要）的总开关，设置页可切换。
+    @AppStorage("clashbar.proxy.traffic_overview.visible") var showTrafficOverview: Bool = true
 
     @State var copiedProxyCommandTarget: ProxyCommandCopyTarget?
     @State var proxyCommandCopyResetTask: Task<Void, Never>?
@@ -345,7 +347,9 @@ struct ProxyTabView: TranslatingView {
 
     var proxyTabBody: some View {
         VStack(alignment: .leading, spacing: T.space6) {
-            self.trafficOverview
+            if self.showTrafficOverview {
+                self.trafficOverview
+            }
             self.proxyQuickRows
             if !self.proxyStore.sortedProxyProviderNames.isEmpty {
                 proxyProvidersSection
@@ -380,8 +384,6 @@ struct ProxyTabView: TranslatingView {
     }
 
     var trafficOverview: some View {
-        let sparklineHeight: CGFloat = 64
-        let sparklineHorizontalInset = T.space4
         return VStack(spacing: T.space4) {
             HStack(spacing: T.space6) {
                 self.trafficRateMetric(
@@ -398,12 +400,6 @@ struct ProxyTabView: TranslatingView {
                     color: trafficDownloadTint)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
-
-            TrafficSparklineView(
-                samples: self.trafficStore.trafficSamples,
-                window: self.appViewModel.trafficHistoryWindow.duration)
-                .frame(height: sparklineHeight)
-                .padding(.horizontal, sparklineHorizontalInset)
 
             VStack(spacing: 0) {
                 HStack(spacing: T.space6) {

@@ -284,7 +284,8 @@ final class ServiceStatusViewModel: ObservableObject {
         RoutingInputs(mode: app.currentMode.rawValue, config: app.selectedConfigName, controller: app.controller,
                       secret: app.controllerSecret, remote: app.isRemoteTarget, running: app.isRuntimeRunning,
                       tun: app.isTunEnabled, network: app.networkReachabilityStatus,
-                      effective: app.dashboardEffectiveRecord, configSignatures: app.configFileSignatureSnapshot,
+                      effective: try? app.effectiveConfigTransaction.currentRecord(),
+                      configSignatures: app.configFileSignatureSnapshot,
                       selections: app.proxyGroups.map { "\($0.name):\($0.now ?? "")" }.sorted())
     }
 }

@@ -67,6 +67,10 @@ struct RulesTabView: TranslatingView {
             } else {
                 self.flatRulesList(visibleRules: visibleRules, providerLookup: providerLookup)
             }
+
+            // 规则覆写并入规则页（原独立 tab 收编）：列表是「查看」，覆写是「操作」。
+            OverrideTabView()
+                .padding(.top, T.space6)
         }
         .onAppear {
             self.viewModel.groupByPolicy = self.storedGroupByPolicy

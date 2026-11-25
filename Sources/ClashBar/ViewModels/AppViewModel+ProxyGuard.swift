@@ -8,6 +8,13 @@ import Foundation
 /// - 恢复：对手动选择（Selector）组逐组测速，当前节点不可用而组内有可用节点时切换；
 ///   全部组都无可用节点时更新全部代理提供者（订阅自愈）后重测再切换。
 /// - CLI：`--proxy-guard` 经分布式通知触发运行中实例立即探测；无实例时随应用启动触发。
+
+/// 最近一次探测的结果，供设置页反馈行显示。
+enum ProxyGuardProbeOutcome: Equatable {
+    case reachable
+    case failed(consecutiveCount: Int)
+}
+
 /// 跨隔离域使用的守护常量（非隔离，供 CLI 与 nonisolated 探测函数引用）。
 enum ProxyGuardConstants {
     static let failureThreshold = 3
@@ -68,15 +75,20 @@ extension AppViewModel {
         guard self.isRuntimeRunning, !self.isRemoteTarget else { return }
         guard let url = self.proxyGuardProbeURL, let port = self.mixedProxyPort, port > 0 else { return }
 
+        self.isProxyGuardProbing = true
+        defer { self.isProxyGuardProbing = false }
+
         if await Self.probeConnectivity(url: url, proxyPort: port) {
             if self.proxyGuardConsecutiveFailures > 0 {
                 self.appendLog(level: "info", message: self.tr("app.proxyguard.recovered"))
             }
             self.proxyGuardConsecutiveFailures = 0
+            self.proxyGuardLastProbeOutcome = .reachable
             return
         }
 
         self.proxyGuardConsecutiveFailures += 1
+        self.proxyGuardLastProbeOutcome = .failed(consecutiveCount: self.proxyGuardConsecutiveFailures)
         self.appendLog(
             level: "warning",
             message: self.tr(

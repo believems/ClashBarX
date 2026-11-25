@@ -39,30 +39,6 @@ final class AppViewModel: ObservableObject {
         set { self.trafficStore.displayDownTotal = newValue }
     }
 
-    var trafficSamples: [TrafficSample] {
-        get { self.trafficStore.trafficSamples }
-        set { self.trafficStore.trafficSamples = newValue }
-    }
-
-    /// 改动会立刻重算采集策略，流量流随之启停，不必等下一次可见性变化。
-    var recordsTrafficWhileHidden: Bool {
-        get { self.recordTrafficWhileHiddenStorage }
-        set {
-            guard self.recordTrafficWhileHiddenStorage != newValue else { return }
-            self.recordTrafficWhileHiddenStorage = newValue
-            self.updateDataAcquisitionPolicy()
-        }
-    }
-
-    var trafficHistoryWindow: TrafficHistoryWindow {
-        get { TrafficHistoryWindow(rawValue: self.trafficHistoryWindowMinutes) ?? .fiveMinutes }
-        set {
-            guard self.trafficHistoryWindowMinutes != newValue.rawValue else { return }
-            self.trafficHistoryWindowMinutes = newValue.rawValue
-            self.trimTrafficHistoryToWindow()
-        }
-    }
-
     let connectionsStore = ConnectionsStore()
 
     @Published var currentMode: CoreMode = .rule
@@ -253,28 +229,14 @@ final class AppViewModel: ObservableObject {
     var pendingAppLaunchOverlaySettings: EditableSettingsSnapshot?
     var suppressSettingsPersistence = false
 
-    // —— Dashboard / 生效配置（flowke T9）——
-    @Published var dashboardConfigBusy = false
-    @Published var dashboardConfigError: String?
-    @Published var dashboardEffectiveRecord: EffectiveConfigRecord? {
-        didSet {
-            let changes = dashboardEffectiveRecord?.changes ?? []
-            if changes != (oldValue?.changes ?? []) { serviceStatusStore.syncRules(changes) }
-        }
+    // —— 生效配置事务（flowke T9，底层引擎保留）——
+    var effectiveConfigTransaction: EffectiveConfigTransaction {
+        EffectiveConfigTransaction(
+            configDirectory: workingDirectoryManager.configDirectoryURL,
+            stateDirectory: workingDirectoryManager.stateDirectoryURL)
     }
-    @Published var dashboardSubscriptionErrors: [String: String] = [:]
+
     @Published var isCoreBootstrapInFlight = false
-    @Published var isDashboardPresented: Bool = false
-    @Published var dashboardTrafficAvailable = false
-    @Published var dashboardMemoryAvailable = false
-    @Published var dashboardConnectionsAvailable = false
-    lazy var serviceStatusStore = ServiceStatusViewModel(
-        storageURL: self.workingDirectoryManager.stateDirectoryURL.appendingPathComponent("service-status.json"))
-    /// 由 AppDelegate 注入的仪表盘呈现动作（窗口归 AppDelegate 管理，视图层只发请求）。
-    var dashboardPresenter: (() -> Void)?
-    func presentDashboard() {
-        self.dashboardPresenter?()
-    }
 
     /// 代理端点的紧凑显示：本机只显示混合端口，远程目标显示 host:port。
     var proxyEndpointDisplay: String {
@@ -346,6 +308,10 @@ final class AppViewModel: ObservableObject {
     var proxyGuardConsecutiveFailures = 0
     var proxyGuardRecoveryInFlight = false
     var proxyGuardTriggerObserver: (any NSObjectProtocol)?
+
+    // —— 守护探测的 UI 反馈（手动「立即检查」与周期探测共用）——
+    @Published var isProxyGuardProbing = false
+    @Published var proxyGuardLastProbeOutcome: ProxyGuardProbeOutcome?
 
     // —— 内核可用性（flowke T10 的检测/目录监控未整合，字段以「未检测」语义存在）——
     @Published var isMihomoCoreAvailable = false
@@ -554,11 +520,6 @@ final class AppViewModel: ObservableObject {
         .iconOnly.rawValue
     @AppStorage("clashbar.proxy.node.hide_unavailable") var hideUnavailableProxyNodes: Bool = false
     @AppStorage("clashbar.proxy.switch.close_connections") var closeConnectionsOnProxySwitch: Bool = false
-    /// 默认关闭：开启后面板关闭期间也保持流量流，应用不再完全空闲。
-    @AppStorage("clashbar.traffic.record_while_hidden") private var recordTrafficWhileHiddenStorage: Bool = false
-    /// 只持久化「展示时长」这个偏好本身；曲线数据永远只活在内存里。
-    @AppStorage("clashbar.traffic.history.window.minutes") var trafficHistoryWindowMinutes: Int = TrafficHistoryWindow
-        .fiveMinutes.rawValue
     let selectedConfigKey = "clashbar.config.selected.filename"
     let legacySelectedConfigKey = "clashbar.config.selected"
     let remoteConfigSourcesKey = "clashbar.config.remote.sources.v1"
@@ -576,7 +537,6 @@ final class AppViewModel: ObservableObject {
     let hiddenPanelMaxInMemoryLogEntries = 20
 
     let maxBufferedMihomoLogEntries = 40
-    let historyMaxPoints = 60
     let mihomoLogFlushIntervalNanoseconds: UInt64 = 150_000_000
     let foregroundMediumFrequencyIntervalNanoseconds: UInt64 = 4_000_000_000
     let backgroundMediumFrequencyIntervalNanoseconds: UInt64 = 12_000_000_000

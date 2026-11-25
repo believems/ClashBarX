@@ -78,16 +78,6 @@ extension AppViewModel {
         self.updateDataAcquisitionPolicy()
     }
 
-    func setDashboardVisibility(_ presented: Bool) {
-        guard self.isDashboardPresented != presented else { return }
-        self.isDashboardPresented = presented
-        if !presented && !self.isPanelPresented {
-            self.resetTrafficTotalsForHiddenPanel()
-            self.releasePanelCachedData()
-        }
-        self.updateDataAcquisitionPolicy()
-    }
-
     func setPanelVisibility(_ presented: Bool) {
         guard isPanelPresented != presented else { return }
         isPanelPresented = presented
@@ -135,11 +125,9 @@ extension AppViewModel {
         panelPresented: Bool,
         activeTab: RootTab) -> DataAcquisitionPolicy
     {
-        // 面板关闭且状态栏为「仅图标」时，流量流本会被停掉，曲线因此留下空档。
-        // recordsTrafficWhileHidden 让流量流继续跑，代价是应用不再完全空闲（每秒醒一次）。
+        // 面板关闭且状态栏为「仅图标」时流量流停掉，重开时速率从头计。
         let trafficEnabled = panelPresented
             || self.statusBarDisplayMode != .iconOnly
-            || self.recordsTrafficWhileHidden
 
         if !panelPresented {
             return DataAcquisitionPolicy(
@@ -211,9 +199,9 @@ extension AppViewModel {
             await refreshProvidersAndRules()
         case .connections:
             await self.refreshConnections()
-        case .logs, .overrides:
+        case .logs:
             break
-        case .system:
+        case .system, .network:
             await self.refreshMediumFrequency()
             guard shouldContinueRefresh() else { return }
             if !self.isRemoteTarget, self.hasSystemProxyOpenIntent {
@@ -373,44 +361,7 @@ extension AppViewModel {
     func clearTrafficPresentationHistory() {
         displayUpTotal = 0
         displayDownTotal = 0
-        trafficSamples = []
-        trafficSamples.reserveCapacity(self.maxTrafficSampleCount)
         lastTrafficSampleAt = nil
-    }
-
-    /// 时间窗口内允许保留的最大采样数。流量流约每秒一个点，所以按每分钟
-    /// `historyMaxPoints` 个点封顶；这只是内存兜底，真正的裁剪依据是时间。
-    var maxTrafficSampleCount: Int {
-        self.historyMaxPoints * self.trafficHistoryWindow.rawValue
-    }
-
-    func trimTrafficHistoryToWindow(now: Date = Date()) {
-        let trimmed = self.trimmedTrafficSamples(self.trafficSamples, now: now)
-        guard trimmed != self.trafficSamples else { return }
-        self.trafficSamples = trimmed
-    }
-
-    /// 裁剪依据是真实时间而非下标——面板关闭且状态栏为「仅图标」时流量流会停掉，恢复后的
-    /// 序列里存在真实空档，按下标裁剪会把空档压缩掉。`maxTrafficSampleCount` 只是内存兜底，
-    /// 防止采样频率异常时无限增长。
-    private func trimmedTrafficSamples(_ samples: [TrafficSample], now: Date) -> [TrafficSample] {
-        let cutoff = now.addingTimeInterval(-self.trafficHistoryWindow.duration)
-        var samples = samples
-
-        if let firstKept = samples.firstIndex(where: { $0.at >= cutoff }) {
-            if firstKept > 0 {
-                samples.removeFirst(firstKept)
-            }
-        } else {
-            samples.removeAll(keepingCapacity: true)
-        }
-
-        let maxCount = self.maxTrafficSampleCount
-        if maxCount > 0, samples.count > maxCount {
-            samples.removeFirst(samples.count - maxCount)
-        }
-
-        return samples
     }
 
     func resetTrafficTotalsForHiddenPanel() {
@@ -434,12 +385,6 @@ extension AppViewModel {
         rulesCount = 0
         ruleProviders.removeAll(keepingCapacity: false)
         ruleItems.removeAll(keepingCapacity: false)
-    }
-
-    func appendTrafficHistory(up: Int64, down: Int64, at date: Date = Date()) {
-        var samples = self.trafficSamples
-        samples.append(TrafficSample(at: date, up: max(0, up), down: max(0, down)))
-        self.trafficSamples = self.trimmedTrafficSamples(samples, now: date)
     }
 
     func updateTrafficTotals(from snapshot: TrafficSnapshot) {
@@ -468,11 +413,11 @@ extension AppViewModel {
             }
         case .rules:
             await refreshProvidersAndRules()
-        case .system:
+        case .system, .network:
             if !self.isRemoteTarget {
                 await self.refreshSystemProxyStatus()
             }
-        case .connections, .logs, .overrides:
+        case .connections, .logs:
             break
         }
     }
