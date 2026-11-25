@@ -123,7 +123,7 @@ final class MihomoValidationTests: XCTestCase {
         let core: any MihomoControlling = MihomoProcessManager(workingDirectoryManager: directory)
         var finished = false
         let validation = Task { @MainActor in
-            try await core.validateConfigAsync(configPath: config.path)
+            try await core.validateConfigAsync(configPath: config.path, workingDirectory: nil)
             finished = true
         }
 

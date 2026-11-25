@@ -15,10 +15,10 @@ private final class TestCore: MihomoControlling, @unchecked Sendable {
     var startCount = 0
     var stopCount = 0
     var startedPath: String?
-    func validateConfigAsync(configPath: String) async throws {
+    func validateConfigAsync(configPath: String, workingDirectory: URL?) async throws {
         if rejectValidation { throw CocoaError(.fileReadCorruptFile) }
     }
-    func startAsync(configPath: String, controller: String) async throws -> CoreLifecycleStatus {
+    func startAsync(configPath: String, workingDirectory: URL?, controller: String) async throws -> CoreLifecycleStatus {
         startCount += 1
         startedPath = configPath
         isRunning = true
@@ -26,7 +26,7 @@ private final class TestCore: MihomoControlling, @unchecked Sendable {
     }
     func stop() {}
     func stopAsync() async { stopCount += 1; isRunning = false }
-    func restartAsync(configPath: String, controller: String) async throws -> CoreLifecycleStatus { .stopped }
+    func restartAsync(configPath: String, workingDirectory: URL?, controller: String) async throws -> CoreLifecycleStatus { .stopped }
 }
 
 private final class PortRetryProtocol: URLProtocol, @unchecked Sendable {
