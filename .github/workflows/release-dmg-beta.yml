@@ -92,9 +92,22 @@ jobs:
             BUNDLE_MIHOMO_BINARY=0 \
             TARGET_ARCH="$arch" \
             ./Scripts/build.sh app
-            APP_VERSION="${{ needs.prepare-beta.outputs.version }}" \
-            DMG_SUFFIX="$suffix" \
-            ./Scripts/build.sh dmg
+            # hdiutil 的 verify 在 runner 上偶发 Resource temporarily unavailable
+            # （diskimages-helper 服务未就绪/未释放），重试三次并间隔等待。
+            local attempt
+            for attempt in 1 2 3; do
+              if APP_VERSION="${{ needs.prepare-beta.outputs.version }}" \
+                 DMG_SUFFIX="$suffix" \
+                 ./Scripts/build.sh dmg; then
+                break
+              fi
+              if [ "$attempt" -eq 3 ]; then
+                echo "DMG creation failed after 3 attempts ($suffix)." >&2
+                exit 1
+              fi
+              echo "DMG attempt $attempt failed; retrying in 30s…"
+              sleep 30
+            done
             echo "::endgroup::"
           }
           build_one arm64 apple-silicon
