@@ -82,6 +82,10 @@ public partial class MainWindow : Window
     public void SetSystemProxySection(SystemProxySectionViewModel viewModel) =>
         SystemProxySectionRoot.DataContext = viewModel;
 
+    /// <summary>注入设置页模型。调用方负责 UI 线程编组。</summary>
+    public void SetSettingsPage(SettingsPageViewModel viewModel) =>
+        SettingsRoot.DataContext = viewModel;
+
     public void SetConnectionsPage(ConnectionsPageViewModel viewModel)
     {
         ConnectionsRoot.DataContext = viewModel;

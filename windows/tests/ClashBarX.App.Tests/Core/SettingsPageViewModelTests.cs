@@ -1,0 +1,134 @@
+using ClashBarX.App.Core;
+
+namespace ClashBarX.App.Tests.Core;
+
+/// <summary>设置页与开机自启规格测试（源：AppViewModel+Settings / LaunchAtLoginService.swift）。</summary>
+public class SettingsPageViewModelTests
+{
+    private sealed class Harness
+    {
+        public List<AppAppearanceMode> Appearances = new();
+        public List<AppLanguage> Languages = new();
+        public List<bool> TrafficOverviews = new();
+        public List<bool> LaunchWrites = new();
+        public bool FailLaunchWrite;
+
+        public SettingsPageViewModel ViewModel = null!;
+
+        public Harness() => Reset();
+
+        public void Reset()
+        {
+            ViewModel = new SettingsPageViewModel
+            {
+                LaunchAtLoginRequested = enabled =>
+                {
+                    if (FailLaunchWrite)
+                    {
+                        throw new InvalidOperationException("registry denied");
+                    }
+
+                    LaunchWrites.Add(enabled);
+                    return Task.CompletedTask;
+                },
+            };
+            ViewModel.AppearanceChanged += Appearances.Add;
+            ViewModel.LanguageChanged += Languages.Add;
+            ViewModel.TrafficOverviewChanged += TrafficOverviews.Add;
+        }
+    }
+
+    [Fact]
+    public void 外观与语言变化上抛事件()
+    {
+        var harness = new Harness();
+
+        harness.ViewModel.AppearanceMode = AppAppearanceMode.Dark;
+        harness.ViewModel.Language = AppLanguage.English;
+
+        Assert.Equal(new[] { AppAppearanceMode.Dark }, harness.Appearances);
+        Assert.Equal(new[] { AppLanguage.English }, harness.Languages);
+    }
+
+    [Fact]
+    public async Task 自启开关调用写入委托()
+    {
+        var harness = new Harness();
+
+        await Task.Run(() => harness.ViewModel.LaunchAtLogin = true);
+
+        Assert.Equal(new[] { true }, harness.LaunchWrites);
+        Assert.True(harness.ViewModel.LaunchAtLogin);
+        Assert.False(harness.ViewModel.LaunchAtLoginFailed);
+    }
+
+    [Fact]
+    public async Task 自启写入失败回滚开关并置错误提示()
+    {
+        var harness = new Harness();
+        harness.FailLaunchWrite = true;
+
+        await Task.Run(() => harness.ViewModel.LaunchAtLogin = true);
+
+        Assert.False(harness.ViewModel.LaunchAtLogin);   // 回滚
+        Assert.True(harness.ViewModel.LaunchAtLoginFailed);
+    }
+
+    [Fact]
+    public void 流量概览开关上抛()
+    {
+        var harness = new Harness();
+
+        harness.ViewModel.ShowTrafficOverview = false;
+
+        Assert.Equal(new[] { false }, harness.TrafficOverviews);
+    }
+
+    [Fact]
+    public void Restore恢复初始态不触发事件()
+    {
+        var harness = new Harness();
+
+        harness.ViewModel.Restore(
+            AppAppearanceMode.Dark, AppLanguage.English, launchAtLogin: true, showTrafficOverview: false);
+
+        Assert.Equal(AppAppearanceMode.Dark, harness.ViewModel.AppearanceMode);
+        Assert.Equal(AppLanguage.English, harness.ViewModel.Language);
+        Assert.True(harness.ViewModel.LaunchAtLogin);
+        Assert.False(harness.ViewModel.ShowTrafficOverview);
+        Assert.Empty(harness.Appearances);
+        Assert.Empty(harness.Languages);
+        Assert.Empty(harness.LaunchWrites);
+    }
+}
+
+/// <summary>开机自启注册表服务测试（随机键名隔离，不动真实 ClashBarX 键）。</summary>
+public class LaunchAtLoginServiceTests
+{
+    private readonly LaunchAtLoginService _service =
+        new($"clashbarx-test-{Guid.NewGuid():N}");
+
+    [Fact]
+    public void 写入与移除()
+    {
+        string exePath = Environment.ProcessPath ?? "C:\\app.exe";
+
+        Assert.False(_service.IsEnabled());
+
+        _service.Apply(true, exePath);
+        Assert.True(_service.IsEnabled());
+
+        _service.Apply(false, exePath);
+        Assert.False(_service.IsEnabled());
+    }
+
+    [Fact]
+    public void 路径含空格时引号包裹()
+    {
+        string exePath = "C:\\Program Files\\ClashBarX\\ClashBarX.exe";
+
+        _service.SetEnabled(true, exePath);
+        Assert.True(_service.IsEnabled());
+        _service.SetEnabled(false, exePath);   // 清理
+    }
+}

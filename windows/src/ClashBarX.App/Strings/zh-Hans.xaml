@@ -1,0 +1,35 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+    <!-- 中文文案（核心 UI 面；VM 动态文案的双语化列为后续项） -->
+    <sys:String x:Key="TabProxy">代理</sys:String>
+    <sys:String x:Key="TabRules">规则</sys:String>
+    <sys:String x:Key="TabConnections">连接</sys:String>
+    <sys:String x:Key="TabLogs">日志</sys:String>
+    <sys:String x:Key="TabNetwork">网络</sys:String>
+    <sys:String x:Key="TabSettings">设置</sys:String>
+
+    <sys:String x:Key="NetworkSystemProxyTitle">系统代理</sys:String>
+    <sys:String x:Key="NetworkSystemProxyEnable">启用</sys:String>
+    <sys:String x:Key="NetworkBypassHint">绕过列表（写入 Windows 代理例外，不在列表内的地址才走代理）</sys:String>
+    <sys:String x:Key="NetworkBypassAdd">新增</sys:String>
+    <sys:String x:Key="NetworkBypassRemove">移除</sys:String>
+    <sys:String x:Key="NetworkBypassReset">恢复默认</sys:String>
+    <sys:String x:Key="NetworkBypassSave">保存</sys:String>
+    <sys:String x:Key="NetworkGuardTitle">自动代理守护（自动切换可用节点）</sys:String>
+    <sys:String x:Key="NetworkGuardInterval">探测周期（秒）</sys:String>
+    <sys:String x:Key="NetworkGuardCheckNow">立即检查</sys:String>
+    <sys:String x:Key="NetworkGuardChecking">检查中…</sys:String>
+    <sys:String x:Key="NetworkSubscriptionTitle">订阅</sys:String>
+    <sys:String x:Key="NetworkSubscriptionImport">导入</sys:String>
+    <sys:String x:Key="NetworkSubscriptionEnable">启用</sys:String>
+    <sys:String x:Key="NetworkSubscriptionRemove">删除</sys:String>
+
+    <sys:String x:Key="SettingsAppearanceTitle">外观</sys:String>
+    <sys:String x:Key="SettingsLanguageTitle">语言</sys:String>
+    <sys:String x:Key="SettingsLaunchAtLoginTitle">开机自启</sys:String>
+    <sys:String x:Key="SettingsLaunchAtLoginFailed">写入注册表失败，已回滚</sys:String>
+    <sys:String x:Key="SettingsTrafficOverviewTitle">流量概览</sys:String>
+    <sys:String x:Key="SettingsTrafficOverviewHint">在代理页顶部显示实时速率与连接摘要</sys:String>
+    <sys:String x:Key="SettingsBasicSection">基础设置</sys:String>
+</ResourceDictionary>

@@ -22,13 +22,14 @@
 
         <TabControl x:Name="MainTabs" Margin="0,8,0,0">
             <!-- 代理（M2-4）：流量摘要 + 分组卡（节点行内联展开） -->
-            <TabItem Header="代理">
+            <TabItem Header="{DynamicResource TabProxy}">
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Top"
                                Text="{Binding TrafficSummary}"
                                FontSize="13"
                                FontWeight="SemiBold"
-                               Margin="4,6,4,6" />
+                               Margin="4,6,4,6"
+                               Visibility="{Binding ShowTrafficOverview, Converter={StaticResource BoolToVis}}" />
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <ItemsControl x:Name="ProxyGroupsList" ItemsSource="{Binding Groups}">
                             <ItemsControl.ItemTemplate>
@@ -129,7 +130,7 @@
             </TabItem>
 
             <!-- 规则（M4-1）：列表（目标/类型/策略/规则集统计）+ 类型过滤 + 搜索 + 策略分组 -->
-            <TabItem Header="规则">
+            <TabItem Header="{DynamicResource TabRules}">
                 <DockPanel x:Name="RulesRoot" Margin="4,8,4,4">
                     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
                         <Button DockPanel.Dock="Right"
@@ -391,7 +392,7 @@
             </TabItem>
 
             <!-- 连接（M3-1/M3-4）：列表（host/规则/链路/上下行速率）+ 三维度流量统计 -->
-            <TabItem Header="连接">
+            <TabItem Header="{DynamicResource TabConnections}">
                 <Grid x:Name="ConnectionsRoot" Margin="4,8,4,4">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -568,7 +569,7 @@
             </TabItem>
 
             <!-- 日志（M3-2）：mihomo WS 流 + 等级过滤 + 搜索 + 渲染上限 -->
-            <TabItem Header="日志">
+            <TabItem Header="{DynamicResource TabLogs}">
                 <DockPanel x:Name="LogsRoot" Margin="4,8,4,4">
                     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
                         <Button DockPanel.Dock="Right"
@@ -651,7 +652,7 @@
                 </DockPanel>
             </TabItem>
             <!-- 网络（M4-2）：系统代理/绕过列表 + 自动代理守护 + 订阅管理 -->
-            <TabItem Header="网络">
+            <TabItem Header="{DynamicResource TabNetwork}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="4,8,4,4">
                         <!-- 系统代理 + 绕过列表（源：SystemTabView 绕过区块 + 快捷开关） -->
@@ -836,12 +837,63 @@
                 </ScrollViewer>
             </TabItem>
 
-            <!-- 设置（M4-3）：外观/语言/开机自启/流量概览 -->
-            <TabItem Header="设置">
-                <TextBlock Text="设置项建设中（M4-3）"
-                           Foreground="#8A93A0"
-                           FontSize="12"
-                           Margin="12" />
+            <!-- 设置（M4-3）：外观 / 语言 / 开机自启 / 流量概览 -->
+            <TabItem Header="{DynamicResource TabSettings}">
+                <Border x:Name="SettingsRoot"
+                        Padding="8"
+                        BorderBrush="#DDD"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Background="#FAFAFA"
+                        Margin="4,8,4,4"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Top"
+                        MinWidth="380">
+                    <StackPanel>
+                        <TextBlock Text="外观"
+                                   FontWeight="SemiBold"
+                                   FontSize="12"
+                                   Margin="0,0,0,6" />
+                        <ComboBox Width="180"
+                                  HorizontalAlignment="Left"
+                                  ItemsSource="{Binding AppearanceOptions}"
+                                  DisplayMemberPath="Label"
+                                  SelectedValuePath="Value"
+                                  SelectedValue="{Binding AppearanceMode}" />
+
+                        <TextBlock Text="语言"
+                                   FontWeight="SemiBold"
+                                   FontSize="12"
+                                   Margin="0,14,0,6" />
+                        <ComboBox Width="180"
+                                  HorizontalAlignment="Left"
+                                  ItemsSource="{Binding LanguageOptions}"
+                                  DisplayMemberPath="Label"
+                                  SelectedValuePath="Value"
+                                  SelectedValue="{Binding Language}" />
+
+                        <TextBlock Text="开机自启"
+                                   FontWeight="SemiBold"
+                                   FontSize="12"
+                                   Margin="0,14,0,6" />
+                        <CheckBox Content="登录 Windows 时自动启动 ClashBarX"
+                                  FontSize="12"
+                                  IsChecked="{Binding LaunchAtLogin}" />
+                        <TextBlock Text="写入注册表失败，已回滚"
+                                   FontSize="11"
+                                   Foreground="#C0392B"
+                                   Margin="18,4,0,0"
+                                   Visibility="{Binding LaunchAtLoginFailed, Converter={StaticResource BoolToVis}}" />
+
+                        <TextBlock Text="流量概览"
+                                   FontWeight="SemiBold"
+                                   FontSize="12"
+                                   Margin="0,14,0,6" />
+                        <CheckBox Content="在代理页顶部显示实时速率与连接摘要"
+                                  FontSize="12"
+                                  IsChecked="{Binding ShowTrafficOverview}" />
+                    </StackPanel>
+                </Border>
             </TabItem>
         </TabControl>
     </DockPanel>

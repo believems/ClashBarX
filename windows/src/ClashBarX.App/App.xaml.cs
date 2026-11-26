@@ -57,6 +57,7 @@ public partial class App : Application
     private RulesPageViewModel? _rulesPage;
     private RuleOverrideService? _ruleOverride;
     private RuleOverrideViewModel? _ruleOverridePage;
+    private SettingsPageViewModel? _settingsPage;
 
     /// <summary>连接页 UI 可见性快照（UI 线程维护，供 WS 后台线程读取——直接读 WPF 属性会跨线程异常）。</summary>
     private volatile bool _connectionsUiVisible;
@@ -123,6 +124,55 @@ public partial class App : Application
         SetupConnectionsPage();
         SetupLogsPage();
         SetupProxyGuard();
+        SetupSettingsPage();
+    }
+
+    // ---- 设置页（M4-3：外观/语言/自启/流量概览；源 AppViewModel+Settings.swift） ----
+
+    private void SetupSettingsPage()
+    {
+        AppSettings saved = _settingsStore.Load();
+        var appearance = saved.AppearanceMode switch
+        {
+            "light" => AppAppearanceMode.Light,
+            "dark" => AppAppearanceMode.Dark,
+            _ => AppAppearanceMode.System,
+        };
+        var language = saved.Language == "en" ? AppLanguage.English : AppLanguage.ChineseSimplified;
+
+        _settingsPage = new SettingsPageViewModel
+        {
+            LaunchAtLoginRequested = enabled =>
+            {
+                new LaunchAtLoginService().Apply(enabled, Environment.ProcessPath!);
+                SaveCurrentSettings();
+                return Task.CompletedTask;
+            },
+        };
+        _settingsPage.AppearanceChanged += mode =>
+        {
+            AppearanceManager.ApplyTheme(mode);
+            SaveCurrentSettings();
+        };
+        _settingsPage.LanguageChanged += languageChanged =>
+        {
+            AppearanceManager.ApplyLanguage(languageChanged);
+            SaveCurrentSettings();
+        };
+        _settingsPage.TrafficOverviewChanged += visible =>
+        {
+            if (_proxyPage != null)
+            {
+                _proxyPage.ShowTrafficOverview = visible;
+            }
+
+            SaveCurrentSettings();
+        };
+        _settingsPage.Restore(appearance, language, saved.LaunchAtLogin, saved.ShowTrafficOverview);
+        _proxyPage!.ShowTrafficOverview = saved.ShowTrafficOverview;
+        AppearanceManager.ApplyTheme(appearance);   // 启动应用持久化外观
+        AppearanceManager.ApplyLanguage(language);   // 启动应用持久化语言
+        _mainWindow!.SetSettingsPage(_settingsPage);
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -814,6 +864,16 @@ public partial class App : Application
             ProxyGuardEnabled = _guardSettings?.IsGuardEnabled ?? saved.ProxyGuardEnabled,
             ProxyGuardIntervalSeconds = _guardIntervalSeconds,
             RuleOverrideEnabled = _ruleOverridePage?.IsEnabled ?? saved.RuleOverrideEnabled,
+            SystemProxyBypassList = _systemProxySection?.NormalizedExceptions() ?? saved.SystemProxyBypassList,
+            AppearanceMode = _settingsPage?.AppearanceMode switch
+            {
+                AppAppearanceMode.Light => "light",
+                AppAppearanceMode.Dark => "dark",
+                _ => "system",
+            },
+            Language = _settingsPage?.Language == AppLanguage.English ? "en" : "zh-Hans",
+            LaunchAtLogin = _settingsPage?.LaunchAtLogin ?? saved.LaunchAtLogin,
+            ShowTrafficOverview = _settingsPage?.ShowTrafficOverview ?? saved.ShowTrafficOverview,
         });
     }
 

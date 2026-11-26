@@ -9,7 +9,11 @@ public sealed record AppSettings(
     bool ProxyGuardEnabled = false,
     int ProxyGuardIntervalSeconds = 300,
     bool RuleOverrideEnabled = false,
-    IReadOnlyList<string>? SystemProxyBypassList = null)
+    IReadOnlyList<string>? SystemProxyBypassList = null,
+    string AppearanceMode = "system",
+    string Language = "zh-Hans",
+    bool LaunchAtLogin = false,
+    bool ShowTrafficOverview = true)
 {
     public static readonly AppSettings Default = new(false);
 }

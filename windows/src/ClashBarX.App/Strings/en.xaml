@@ -1,0 +1,35 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+    <!-- English strings (core UI surfaces; VM dynamic text localization is a follow-up) -->
+    <sys:String x:Key="TabProxy">Proxy</sys:String>
+    <sys:String x:Key="TabRules">Rules</sys:String>
+    <sys:String x:Key="TabConnections">Connections</sys:String>
+    <sys:String x:Key="TabLogs">Logs</sys:String>
+    <sys:String x:Key="TabNetwork">Network</sys:String>
+    <sys:String x:Key="TabSettings">Settings</sys:String>
+
+    <sys:String x:Key="NetworkSystemProxyTitle">System Proxy</sys:String>
+    <sys:String x:Key="NetworkSystemProxyEnable">Enable</sys:String>
+    <sys:String x:Key="NetworkBypassHint">Bypass list (written to Windows proxy exceptions; only listed hosts skip the proxy)</sys:String>
+    <sys:String x:Key="NetworkBypassAdd">Add</sys:String>
+    <sys:String x:Key="NetworkBypassRemove">Remove</sys:String>
+    <sys:String x:Key="NetworkBypassReset">Reset to defaults</sys:String>
+    <sys:String x:Key="NetworkBypassSave">Save</sys:String>
+    <sys:String x:Key="NetworkGuardTitle">Auto Proxy Guard (switch to a working node)</sys:String>
+    <sys:String x:Key="NetworkGuardInterval">Probe interval (seconds)</sys:String>
+    <sys:String x:Key="NetworkGuardCheckNow">Check now</sys:String>
+    <sys:String x:Key="NetworkGuardChecking">Checking…</sys:String>
+    <sys:String x:Key="NetworkSubscriptionTitle">Subscriptions</sys:String>
+    <sys:String x:Key="NetworkSubscriptionImport">Import</sys:String>
+    <sys:String x:Key="NetworkSubscriptionEnable">Enable</sys:String>
+    <sys:String x:Key="NetworkSubscriptionRemove">Remove</sys:String>
+
+    <sys:String x:Key="SettingsAppearanceTitle">Appearance</sys:String>
+    <sys:String x:Key="SettingsLanguageTitle">Language</sys:String>
+    <sys:String x:Key="SettingsLaunchAtLoginTitle">Launch at login</sys:String>
+    <sys:String x:Key="SettingsLaunchAtLoginFailed">Failed to write the registry; reverted</sys:String>
+    <sys:String x:Key="SettingsTrafficOverviewTitle">Traffic overview</sys:String>
+    <sys:String x:Key="SettingsTrafficOverviewHint">Show live rates and connection summary at the top of the proxy page</sys:String>
+    <sys:String x:Key="SettingsBasicSection">Basics</sys:String>
+</ResourceDictionary>

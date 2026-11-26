@@ -160,6 +160,7 @@ public sealed class ProxyPageViewModel : INotifyPropertyChanged
     private readonly Action<string> _log;
     private readonly Func<bool> _isCoreRunning;
     private string _trafficSummary = string.Empty;
+    private bool _showTrafficOverview = true;
 
     public ProxyPageViewModel(
         ProxyBoardService board,
@@ -181,6 +182,13 @@ public sealed class ProxyPageViewModel : INotifyPropertyChanged
     {
         get => _trafficSummary;
         private set => SetProperty(ref _trafficSummary, value);
+    }
+
+    /// <summary>流量概览显隐（源：clashbar.proxy.traffic_overview.visible，默认 true）。</summary>
+    public bool ShowTrafficOverview
+    {
+        get => _showTrafficOverview;
+        set => SetProperty(ref _showTrafficOverview, value);
     }
 
     public ICommand SwitchNodeCommand { get; }
