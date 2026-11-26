@@ -1,0 +1,40 @@
+name: Windows CI
+
+on:
+  push:
+    branches: [integration, main, alpha]
+    paths: ['windows/**', '.github/workflows/windows-ci.yml']
+  workflow_dispatch:
+
+jobs:
+  core-tests:
+    # 分层红线验证：Core 层必须能在 Linux 跑通（LayeringGuard + 211 用例），
+    # 证明零 Win32/WPF 依赖、为将来 Linux 版预留复用。
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Run Core tests
+        run: dotnet test windows/tests/ClashBarX.Core.Tests --configuration Debug
+
+  full-tests:
+    # Windows 全套（含 App.Tests 的 25 个 UI 相关用例，仅 Windows 可跑）。
+    # Windows 池容量充足，无 macOS 池的排队/抢占问题。
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Run all tests
+        run: dotnet test windows/ClashBarX.sln --configuration Debug
