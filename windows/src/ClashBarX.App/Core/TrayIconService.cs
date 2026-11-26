@@ -33,19 +33,37 @@ public sealed class TrayIconService : IDisposable
     /// <summary>用户请求退出应用。</summary>
     public event Action? ExitRequested;
 
+    /// <summary>用户切换系统代理开关（托盘菜单，参数为新状态）。</summary>
+    public event Action<bool>? SystemProxyToggled;
+
     /// <summary>当前托盘图标形态。</summary>
     public TrayIconKind CurrentKind => _kind;
+
+    private readonly MenuItem _proxyItem;
+    private bool _suppressProxyItemEvents;
 
     public TrayIconService()
     {
         var showItem = new MenuItem { Header = "显示主窗(_S)" };
         showItem.Click += (_, _) => ShowMainWindowRequested?.Invoke();
 
+        _proxyItem = new MenuItem { Header = "系统代理(_P)", IsCheckable = true };
+        _proxyItem.Click += (_, _) =>
+        {
+            if (_suppressProxyItemEvents)
+            {
+                return;
+            }
+
+            SystemProxyToggled?.Invoke(_proxyItem.IsChecked);
+        };
+
         var exitItem = new MenuItem { Header = "退出(_X)" };
         exitItem.Click += (_, _) => ExitRequested?.Invoke();
 
         var menu = new ContextMenu();
         menu.Items.Add(showItem);
+        menu.Items.Add(_proxyItem);
         menu.Items.Add(new Separator());
         menu.Items.Add(exitItem);
 
@@ -82,6 +100,20 @@ public sealed class TrayIconService : IDisposable
             TrayIconKind.Sleeping => _sleepingIcon,
             _ => _logoIcon,
         };
+    }
+
+    /// <summary>程序化同步系统代理菜单勾选态（不回环触发事件）。</summary>
+    public void SetSystemProxyChecked(bool isChecked)
+    {
+        _suppressProxyItemEvents = true;
+        try
+        {
+            _proxyItem.IsChecked = isChecked;
+        }
+        finally
+        {
+            _suppressProxyItemEvents = false;
+        }
     }
 
     public void Dispose()

@@ -5,18 +5,25 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:ClashBarX.App"
         mc:Ignorable="d"
-        Title="ClashBarX" Height="420" Width="640"
+        Title="ClashBarX" Height="440" Width="640"
         WindowStartupLocation="CenterScreen">
     <DockPanel Margin="12">
-        <TextBlock x:Name="CoreStatusText"
-                   DockPanel.Dock="Top"
-                   Text="内核未启动"
-                   FontSize="14" FontWeight="SemiBold" />
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal">
+            <TextBlock x:Name="CoreStatusText"
+                       Text="内核未启动"
+                       FontSize="14" FontWeight="SemiBold"
+                       VerticalAlignment="Center" />
+            <ToggleButton x:Name="SystemProxyToggle"
+                          Content="系统代理"
+                          Margin="12,0,0,0"
+                          Padding="8,3"
+                          VerticalAlignment="Center" />
+        </StackPanel>
         <TextBlock DockPanel.Dock="Top"
                    Margin="0,6,0,10"
                    Foreground="#666"
                    TextWrapping="Wrap"
-                   Text="M1 骨架：托盘常驻 + 内核 sidecar 启停。关闭本窗口即最小化到托盘；退出请使用托盘菜单。" />
+                   Text="M2 骨架：托盘常驻 + 内核 sidecar + API 轮询 + 系统代理开关。关闭本窗口即最小化到托盘；退出请使用托盘菜单。" />
         <TextBox x:Name="LogTextBox"
                  IsReadOnly="True"
                  VerticalScrollBarVisibility="Auto"
