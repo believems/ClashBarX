@@ -20,6 +20,8 @@
     <UseWPF>true</UseWPF>
     <!-- JobObjectGuard 的 LibraryImport 源生成器需要（生成器内部使用 unsafe） -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- exe 文件图标（由 scripts/generate-app-icon.ps1 生成，与托盘图标同源设计） -->
+    <ApplicationIcon>app.ico</ApplicationIcon>
   </PropertyGroup>
 
 </Project>

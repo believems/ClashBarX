@@ -31,6 +31,9 @@ public partial class App : Application
         _tray.ShowMainWindowRequested += ShowMainWindow;
         _tray.ExitRequested += ExitFromTray;
 
+        // 启动即显示主窗（可见反馈）；关闭主窗 = 隐藏到托盘，退出走托盘菜单
+        _mainWindow.Show();
+
         _ = StartCoreAtStartupAsync();
     }
 

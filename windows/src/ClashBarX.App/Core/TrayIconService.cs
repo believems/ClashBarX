@@ -3,17 +3,19 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using H.NotifyIcon;
 
 namespace ClashBarX.App.Core;
 
 /// <summary>
 /// 托盘常驻服务：图标、提示文本、右键菜单（显示主窗 / 退出）与单击唤起主窗。
+/// 图标直接以 System.Drawing.Icon 赋给基类 Icon 属性（同步注册，不走
+/// IconSource 的异步转换链——该链在部分环境下静默失败，图标不出现在托盘）。
 /// 退出仅发出事件，由 App 层执行内核终止与关停（保持职责分离）。
 /// </summary>
 public sealed class TrayIconService : IDisposable
 {
-    private readonly TaskbarIcon _icon;
+    private readonly H.NotifyIcon.TaskbarIcon _taskbarIcon;
+    private readonly System.Drawing.Icon _icon;
 
     /// <summary>用户请求显示主窗（托盘单击或菜单）。</summary>
     public event Action? ShowMainWindowRequested;
@@ -34,34 +36,27 @@ public sealed class TrayIconService : IDisposable
         menu.Items.Add(new Separator());
         menu.Items.Add(exitItem);
 
-        _icon = new TaskbarIcon
-        {
-            ToolTipText = "ClashBarX",
-            IconSource = CreateIconSource(),
-            ContextMenu = menu,
-        };
-        _icon.TrayLeftMouseUp += (_, _) => ShowMainWindowRequested?.Invoke();
-    }
-
-    public void Dispose() => _icon.Dispose();
-
-    /// <summary>
-    /// 程序化生成托盘图标（深底白色上箭头），不依赖外部资源文件。
-    /// H.NotifyIcon 的 IconSource 仅支持带 UriSource 的 BitmapImage，
-    /// 因此首次运行把渲染结果封装成 ICO 文件缓存到数据目录再以 Uri 加载。
-    /// </summary>
-    internal static ImageSource CreateIconSource()
-    {
         string iconPath = ClashBarXPaths.TrayIconCachePath();
         EnsureIconFile(iconPath);
+        _icon = new System.Drawing.Icon(iconPath);
 
-        var image = new BitmapImage();
-        image.BeginInit();
-        image.CacheOption = BitmapCacheOption.OnLoad;
-        image.UriSource = new Uri(iconPath);
-        image.EndInit();
-        image.Freeze();
-        return image;
+        _taskbarIcon = new H.NotifyIcon.TaskbarIcon
+        {
+            ToolTipText = "ClashBarX",
+            Icon = _icon,
+            ContextMenu = menu,
+        };
+        _taskbarIcon.TrayLeftMouseUp += (_, _) => ShowMainWindowRequested?.Invoke();
+
+        // 无窗应用（StartupUri 移除、实例不挂视觉树）必须显式 ForceCreate 才会注册托盘图标
+        //（源：H.NotifyIcon README 的 Windowless 用法）；不开节能模式——代理客户端需要正常调度
+        _taskbarIcon.ForceCreate(enablesEfficiencyMode: false);
+    }
+
+    public void Dispose()
+    {
+        _taskbarIcon.Dispose();
+        _icon.Dispose();
     }
 
     private static void EnsureIconFile(string iconPath)
@@ -75,8 +70,8 @@ public sealed class TrayIconService : IDisposable
         File.WriteAllBytes(iconPath, RenderIconAsIco());
     }
 
-    /// <summary>渲染 32×32 图形并封装为单图像 ICO 文件（PNG 载荷，Vista+ 原生支持）。</summary>
-    private static byte[] RenderIconAsIco()
+    /// <summary>渲染 32×32 图形（深底白色上箭头）并封装为单图像 ICO 文件（PNG 载荷）。</summary>
+    internal static byte[] RenderIconAsIco()
     {
         const int Size = 32;
         var visual = new DrawingVisual();
