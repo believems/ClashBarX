@@ -58,6 +58,7 @@ public partial class App : Application
     private RuleOverrideService? _ruleOverride;
     private RuleOverrideViewModel? _ruleOverridePage;
     private SettingsPageViewModel? _settingsPage;
+    private bool _coreSettingsLoaded;
 
     /// <summary>连接页 UI 可见性快照（UI 线程维护，供 WS 后台线程读取——直接读 WPF 属性会跨线程异常）。</summary>
     private volatile bool _connectionsUiVisible;
@@ -157,6 +158,20 @@ public partial class App : Application
                 return Task.CompletedTask;
             },
         };
+        _settingsPage.CoreSettings.PatchConfigAsync = async (key, value) =>
+        {
+            try
+            {
+                await _apiClient!.RequestNoResponseAsync(
+                    MihomoEndpoint.PatchConfigs(new JsonObject { [key] = JsonValue.Create(value) }));
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                _mainWindow?.AppendLog($"[settings] 核心设置应用失败（{key}）：{error.Message}");
+            }
+        };
+        _settingsPage.CoreSettings.RestoreCloseConnections(saved.CloseConnectionsOnSwitch);
+        _settingsPage.CoreSettings.CloseConnectionsChanged += _ => SaveCurrentSettings();
         _settingsPage.AppearanceChanged += mode =>
         {
             AppearanceManager.ApplyTheme(mode);
@@ -181,6 +196,29 @@ public partial class App : Application
         AppearanceManager.ApplyTheme(appearance);   // 启动应用持久化外观
         AppearanceManager.ApplyLanguage(language);   // 启动应用持久化语言
         _mainWindow!.SetSettingsPage(_settingsPage);
+    }
+
+    /// <summary>API 就绪后拉一次内核运行配置（核心设置区初始化；不触发 PATCH）。</summary>
+    private async Task LoadCoreSettingsSnapshotAsync()
+    {
+        if (_coreSettingsLoaded)
+        {
+            return;
+        }
+
+        try
+        {
+            ConfigSnapshot snapshot = await _apiClient!.RequestAsync<ConfigSnapshot>(MihomoEndpoint.GetConfigs());
+            _coreSettingsLoaded = true;
+            await Dispatcher.BeginInvoke(() => _settingsPage?.CoreSettings.ApplySnapshot(
+                snapshot.AllowLan, snapshot.Ipv6, snapshot.TcpConcurrent, snapshot.LogLevel,
+                snapshot.MixedPort, snapshot.Port, snapshot.SocksPort, snapshot.RedirPort, snapshot.TproxyPort));
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            // API 未就绪/瞬断：静默等待下次 healthy 事件重试
+            _ = error;
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -249,7 +287,14 @@ public partial class App : Application
         _poller = new ApiStatusPoller(
             _apiClient,
             intervalProvider: () => _mainWindow is { IsVisible: true } ? ForegroundPollInterval : BackgroundPollInterval);
-        _poller.StatusChanged += _ => Dispatcher.BeginInvoke(RefreshPresentationState);
+        _poller.StatusChanged += status =>
+        {
+            Dispatcher.BeginInvoke(RefreshPresentationState);
+            if (status == ApiHealth.Healthy && !_coreSettingsLoaded)
+            {
+                Dispatcher.BeginInvoke(() => _ = LoadCoreSettingsSnapshotAsync());
+            }
+        };
         _poller.VersionChanged += _ => Dispatcher.BeginInvoke(RefreshPresentationState);
         _poller.ErrorLogged += message => Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog($"[api] {message}"));
         _poller.Start();
@@ -931,6 +976,7 @@ public partial class App : Application
             Language = _settingsPage?.Language == AppLanguage.English ? "en" : "zh-Hans",
             LaunchAtLogin = _settingsPage?.LaunchAtLogin ?? saved.LaunchAtLogin,
             ShowTrafficOverview = _settingsPage?.ShowTrafficOverview ?? saved.ShowTrafficOverview,
+            CloseConnectionsOnSwitch = _settingsPage?.CoreSettings.CloseConnections ?? saved.CloseConnectionsOnSwitch,
         });
     }
 

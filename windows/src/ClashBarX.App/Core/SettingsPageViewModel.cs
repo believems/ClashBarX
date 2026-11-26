@@ -107,6 +107,9 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
         new EnumOption<AppAppearanceMode>("深色", AppAppearanceMode.Dark),
     };
 
+    /// <summary>核心设置子模型（allow-lan/ipv6/tcp-concurrent/日志等级/端口；经 PATCH /configs）。</summary>
+    public CoreSettingsViewModel CoreSettings { get; } = new();
+
     public IReadOnlyList<EnumOption<AppLanguage>> LanguageOptions { get; } = new[]
     {
         new EnumOption<AppLanguage>("简体中文", AppLanguage.ChineseSimplified),

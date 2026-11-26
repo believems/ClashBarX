@@ -13,7 +13,8 @@ public sealed record AppSettings(
     string AppearanceMode = "system",
     string Language = "zh-Hans",
     bool LaunchAtLogin = false,
-    bool ShowTrafficOverview = true)
+    bool ShowTrafficOverview = true,
+    bool CloseConnectionsOnSwitch = false)
 {
     public static readonly AppSettings Default = new(false);
 }
