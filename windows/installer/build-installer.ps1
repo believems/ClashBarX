@@ -22,7 +22,8 @@ if ($LASTEXITCODE -ne 0) { throw "dotnet publish 失败" }
 
 # 解析 ISCC：优先参数，其次 PATH，再尝试常见安装位置
 if (-not $IsccPath) {
-    $IsccPath = (Get-Command "ISCC.exe" -ErrorAction SilentlyContinue)?.Source
+    $command = Get-Command "ISCC.exe" -ErrorAction SilentlyContinue
+    if ($command) { $IsccPath = $command.Source }
 }
 if (-not $IsccPath) {
     $candidates = @(
