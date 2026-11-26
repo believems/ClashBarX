@@ -260,16 +260,88 @@
                 </DockPanel>
             </TabItem>
 
-            <!-- 日志 -->
+            <!-- 日志（M3-2）：mihomo WS 流 + 等级过滤 + 搜索 + 渲染上限 -->
             <TabItem Header="日志">
-                <TextBox x:Name="LogTextBox"
-                         IsReadOnly="True"
-                         VerticalScrollBarVisibility="Auto"
-                         TextWrapping="NoWrap"
-                         FontFamily="Consolas, Microsoft YaHei UI"
-                         FontSize="12"
-                         Margin="0,8,0,0"
-                         Background="#FAFAFA" />
+                <DockPanel x:Name="LogsRoot" Margin="4,8,4,4">
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
+                        <Button DockPanel.Dock="Right"
+                                Content="清空"
+                                Padding="10,2"
+                                MinWidth="52"
+                                Margin="8,0,0,0"
+                                FontSize="11"
+                                Command="{Binding ClearAllCommand}" />
+                        <Button DockPanel.Dock="Right"
+                                Content="复制全部"
+                                Padding="10,2"
+                                FontSize="11"
+                                Click="OnCopyLogsClick" />
+                        <CheckBox Content="错误"
+                                  IsChecked="{Binding IsErrorSelected}"
+                                  Margin="14,0,0,0"
+                                  VerticalAlignment="Center"
+                                  FontSize="12" />
+                        <CheckBox Content="警告"
+                                  IsChecked="{Binding IsWarningSelected}"
+                                  Margin="10,0,0,0"
+                                  VerticalAlignment="Center"
+                                  FontSize="12" />
+                        <CheckBox Content="信息"
+                                  IsChecked="{Binding IsInfoSelected}"
+                                  Margin="10,0,0,0"
+                                  VerticalAlignment="Center"
+                                  FontSize="12" />
+                        <TextBlock Text="{Binding MatchedCountText}"
+                                   Foreground="#5E6B78"
+                                   FontSize="11"
+                                   VerticalAlignment="Center" />
+                    </DockPanel>
+                    <TextBox DockPanel.Dock="Top"
+                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                             VerticalContentAlignment="Center"
+                             Padding="6,2"
+                             Margin="0,0,0,4" />
+                    <ListBox ItemsSource="{Binding VisibleLogs}"
+                             FontFamily="Consolas, Microsoft YaHei UI"
+                             FontSize="12"
+                             Background="#FAFAFA"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             VirtualizingPanel.IsVirtualizing="True">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="2,1">
+                                    <TextBlock DockPanel.Dock="Left"
+                                               Text="{Binding Timestamp}"
+                                               Foreground="#8A93A0"
+                                               FontSize="11"
+                                               VerticalAlignment="Top" />
+                                    <TextBlock DockPanel.Dock="Left"
+                                               Text="{Binding Source}"
+                                               FontSize="11"
+                                               Foreground="#5E6B78"
+                                               Margin="8,0,0,0"
+                                               VerticalAlignment="Top" />
+                                    <TextBlock Text="{Binding Message}"
+                                               TextWrapping="Wrap"
+                                               Margin="8,0,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Level}" Value="error">
+                                                        <Setter Property="Foreground" Value="#C0392B" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Level}" Value="warning">
+                                                        <Setter Property="Foreground" Value="#B7791F" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </DockPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
             </TabItem>
         </TabControl>
     </DockPanel>

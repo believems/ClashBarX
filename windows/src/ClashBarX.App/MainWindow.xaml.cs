@@ -1,4 +1,3 @@
-using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using ClashBarX.App.Core;
@@ -6,12 +5,12 @@ using ClashBarX.App.Core;
 namespace ClashBarX.App;
 
 /// <summary>
-/// M2 主窗：内核状态、系统代理开关、订阅管理（导入/启用/删除）与运行日志。
+/// 主窗：内核状态、系统代理开关、订阅管理（导入/启用/删除）、连接页与日志页。
 /// 业务事件上抛 App 层处理；关闭按钮最小化到托盘（常驻），退出走托盘菜单。
 /// </summary>
 public partial class MainWindow : Window
 {
-    private readonly StringBuilder _logBuffer = new(capacity: 4096);
+    private LogsPageViewModel? _logsPage;
     private bool _suppressToggleEvents;
 
     /// <summary>用户切换系统代理开关（参数为新状态）。</summary>
@@ -92,12 +91,39 @@ public partial class MainWindow : Window
         ConnectionsList.MouseLeave += (_, _) => viewModel.IsReorderingPaused = false;
     }
 
-    /// <summary>追加一行运行日志并滚动到底。调用方负责 UI 线程编组。</summary>
+    /// <summary>注入日志页模型。调用方负责 UI 线程编组。</summary>
+    public void SetLogsPage(LogsPageViewModel viewModel)
+    {
+        _logsPage = viewModel;
+        LogsRoot.DataContext = viewModel;
+    }
+
+    /// <summary>追加一行运行日志。调用方负责 UI 线程编组。</summary>
     public void AppendLog(string line)
     {
-        _logBuffer.AppendLine(line);
-        LogTextBox.Text = _logBuffer.ToString();
-        LogTextBox.ScrollToEnd();
+        if (_logsPage is null)
+        {
+            return;
+        }
+
+        _logsPage.AppendClashBarLog(line);
+    }
+
+    private void OnCopyLogsClick(object sender, RoutedEventArgs e)
+    {
+        if (_logsPage is null)
+        {
+            return;
+        }
+
+        try
+        {
+            Clipboard.SetText(_logsPage.CopyAllText());
+        }
+        catch (System.Runtime.InteropServices.COMException)
+        {
+            // 剪贴板被占用（另一进程持有锁）时静默忽略
+        }
     }
 
     private string? SelectedFileName =>

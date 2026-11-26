@@ -2,9 +2,11 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows;
+using System.Windows.Threading;
 using ClashBarX.App.Core;
 using ClashBarX.Core.Connections;
 using ClashBarX.Core.Json;
+using ClashBarX.Core.Logging;
 using ClashBarX.Core.Mihomo;
 using ClashBarX.Core.Models;
 using ClashBarX.Core.Proxies;
@@ -46,6 +48,8 @@ public partial class App : Application
     private ConnectionsPageViewModel? _connectionsPage;
     private ConnectionStatisticsService? _connectionStatistics;
     private bool _connectionsProcessMatchingEnabled;
+    private LogsPageViewModel? _logsPage;
+    private DispatcherTimer? _mihomoLogFlushTimer;
     private StreamCoordinator? _streams;
     private System.Threading.Timer? _proxyRefreshTimer;
     private string? _lastProxyRefreshError;
@@ -55,7 +59,8 @@ public partial class App : Application
         base.OnStartup(e);
 
         _processManager = new MihomoProcessManager();
-        _processManager.OnLog += line => Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog(line));
+        _processManager.OnLog += line => Dispatcher.BeginInvoke(() =>
+            _logsPage?.QueueMihomoLog(MihomoLogDecoder.NormalizeLevel(line), line));
         _processManager.OnTermination += _ => Dispatcher.BeginInvoke(RefreshPresentationState);
 
         _subscriptions = new SubscriptionService(
@@ -82,12 +87,14 @@ public partial class App : Application
         SetupSystemProxy();
         SetupProxyPage();
         SetupConnectionsPage();
+        SetupLogsPage();
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
         // 兜底：正常退出路径也会先在此终结内核，避免任何路径漏杀
         _proxyRefreshTimer?.Dispose();
+        _mihomoLogFlushTimer?.Stop();
         _streams?.Dispose();
         _proxyWatcher?.Dispose();
         _poller?.Dispose();
@@ -372,6 +379,46 @@ public partial class App : Application
 
     private Task CloseAllConnectionsAsync() =>
         _apiClient!.RequestNoResponseAsync(MihomoEndpoint.CloseAllConnections());
+
+    // ---- 日志页（M3-2：信息架构源 LogsTabView/LogsViewModel + Logging 管线） ----
+
+    private void SetupLogsPage()
+    {
+        _logsPage = new LogsPageViewModel();
+        _mainWindow!.SetLogsPage(_logsPage);
+
+        // mihomo 日志 150ms 批量刷（源：mihomoLogFlushIntervalNanoseconds = 150ms）
+        _mihomoLogFlushTimer = new DispatcherTimer { Interval = LogsPageViewModel.MihomoLogFlushInterval };
+        _mihomoLogFlushTimer.Tick += (_, _) => _logsPage.FlushPendingMihomoLogs();
+        _mihomoLogFlushTimer.Start();
+
+        // 面板可见性：隐藏时收紧内存上限到 20（源：hiddenPanelMaxInMemoryLogEntries）
+        _mainWindow.IsVisibleChanged += (_, _) => _logsPage.SetPanelVisible(_mainWindow.IsVisible);
+
+        StartLogsStream();
+    }
+
+    private void StartLogsStream()
+    {
+        _streams!.Start(
+            "logs",
+            () => _apiClient!.CreateWebSocketConnection(MihomoEndpoint.Logs(level: null)),
+            async payload =>
+            {
+                try
+                {
+                    if (MihomoLogDecoder.TryDecode(payload.Span, out string level, out string message))
+                    {
+                        await Dispatcher.BeginInvoke(() => _logsPage?.QueueMihomoLog(level, message));
+                    }
+                }
+                catch (Exception error)
+                {
+                    // 解码侧意外异常编组到 UI 线程记录，避免在线程池直调 UI 后循环触发重连
+                    Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog($"[logs] 处理失败：{error.Message}"));
+                }
+            });
+    }
 
     // ---- 订阅管理（M2-3） ----
 
