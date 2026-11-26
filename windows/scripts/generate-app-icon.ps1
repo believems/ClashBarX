@@ -1,88 +1,87 @@
-# 生成 ClashBarX 应用图标（src/ClashBarX.App/app.ico）
-# 图形与 TrayIconService.RenderIconAsIco 保持一致：深底圆角方块 + 白色上箭头。
-# 输出 256 与 32 两个尺寸（PNG 载荷 ICO，Vista+ 原生支持）。
-# 用法：powershell -NoProfile -File generate-app-icon.ps1 [输出路径]
+# 从 macOS 线的品牌图标源（Assets.xcassets 的 512px PNG）生成 Windows 侧全部图标资产：
+#   - app.ico      （exe 嵌入图标，256/48/32/16 多尺寸）
+#   - tray.ico     （托盘默认图标，32）
+#   - tray-run.ico / tray-sleep.ico（托盘状态变体，32；源：BrandRun/BrandSleep）
+# 输出均落在 src/ClashBarX.App/ 下（app.ico 与 Assets/）。
+# 用法：powershell -NoProfile -File generate-app-icon.ps1
 
 param(
-    [string]$OutputPath = "$PSScriptRoot\..\src\ClashBarX.App\app.ico"
+    [string]$AppRoot = "$PSScriptRoot\..\src\ClashBarX.App"
 )
 
 Add-Type -AssemblyName System.Drawing
 
-function New-IconPng([int]$Size) {
-    $bitmap = New-Object System.Drawing.Bitmap($Size, $Size)
-    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-    $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-    $scale = $Size / 32.0
+$macAssets = Join-Path $PSScriptRoot "..\..\Sources\ClashBar\Resources\Assets.xcassets"
 
-    # 圆角背景（与 WPF 版 DrawRoundedRectangle 同参数：1,1,30,30 r7）
-    $radius = 7 * $scale
-    $pad = 1 * $scale
-    $width = 30 * $scale
-    $background = New-Object System.Drawing.Drawing2D.GraphicsPath
-    $background.AddArc($pad, $pad, 2 * $radius, 2 * $radius, 180, 90)
-    $background.AddArc($pad + $width - 2 * $radius, $pad, 2 * $radius, 2 * $radius, 270, 90)
-    $background.AddArc($pad + $width - 2 * $radius, $pad + $width - 2 * $radius, 2 * $radius, 2 * $radius, 0, 90)
-    $background.AddArc($pad, $pad + $width - 2 * $radius, 2 * $radius, 2 * $radius, 90, 90)
-    $background.CloseFigure()
-    $brush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(0x2D, 0x33, 0x3B))
-    $graphics.FillPath($brush, $background)
+function Convert-PngToIco {
+    param(
+        [string]$SourcePng,
+        [string]$OutputIco,
+        [int[]]$Sizes
+    )
 
-    # 白色上箭头（与 WPF 版同一组顶点）
-    $points = @(
-        @(16, 6), @(26, 17), @(21, 17),
-        @(21, 26), @(11, 26), @(11, 17), @(6, 17)
-    ) | ForEach-Object {
-        New-Object System.Drawing.PointF ([float]($_[0] * $scale), [float]($_[1] * $scale))
+    $source = [System.Drawing.Image]::FromFile($SourcePng)
+    $payloads = @()
+    foreach ($size in $Sizes) {
+        $bitmap = New-Object System.Drawing.Bitmap($size, $size)
+        $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+        $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+        $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+        $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+        $graphics.DrawImage($source, 0, 0, $size, $size)
+        $graphics.Dispose()
+
+        $stream = New-Object System.IO.MemoryStream
+        $bitmap.Save($stream, [System.Drawing.Imaging.ImageFormat]::Png)
+        $bitmap.Dispose()
+        # 逗号包裹防止 PowerShell 输出流把 byte[] 逐元素展开
+        $payloads += , ($stream.ToArray())
     }
-    $arrow = New-Object System.Drawing.Drawing2D.GraphicsPath
-    $arrow.AddPolygon($points)
-    $graphics.FillPath([System.Drawing.Brushes]::White, $arrow)
+    $source.Dispose()
 
-    $graphics.Dispose()
-    $stream = New-Object System.IO.MemoryStream
-    $bitmap.Save($stream, [System.Drawing.Imaging.ImageFormat]::Png)
-    $bitmap.Dispose()
-    # 逗号包裹防止 PowerShell 输出流把 byte[] 逐元素展开
-    return , ($stream.ToArray())
+    $out = New-Object System.IO.MemoryStream
+    $writer = New-Object System.IO.BinaryWriter($out)
+    $writer.Write([uint16]0)                 # Reserved
+    $writer.Write([uint16]1)                 # Type = icon
+    $writer.Write([uint16]$Sizes.Count)      # Count
+
+    $offset = 6 + 16 * $Sizes.Count
+    for ($i = 0; $i -lt $Sizes.Count; $i++) {
+        $size = $Sizes[$i]
+        $payload = $payloads[$i]
+        $writer.Write([byte]$(if ($size -ge 256) { 0 } else { $size }))   # Width（256 记为 0）
+        $writer.Write([byte]$(if ($size -ge 256) { 0 } else { $size }))   # Height
+        $writer.Write([byte]0)               # ColorCount
+        $writer.Write([byte]0)               # Reserved
+        $writer.Write([uint16]1)             # Planes
+        $writer.Write([uint16]32)            # BitCount
+        $writer.Write([uint32]$payload.Length)
+        $writer.Write([uint32]$offset)
+        $offset += $payload.Length
+    }
+    foreach ($payload in $payloads) {
+        $writer.Write($payload)
+    }
+    $writer.Flush()
+
+    $target = [System.IO.Path]::GetFullPath($OutputIco)
+    [System.IO.Directory]::CreateDirectory([System.IO.Path]::GetDirectoryName($target)) | Out-Null
+    [System.IO.File]::WriteAllBytes($target, $out.ToArray())
+    $writer.Dispose()
+    Write-Output "已生成 $target（$((Get-Item $target).Length) 字节，尺寸 $($Sizes -join '/')）"
 }
 
-$png256 = New-IconPng 256
-$png32 = New-IconPng 32
+$appRoot = [System.IO.Path]::GetFullPath($AppRoot)
+$assets = Join-Path $appRoot "Assets"
 
-# ICO 容器：ICONDIR(6) + N x ICONDIRENTRY(16) + PNG 载荷
-$out = New-Object System.IO.MemoryStream
-$writer = New-Object System.IO.BinaryWriter($out)
-$writer.Write([uint16]0)   # Reserved
-$writer.Write([uint16]1)   # Type = icon
-$writer.Write([uint16]2)   # Count
+# exe 嵌入图标：主 logo 多尺寸
+Convert-PngToIco -SourcePng (Join-Path $macAssets "BrandLogo.imageset\logo.png") `
+    -OutputIco (Join-Path $appRoot "app.ico") -Sizes @(256, 48, 32, 16)
 
-# 目录项 1：256（宽度 256 在字节字段中记为 0）
-$writer.Write([byte]0)
-$writer.Write([byte]0)
-$writer.Write([byte]0)
-$writer.Write([byte]0)
-$writer.Write([uint16]1)
-$writer.Write([uint16]32)
-$writer.Write([uint32]$png256.Length)
-$writer.Write([uint32](6 + 2 * 16))
-
-# 目录项 2：32
-$writer.Write([byte]32)
-$writer.Write([byte]32)
-$writer.Write([byte]0)
-$writer.Write([byte]0)
-$writer.Write([uint16]1)
-$writer.Write([uint16]32)
-$writer.Write([uint32]$png32.Length)
-$writer.Write([uint32](6 + 2 * 16 + $png256.Length))
-
-$writer.Write($png256)
-$writer.Write($png32)
-$writer.Flush()
-
-$target = [System.IO.Path]::GetFullPath($OutputPath)
-[System.IO.Directory]::CreateDirectory([System.IO.Path]::GetDirectoryName($target)) | Out-Null
-[System.IO.File]::WriteAllBytes($target, $out.ToArray())
-$writer.Dispose()
-Write-Output "已生成 $target（$((Get-Item $target).Length) 字节：256 + 32）"
+# 托盘默认与状态变体（源与 macOS 菜单栏同源：BrandLogo/BrandRun/BrandSleep）
+Convert-PngToIco -SourcePng (Join-Path $macAssets "BrandLogo.imageset\logo.png") `
+    -OutputIco (Join-Path $assets "tray.ico") -Sizes @(32)
+Convert-PngToIco -SourcePng (Join-Path $macAssets "BrandRun.imageset\icon-run.png") `
+    -OutputIco (Join-Path $assets "tray-run.ico") -Sizes @(32)
+Convert-PngToIco -SourcePng (Join-Path $macAssets "BrandSleep.imageset\icon-sleep.png") `
+    -OutputIco (Join-Path $assets "tray-sleep.ico") -Sizes @(32)

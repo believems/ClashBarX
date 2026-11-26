@@ -1,27 +1,40 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 
 namespace ClashBarX.App.Core;
 
+/// <summary>托盘图标形态（与 macOS 菜单栏同源资产：BrandLogo / BrandRun / BrandSleep）。</summary>
+public enum TrayIconKind
+{
+    Logo,
+    Running,
+    Sleeping,
+}
+
 /// <summary>
-/// 托盘常驻服务：图标、提示文本、右键菜单（显示主窗 / 退出）与单击唤起主窗。
+/// 托盘常驻服务：品牌图标、提示文本、右键菜单（显示主窗 / 退出）与单击唤起主窗。
 /// 图标直接以 System.Drawing.Icon 赋给基类 Icon 属性（同步注册，不走
 /// IconSource 的异步转换链——该链在部分环境下静默失败，图标不出现在托盘）。
+/// 无窗应用（实例不挂视觉树）必须显式 ForceCreate 才会注册托盘图标。
 /// 退出仅发出事件，由 App 层执行内核终止与关停（保持职责分离）。
 /// </summary>
 public sealed class TrayIconService : IDisposable
 {
     private readonly H.NotifyIcon.TaskbarIcon _taskbarIcon;
-    private readonly System.Drawing.Icon _icon;
+    private readonly System.Drawing.Icon _logoIcon;
+    private readonly System.Drawing.Icon _runningIcon;
+    private readonly System.Drawing.Icon _sleepingIcon;
+    private TrayIconKind _kind;
 
     /// <summary>用户请求显示主窗（托盘单击或菜单）。</summary>
     public event Action? ShowMainWindowRequested;
 
     /// <summary>用户请求退出应用。</summary>
     public event Action? ExitRequested;
+
+    /// <summary>当前托盘图标形态。</summary>
+    public TrayIconKind CurrentKind => _kind;
 
     public TrayIconService()
     {
@@ -36,94 +49,54 @@ public sealed class TrayIconService : IDisposable
         menu.Items.Add(new Separator());
         menu.Items.Add(exitItem);
 
-        string iconPath = ClashBarXPaths.TrayIconCachePath();
-        EnsureIconFile(iconPath);
-        _icon = new System.Drawing.Icon(iconPath);
+        _logoIcon = LoadEmbeddedIcon("tray.ico");
+        _runningIcon = LoadEmbeddedIcon("tray-run.ico");
+        _sleepingIcon = LoadEmbeddedIcon("tray-sleep.ico");
 
         _taskbarIcon = new H.NotifyIcon.TaskbarIcon
         {
             ToolTipText = "ClashBarX",
-            Icon = _icon,
+            Icon = _logoIcon,
             ContextMenu = menu,
         };
         _taskbarIcon.TrayLeftMouseUp += (_, _) => ShowMainWindowRequested?.Invoke();
+        _kind = TrayIconKind.Logo;
 
         // 无窗应用（StartupUri 移除、实例不挂视觉树）必须显式 ForceCreate 才会注册托盘图标
         //（源：H.NotifyIcon README 的 Windowless 用法）；不开节能模式——代理客户端需要正常调度
         _taskbarIcon.ForceCreate(enablesEfficiencyMode: false);
     }
 
-    public void Dispose()
+    /// <summary>切换托盘状态图标（内核运行中 / 已停止），与 macOS 菜单栏状态语义对齐。</summary>
+    public void SetKind(TrayIconKind kind)
     {
-        _taskbarIcon.Dispose();
-        _icon.Dispose();
-    }
-
-    private static void EnsureIconFile(string iconPath)
-    {
-        if (File.Exists(iconPath))
+        if (kind == _kind)
         {
             return;
         }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(iconPath)!);
-        File.WriteAllBytes(iconPath, RenderIconAsIco());
+        _kind = kind;
+        _taskbarIcon.Icon = kind switch
+        {
+            TrayIconKind.Running => _runningIcon,
+            TrayIconKind.Sleeping => _sleepingIcon,
+            _ => _logoIcon,
+        };
     }
 
-    /// <summary>渲染 32×32 图形（深底白色上箭头）并封装为单图像 ICO 文件（PNG 载荷）。</summary>
-    internal static byte[] RenderIconAsIco()
+    public void Dispose()
     {
-        const int Size = 32;
-        var visual = new DrawingVisual();
-        using (DrawingContext context = visual.RenderOpen())
-        {
-            context.DrawRoundedRectangle(
-                new SolidColorBrush(Color.FromRgb(0x2D, 0x33, 0x3B)),
-                null,
-                new Rect(1, 1, Size - 2, Size - 2),
-                7, 7);
+        _taskbarIcon.Dispose();
+        _logoIcon.Dispose();
+        _runningIcon.Dispose();
+        _sleepingIcon.Dispose();
+    }
 
-            var arrow = new StreamGeometry();
-            using (StreamGeometryContext geometry = arrow.Open())
-            {
-                geometry.BeginFigure(new Point(16, 6), isFilled: true, isClosed: true);
-                geometry.LineTo(new Point(26, 17), isStroked: true, isSmoothJoin: false);
-                geometry.LineTo(new Point(21, 17), isStroked: true, isSmoothJoin: false);
-                geometry.LineTo(new Point(21, 26), isStroked: true, isSmoothJoin: false);
-                geometry.LineTo(new Point(11, 26), isStroked: true, isSmoothJoin: false);
-                geometry.LineTo(new Point(11, 17), isStroked: true, isSmoothJoin: false);
-                geometry.LineTo(new Point(6, 17), isStroked: true, isSmoothJoin: false);
-            }
-
-            arrow.Freeze();
-            context.DrawGeometry(Brushes.White, null, arrow);
-        }
-
-        var bitmap = new RenderTargetBitmap(Size, Size, 96, 96, PixelFormats.Pbgra32);
-        bitmap.Render(visual);
-
-        var encoder = new PngBitmapEncoder();
-        encoder.Frames.Add(BitmapFrame.Create(bitmap));
-        using var pngStream = new MemoryStream();
-        encoder.Save(pngStream);
-        byte[] png = pngStream.ToArray();
-
-        // ICONDIR(6) + ICONDIRENTRY(16) + PNG 载荷
-        using var icoStream = new MemoryStream();
-        using var writer = new BinaryWriter(icoStream);
-        writer.Write((ushort)0);            // Reserved
-        writer.Write((ushort)1);            // Type = icon
-        writer.Write((ushort)1);            // Count
-        writer.Write((byte)Size);           // Width
-        writer.Write((byte)Size);           // Height
-        writer.Write((byte)0);              // ColorCount
-        writer.Write((byte)0);              // Reserved
-        writer.Write((ushort)1);            // Planes
-        writer.Write((ushort)32);           // BitCount
-        writer.Write((uint)png.Length);     // BytesInRes
-        writer.Write((uint)22);             // ImageOffset
-        writer.Write(png);
-        writer.Flush();
-        return icoStream.ToArray();
+    /// <summary>从程序集内嵌资源（csproj Resource）加载 ICO。</summary>
+    private static System.Drawing.Icon LoadEmbeddedIcon(string resourceName)
+    {
+        var uri = new Uri($"pack://application:,,,/Assets/{resourceName}");
+        using Stream stream = System.Windows.Application.GetResourceStream(uri)!.Stream;
+        return new System.Drawing.Icon(stream);
     }
 }
