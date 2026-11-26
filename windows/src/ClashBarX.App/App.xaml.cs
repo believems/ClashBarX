@@ -44,6 +44,7 @@ public partial class App : Application
     private MihomoApiClient? _apiClient;
     private ApiStatusPoller? _poller;
     private SystemProxyService? _systemProxy;
+    private SystemProxySectionViewModel? _systemProxySection;
     private RegistryWatcher? _proxyWatcher;
     private TrayIconService? _tray;
     private MainWindow? _mainWindow;
@@ -101,7 +102,6 @@ public partial class App : Application
             Path.Combine(ClashBarXPaths.AppDataRoot(), "subscriptions.json"));
 
         _mainWindow = new MainWindow();
-        _mainWindow.SystemProxyToggled += OnSystemProxyToggled;
         _mainWindow.SubscriptionImportRequested += OnSubscriptionImportRequested;
         _mainWindow.ConfigActivateRequested += OnConfigActivateRequested;
         _mainWindow.ConfigRemoveRequested += OnConfigRemoveRequested;
@@ -206,8 +206,8 @@ public partial class App : Application
         _systemProxy.Logged += message => Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog(message));
         _systemProxy.EnabledChanged += enabled => Dispatcher.BeginInvoke(() =>
         {
-            _mainWindow?.SetSystemProxyChecked(enabled);
             _tray?.SetSystemProxyChecked(enabled);
+            _systemProxySection?.SetEnabled(enabled);   // 网络页开关镜像
         });
 
         _proxyWatcher = new RegistryWatcher(
@@ -218,16 +218,68 @@ public partial class App : Application
         };
         _proxyWatcher.Start();
 
+        // 网络页系统代理区块（开关 + 绕过列表）
+        SetupNetworkPage();
+
         // 初始观测同步（外部工具可能已开/关代理）
         SystemProxySnapshot snapshot = _systemProxy.RefreshState();
-        _mainWindow?.SetSystemProxyChecked(snapshot.Enabled);
         _tray?.SetSystemProxyChecked(snapshot.Enabled);
+        _systemProxySection?.SetEnabled(snapshot.Enabled);
 
         // 启动恢复开启意图（源：startup repair 语义）：等待 API 就绪后拉取混合端口
         if (_settingsStore.Load().SystemProxyEnabled)
         {
             _ = EnableSystemProxyFromCoreConfigAsync(reason: "startup restore");
         }
+    }
+
+    /// <summary>网络页系统代理区块：开关上抛 + 绕过列表持久化与重写（源：saveSystemProxyExceptions）。</summary>
+    private void SetupNetworkPage()
+    {
+        _systemProxySection = new SystemProxySectionViewModel(SaveSystemProxyBypassListAsync);
+        _systemProxySection.LoadExceptions(_settingsStore.Load().SystemProxyBypassList);
+        _systemProxySection.ToggleRequested += enable =>
+        {
+            if (enable)
+            {
+                _ = EnableSystemProxyFromCoreConfigAsync(reason: "user toggle");
+            }
+            else
+            {
+                _systemProxy?.Disable();
+                _settingsStore.Save(_settingsStore.Load() with { SystemProxyEnabled = false });
+            }
+        };
+        _mainWindow!.SetSystemProxySection(_systemProxySection);
+    }
+
+    /// <summary>保存绕过列表：持久化到设置；系统代理开着时用新列表重写（源：setExceptionsList 语义）。</summary>
+    private async Task SaveSystemProxyBypassListAsync()
+    {
+        IReadOnlyList<string> bypass = _systemProxySection?.NormalizedExceptions()
+            ?? SystemProxySectionViewModel.DefaultBypassList.ToList();
+
+        AppSettings saved = _settingsStore.Load();
+        _settingsStore.Save(saved with { SystemProxyBypassList = bypass });
+
+        if (_systemProxy?.ExpectedTarget is { } expected)
+        {
+            try
+            {
+                _systemProxy.Enable(new SystemProxyTarget(expected.Host, expected.Port, bypass));
+                _mainWindow?.AppendLog($"[system proxy] 绕过列表已保存并重写（{bypass.Count} 条）");
+            }
+            catch (Exception error)
+            {
+                _mainWindow?.AppendLog($"[system proxy] 绕过列表重写失败：{error.Message}");
+            }
+        }
+        else
+        {
+            _mainWindow?.AppendLog($"[system proxy] 绕过列表已保存（{bypass.Count} 条，下次开启时生效）");
+        }
+
+        await Task.CompletedTask;
     }
 
     private void OnSystemProxyToggled(bool enable)
@@ -239,7 +291,7 @@ public partial class App : Application
         else
         {
             _systemProxy?.Disable();
-            _settingsStore.Save(new AppSettings(SystemProxyEnabled: false));
+            _settingsStore.Save(_settingsStore.Load() with { SystemProxyEnabled = false });
         }
     }
 
@@ -255,15 +307,17 @@ public partial class App : Application
                 _mainWindow?.AppendLog($"[system proxy] {reason}: 内核未开启混合端口，无法设置代理");
                 Dispatcher.BeginInvoke(() =>
                 {
-                    _mainWindow?.SetSystemProxyChecked(false);
                     _tray?.SetSystemProxyChecked(false);
                 });
-                _settingsStore.Save(new AppSettings(SystemProxyEnabled: false));
+                _settingsStore.Save(_settingsStore.Load() with { SystemProxyEnabled = false });
                 return;
             }
 
-            _systemProxy?.Enable(new SystemProxyTarget("127.0.0.1", mixedPort, SystemProxyDefaults.DefaultBypassList));
-            _settingsStore.Save(new AppSettings(SystemProxyEnabled: true));
+            // 绕过列表优先用持久化值（源：saveSystemProxyExceptions 后的启用链路）
+            IReadOnlyList<string> bypass =
+                _settingsStore.Load().SystemProxyBypassList ?? SystemProxyDefaults.DefaultBypassList;
+            _systemProxy?.Enable(new SystemProxyTarget("127.0.0.1", mixedPort, bypass));
+            _settingsStore.Save(_settingsStore.Load() with { SystemProxyEnabled = true });
         }
         catch (Exception error)
         {

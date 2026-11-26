@@ -11,10 +11,6 @@ namespace ClashBarX.App;
 public partial class MainWindow : Window
 {
     private LogsPageViewModel? _logsPage;
-    private bool _suppressToggleEvents;
-
-    /// <summary>用户切换系统代理开关（参数为新状态）。</summary>
-    public event Action<bool>? SystemProxyToggled;
 
     /// <summary>请求导入订阅（参数为 URL 文本）。</summary>
     public event Action<string>? SubscriptionImportRequested;
@@ -28,8 +24,6 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        SystemProxyToggle.Checked += (_, _) => RaiseToggled(true);
-        SystemProxyToggle.Unchecked += (_, _) => RaiseToggled(false);
         MainTabs.SelectionChanged += (_, _) => TabSelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -37,20 +31,6 @@ public partial class MainWindow : Window
     public event EventHandler? TabSelectionChanged;
 
     public void SetCoreStatus(string status) => CoreStatusText.Text = status;
-
-    /// <summary>程序化同步开关勾选态（不回环触发事件）。调用方负责 UI 线程编组。</summary>
-    public void SetSystemProxyChecked(bool isChecked)
-    {
-        _suppressToggleEvents = true;
-        try
-        {
-            SystemProxyToggle.IsChecked = isChecked;
-        }
-        finally
-        {
-            _suppressToggleEvents = false;
-        }
-    }
 
     /// <summary>刷新配置列表与选中标记。调用方负责 UI 线程编组。</summary>
     public void SetConfigFiles(IReadOnlyList<string> fileNames, string? selected)
@@ -97,6 +77,10 @@ public partial class MainWindow : Window
     /// <summary>注入规则覆写卡片模型（规则页底部独立 DataContext）。调用方负责 UI 线程编组。</summary>
     public void SetRuleOverridePage(RuleOverrideViewModel viewModel) =>
         OverrideCardRoot.DataContext = viewModel;
+
+    /// <summary>注入网络页系统代理区块模型。调用方负责 UI 线程编组。</summary>
+    public void SetSystemProxySection(SystemProxySectionViewModel viewModel) =>
+        SystemProxySectionRoot.DataContext = viewModel;
 
     public void SetConnectionsPage(ConnectionsPageViewModel viewModel)
     {
@@ -146,14 +130,6 @@ public partial class MainWindow : Window
 
     private string? SelectedFileName =>
         (ConfigFilesBox.SelectedItem as ListBoxItem)?.Tag as string;
-
-    private void RaiseToggled(bool isChecked)
-    {
-        if (!_suppressToggleEvents)
-        {
-            SystemProxyToggled?.Invoke(isChecked);
-        }
-    }
 
     private void OnImportClick(object sender, RoutedEventArgs e)
     {

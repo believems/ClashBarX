@@ -8,7 +8,8 @@ public sealed record AppSettings(
     bool SystemProxyEnabled,
     bool ProxyGuardEnabled = false,
     int ProxyGuardIntervalSeconds = 300,
-    bool RuleOverrideEnabled = false)
+    bool RuleOverrideEnabled = false,
+    IReadOnlyList<string>? SystemProxyBypassList = null)
 {
     public static readonly AppSettings Default = new(false);
 }
