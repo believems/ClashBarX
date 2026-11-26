@@ -1,0 +1,137 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+    <!-- 中文文案（核心 UI 面；VM 动态文案的双语化列为后续项） -->
+    <sys:String x:Key="TabProxy">代理</sys:String>
+    <sys:String x:Key="TabRules">规则</sys:String>
+    <sys:String x:Key="TabConnections">连接</sys:String>
+    <sys:String x:Key="TabLogs">日志</sys:String>
+    <sys:String x:Key="TabNetwork">网络</sys:String>
+    <sys:String x:Key="TabSettings">设置</sys:String>
+
+    <sys:String x:Key="NetworkSystemProxyTitle">系统代理</sys:String>
+    <sys:String x:Key="NetworkSystemProxyEnable">启用</sys:String>
+    <sys:String x:Key="NetworkBypassHint">绕过列表（写入 Windows 代理例外，不在列表内的地址才走代理）</sys:String>
+    <sys:String x:Key="NetworkBypassAdd">新增</sys:String>
+    <sys:String x:Key="NetworkBypassRemove">移除</sys:String>
+    <sys:String x:Key="NetworkBypassReset">恢复默认</sys:String>
+    <sys:String x:Key="NetworkBypassSave">保存</sys:String>
+    <sys:String x:Key="NetworkGuardTitle">自动代理守护（自动切换可用节点）</sys:String>
+    <sys:String x:Key="NetworkGuardInterval">探测周期（秒）</sys:String>
+    <sys:String x:Key="NetworkGuardCheckNow">立即检查</sys:String>
+    <sys:String x:Key="NetworkGuardChecking">检查中…</sys:String>
+    <sys:String x:Key="NetworkSubscriptionTitle">订阅</sys:String>
+    <sys:String x:Key="NetworkSubscriptionImport">导入</sys:String>
+    <sys:String x:Key="NetworkSubscriptionEnable">启用</sys:String>
+    <sys:String x:Key="NetworkSubscriptionRemove">删除</sys:String>
+
+    <sys:String x:Key="SettingsAppearanceTitle">外观</sys:String>
+    <sys:String x:Key="SettingsLanguageTitle">语言</sys:String>
+    <sys:String x:Key="SettingsLaunchAtLoginTitle">开机自启</sys:String>
+    <sys:String x:Key="SettingsLaunchAtLoginFailed">写入注册表失败，已回滚</sys:String>
+    <sys:String x:Key="SettingsTrafficOverviewTitle">流量概览</sys:String>
+    <sys:String x:Key="SettingsTrafficOverviewHint">在代理页顶部显示实时速率与连接摘要</sys:String>
+    <sys:String x:Key="SettingsBasicSection">基础设置</sys:String>
+
+    <sys:String x:Key="ProxyTunMode">TUN 模式</sys:String>
+    <sys:String x:Key="ProxyTunToggle">启用</sys:String>
+    <sys:String x:Key="ProxyTunStackHint">TUN 协议栈；切换 stack 将重启 TUN 并需要管理员权限</sys:String>
+
+    <sys:String x:Key="MachineManagerTitle">远程机器</sys:String>
+    <sys:String x:Key="MachineLocal">本机</sys:String>
+    <sys:String x:Key="MachineAdd">添加机器</sys:String>
+    <sys:String x:Key="MachineEdit">编辑</sys:String>
+    <sys:String x:Key="MachineDelete">删除</sys:String>
+    <sys:String x:Key="MachineSwitch">切换</sys:String>
+    <sys:String x:Key="MachineManage">管理</sys:String>
+    <sys:String x:Key="MachineFieldName">名称</sys:String>
+    <sys:String x:Key="MachineFieldHost">主机</sys:String>
+    <sys:String x:Key="MachineFieldPort">端口</sys:String>
+    <sys:String x:Key="MachineFieldSecret">API 密钥</sys:String>
+    <sys:String x:Key="MachineFieldHttps">HTTPS 连接</sys:String>
+    <sys:String x:Key="MachineSave">保存</sys:String>
+    <sys:String x:Key="MachineRemoteReadonly">远程只读（本机配置不可变更）</sys:String>
+
+    <sys:String x:Key="SsidStrategyTitle">SSID 自动切换</sys:String>
+    <sys:String x:Key="SsidStrategyToggle">启用</sys:String>
+    <sys:String x:Key="SsidStrategyHint">Wi-Fi 名称变化时自动切换到绑定的配置（热重载）</sys:String>
+    <sys:String x:Key="SsidStrategyBindCurrent">绑定当前 Wi-Fi → 当前配置</sys:String>
+    <sys:String x:Key="SsidStrategyUnbind">解除绑定</sys:String>
+
+    <sys:String x:Key="AboutVersionTooltip">查看发布页</sys:String>
+    <sys:String x:Key="AboutCheckUpdate">检查更新</sys:String>
+
+    <sys:String x:Key="ProvidersTitle">订阅源</sys:String>
+    <sys:String x:Key="ProvidersUpdateAll">更新全部</sys:String>
+    <sys:String x:Key="ProvidersHealthcheck">健康检查（测速全部节点）</sys:String>
+    <sys:String x:Key="ProvidersRefresh">更新此订阅源</sys:String>
+
+    <sys:String x:Key="GroupsTestAllTooltip">测全部可见分组的延迟</sys:String>
+    <sys:String x:Key="GroupsSortByLatency">延迟排序</sys:String>
+    <sys:String x:Key="GroupsLatencyHistory">延迟历史</sys:String>
+    <sys:String x:Key="GroupsShowHidden">显示隐藏分组</sys:String>
+
+    <sys:String x:Key="WebUIOpen">WebUI</sys:String>
+
+    <sys:String x:Key="CoreStatusDefault">内核未启动</sys:String>
+    <sys:String x:Key="CoreStart">启动内核</sys:String>
+    <sys:String x:Key="CoreStop">停止内核</sys:String>
+    <sys:String x:Key="CoreRestart">重启内核</sys:String>
+    <sys:String x:Key="ProxyCopyCommand">复制代理命令</sys:String>
+    <sys:String x:Key="ModeRule">规则</sys:String>
+    <sys:String x:Key="ModeGlobal">全局</sys:String>
+    <sys:String x:Key="ModeDirect">直连</sys:String>
+    <sys:String x:Key="GroupsTestAll">⚡ 全部测速</sys:String>
+    <sys:String x:Key="GroupTest">测速</sys:String>
+    <sys:String x:Key="RulesRefreshProviders">刷新规则集</sys:String>
+    <sys:String x:Key="RulesGroupByPolicy">按策略分组</sys:String>
+    <sys:String x:Key="OverrideTitle">规则覆写</sys:String>
+    <sys:String x:Key="OverridePrependHint">前置规则（插在订阅 rules 最前）</sys:String>
+    <sys:String x:Key="OverrideAppendHint">追加规则（插在 MATCH/FINAL 之前）</sys:String>
+    <sys:String x:Key="OverrideRuleSetsHint">规则集（同名以覆写为准）</sys:String>
+    <sys:String x:Key="OverrideRevert">还原</sys:String>
+    <sys:String x:Key="OverrideOpenFolder">打开覆写目录</sys:String>
+    <sys:String x:Key="ConnectionsListTab">连接</sys:String>
+    <sys:String x:Key="ConnectionsStatsTab">统计</sys:String>
+    <sys:String x:Key="ConnectionsCloseAll">关闭全部</sys:String>
+    <sys:String x:Key="ConnectionsSortDesc">降序</sys:String>
+    <sys:String x:Key="ConnectionsTotal">合计</sys:String>
+    <sys:String x:Key="LogsClear">清空</sys:String>
+    <sys:String x:Key="LogsCopyAll">复制全部</sys:String>
+    <sys:String x:Key="LogsLevelError">错误</sys:String>
+    <sys:String x:Key="LogsLevelWarning">警告</sys:String>
+    <sys:String x:Key="LogsLevelInfo">信息</sys:String>
+    <sys:String x:Key="SubscriptionUpdate">更新</sys:String>
+    <sys:String x:Key="SubscriptionUpdateAll">更新全部</sys:String>
+    <sys:String x:Key="SettingsLaunchAtLoginHint">登录 Windows 时自动启动 ClashBarX</sys:String>
+    <sys:String x:Key="SettingsCoreSection">核心设置</sys:String>
+    <sys:String x:Key="SettingsAllowLan">允许局域网连接（allow-lan）</sys:String>
+    <sys:String x:Key="SettingsTcpConcurrent">TCP 并发（tcp-concurrent）</sys:String>
+    <sys:String x:Key="SettingsCloseConnections">切换节点时关闭旧连接</sys:String>
+    <sys:String x:Key="SettingsLogLevel">日志等级</sys:String>
+    <sys:String x:Key="SettingsProxyPorts">代理端口（修改后自动保存）</sys:String>
+    <sys:String x:Key="SettingsMixedPort">混合端口</sys:String>
+    <sys:String x:Key="SettingsHttpPort">HTTP 代理端口</sys:String>
+    <sys:String x:Key="SettingsSocksPort">SOCKS5 端口</sys:String>
+    <sys:String x:Key="SettingsRedirPort">透明代理端口</sys:String>
+    <sys:String x:Key="SettingsTproxyPort">TProxy 端口</sys:String>
+    <sys:String x:Key="SettingsMaintenance">维护</sys:String>
+    <sys:String x:Key="MaintenanceFlushFakeIP">清 FakeIP 缓存</sys:String>
+    <sys:String x:Key="MaintenanceFlushDNS">清 DNS 缓存</sys:String>
+    <sys:String x:Key="MaintenanceOpenCoreDir">打开内核目录</sys:String>
+    <sys:String x:Key="SettingsAbout">关于</sys:String>
+    <sys:String x:Key="MachineTooltipUnknown">未知</sys:String>
+    <sys:String x:Key="ConnectionsCloseOne">关闭连接</sys:String>
+    <sys:String x:Key="GroupsHideUnavailable">隐藏不可用节点</sys:String>
+    <sys:String x:Key="ProvidersNodeCount"> 节点</sys:String>
+    <sys:String x:Key="OverrideCountEntries"> 条</sys:String>
+    <sys:String x:Key="OverrideCountSets"> 个</sys:String>
+    <sys:String x:Key="OverrideApplyNow">立即应用</sys:String>
+    <sys:String x:Key="CommonProcessing">执行中…</sys:String>
+    <sys:String x:Key="GuardCheckNow">立即检查</sys:String>
+    <sys:String x:Key="CommonChecking">检查中…</sys:String>
+    <sys:String x:Key="MaintenanceUpdateGeo">更新 GEO 数据</sys:String>
+    <sys:String x:Key="MaintenanceUpgradeCore">升级内核</sys:String>
+    <sys:String x:Key="AboutVersionPrefix">版本 </sys:String>
+    <sys:String x:Key="MachineSecretKeepHint">留空保持原密钥不变</sys:String>
+</ResourceDictionary>

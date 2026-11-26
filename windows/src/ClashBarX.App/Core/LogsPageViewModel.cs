@@ -35,12 +35,14 @@ public sealed class LogsPageViewModel : INotifyPropertyChanged
     private readonly List<AppLogEntry> _entries = new();
     private readonly List<AppLogEntry> _pendingMihomoLogs = new();
     private readonly HashSet<string> _selectedLevels = new();
+    private readonly HashSet<AppLogSource> _selectedSources = new();
     private bool _isPanelVisible = true;
     private string _searchText = string.Empty;
     private bool _isInfoSelected;
     private bool _isWarningSelected;
     private bool _isErrorSelected;
     private string _matchedCountText = "0";
+    private string _logLevel = "info";
 
     public LogsPageViewModel()
     {
@@ -110,7 +112,78 @@ public sealed class LogsPageViewModel : INotifyPropertyChanged
         }
     }
 
+    /// <summary>来源过滤两态 chip（源：logsSourceFilterButtons——空集 = 全部）。</summary>
+    public bool IsClashBarSourceSelected
+    {
+        get => _selectedSources.Contains(AppLogSource.ClashBar);
+        set
+        {
+            if (value)
+            {
+                _selectedSources.Add(AppLogSource.ClashBar);
+            }
+            else
+            {
+                _selectedSources.Remove(AppLogSource.ClashBar);
+            }
+
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsClashBarSourceSelected)));
+            RebuildVisibleLogs();
+        }
+    }
+
+    public bool IsMihomoSourceSelected
+    {
+        get => _selectedSources.Contains(AppLogSource.Mihomo);
+        set
+        {
+            if (value)
+            {
+                _selectedSources.Add(AppLogSource.Mihomo);
+            }
+            else
+            {
+                _selectedSources.Remove(AppLogSource.Mihomo);
+            }
+
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsMihomoSourceSelected)));
+            RebuildVisibleLogs();
+        }
+    }
+
     public ICommand ClearAllCommand { get; }
+
+    /// <summary>内核日志等级变化（App 层 PATCH /configs log-level；源：日志页级别菜单直接改内核设置）。</summary>
+    public event Action<string>? LogLevelChanged;
+
+    /// <summary>内核日志等级（debug/info/warning/error/silent）。</summary>
+    public string LogLevel
+    {
+        get => _logLevel;
+        set
+        {
+            if (SetProperty(ref _logLevel, value) && value.Length > 0)
+            {
+                LogLevelChanged?.Invoke(value);
+            }
+        }
+    }
+
+    public IReadOnlyList<PolicyOption> LogLevelOptions { get; } = new[]
+    {
+        new PolicyOption("debug", "debug"),
+        new PolicyOption("info", "info"),
+        new PolicyOption("warning", "warning"),
+        new PolicyOption("error", "error"),
+        new PolicyOption("silent", "silent"),
+    };
+
+    /// <summary>同步等级显示（设置页或快照回推；不触发事件）。</summary>
+    public void SyncLogLevel(string level)
+    {
+        _logLevel = string.IsNullOrWhiteSpace(level) ? "info" : level;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LogLevel)));
+    }
 
     /// <summary>App 自身日志：不入缓冲直接入列（源：appendLog(source: .clashbar)）。</summary>
     public void AppendClashBarLog(string message) => AppendClashBarLog("info", message);
@@ -227,6 +300,11 @@ public sealed class LogsPageViewModel : INotifyPropertyChanged
         foreach (AppLogEntry entry in _entries)
         {
             if (_selectedLevels.Count > 0 && !_selectedLevels.Contains(entry.Level))
+            {
+                continue;
+            }
+
+            if (_selectedSources.Count > 0 && !_selectedSources.Contains(entry.Source))
             {
                 continue;
             }

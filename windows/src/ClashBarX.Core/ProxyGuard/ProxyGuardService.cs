@@ -1,4 +1,5 @@
 using ClashBarX.Core.Mihomo;
+using ClashBarX.Core.L10n;
 using ClashBarX.Core.Models;
 using ClashBarX.Core.Proxies;
 
@@ -102,7 +103,7 @@ public sealed class ProxyGuardService : IDisposable
             _loopTask = Task.Run(() => GuardLoopAsync(probeImmediately, token), token);
         }
 
-        Logged?.Invoke("info", "代理守护已启动");
+        Logged?.Invoke("info", CoreL10n.T("log.guard.started"));
     }
 
     public void Stop()
@@ -173,7 +174,7 @@ public sealed class ProxyGuardService : IDisposable
             catch (Exception error)
             {
                 // 兜底：探测内部的恢复流程异常已吞，此处防御性保证循环永不 Faulted
-                Logged?.Invoke("error", $"守护循环异常：{error.Message}");
+                Logged?.Invoke("error", CoreL10n.T("log.guard.loop_error", error.Message));
             }
         }
     }
@@ -206,7 +207,7 @@ public sealed class ProxyGuardService : IDisposable
                     if (_consecutiveFailures > 0)
                     {
                         logLevel = "info";
-                        logMessage = "网络连通已恢复";
+                        logMessage = CoreL10n.T("log.guard.recovered");
                     }
 
                     _consecutiveFailures = 0;
@@ -215,7 +216,7 @@ public sealed class ProxyGuardService : IDisposable
                 {
                     _consecutiveFailures++;
                     logLevel = "warning";
-                    logMessage = $"探测失败（连续第 {_consecutiveFailures} 次，阈值 {FailureThreshold}）";
+                    logMessage = CoreL10n.T("log.guard.probe_failed", _consecutiveFailures, FailureThreshold);
                 }
 
                 failures = _consecutiveFailures;
@@ -251,7 +252,7 @@ public sealed class ProxyGuardService : IDisposable
         catch (Exception error) when (error is not OperationCanceledException)
         {
             // 恢复期间内核 API 超时/错误不杀死循环：记录后由下一周期重试
-            Logged?.Invoke("error", $"探测流程异常：{error.Message}");
+            Logged?.Invoke("error", CoreL10n.T("log.guard.probe_error", error.Message));
             return new ProxyGuardProbeState(ProxyGuardProbeOutcome.Failed, ConsecutiveFailures);
         }
         finally
@@ -276,13 +277,13 @@ public sealed class ProxyGuardService : IDisposable
 
         try
         {
-            Logged?.Invoke("warning", "连续失败达到阈值，开始恢复（组内切换 → 订阅自愈）");
+            Logged?.Invoke("warning", CoreL10n.T("log.guard.recovery_started"));
 
             // 1) 组内切换：当前节点坏、组内有活节点就直接切
             if (await RecoverBySwitchingWithinGroupsAsync(token).ConfigureAwait(false)
                 && await _probeAsync(token).ConfigureAwait(false))
             {
-                Logged?.Invoke("info", "网络连通已恢复");
+                Logged?.Invoke("info", CoreL10n.T("log.guard.recovered"));
                 return;
             }
 
@@ -305,11 +306,11 @@ public sealed class ProxyGuardService : IDisposable
             if (await RecoverBySwitchingWithinGroupsAsync(token).ConfigureAwait(false)
                 && await _probeAsync(token).ConfigureAwait(false))
             {
-                Logged?.Invoke("info", "网络连通已恢复");
+                Logged?.Invoke("info", CoreL10n.T("log.guard.recovered"));
             }
             else
             {
-                Logged?.Invoke("error", "恢复失败：组内无可用节点且订阅自愈未生效");
+                Logged?.Invoke("error", CoreL10n.T("log.guard.recovery_failed"));
             }
         }
         finally
@@ -371,7 +372,7 @@ public sealed class ProxyGuardService : IDisposable
 
             await _client.RequestNoResponseAsync(
                 MihomoEndpoint.SwitchProxy(group.Name, best.Value.Key), token).ConfigureAwait(false);
-            Logged?.Invoke("info", $"已切换 {group.Name} → {best.Value.Key}（{best.Value.Value} ms）");
+            Logged?.Invoke("info", CoreL10n.T("log.guard.switched_node", group.Name, best.Value.Key, best.Value.Value));
             didSwitch = true;
         }
 
@@ -405,7 +406,7 @@ public sealed class ProxyGuardService : IDisposable
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            Logged?.Invoke("warning", $"拉取代理提供者失败：{error.Message}");
+            Logged?.Invoke("warning", CoreL10n.T("log.guard.providers_fetch_failed", error.Message));
             return;
         }
 
@@ -415,7 +416,7 @@ public sealed class ProxyGuardService : IDisposable
             return;
         }
 
-        Logged?.Invoke("info", $"更新全部订阅自愈（{names.Count} 个提供者）");
+        Logged?.Invoke("info", CoreL10n.T("log.guard.self_heal_all", names.Count));
         foreach (string name in names)
         {
             try
@@ -425,7 +426,7 @@ public sealed class ProxyGuardService : IDisposable
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                Logged?.Invoke("warning", $"更新提供者 {name} 失败：{error.Message}");
+                Logged?.Invoke("warning", CoreL10n.T("log.guard.self_heal_failed", name, error.Message));
             }
         }
     }

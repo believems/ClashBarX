@@ -4,12 +4,15 @@ using System.Windows.Controls;
 
 namespace ClashBarX.App.Core;
 
-/// <summary>托盘图标形态（与 macOS 菜单栏同源资产：BrandLogo / BrandRun / BrandSleep）。</summary>
+/// <summary>托盘图标形态（与 macOS 菜单栏同源资产：BrandLogo / BrandRun / BrandSleep / BrandTun）。</summary>
 public enum TrayIconKind
 {
     Logo,
     Running,
     Sleeping,
+
+    /// <summary>运行中且 TUN 开启（源：StatusItemContentView 的 tunBrandStatusIconImage 分支）。</summary>
+    Tun,
 }
 
 /// <summary>
@@ -25,6 +28,7 @@ public sealed class TrayIconService : IDisposable
     private readonly System.Drawing.Icon _logoIcon;
     private readonly System.Drawing.Icon _runningIcon;
     private readonly System.Drawing.Icon _sleepingIcon;
+    private readonly System.Drawing.Icon _tunIcon;
     private TrayIconKind _kind;
 
     /// <summary>用户请求显示主窗（托盘单击或菜单）。</summary>
@@ -36,18 +40,25 @@ public sealed class TrayIconService : IDisposable
     /// <summary>用户切换系统代理开关（托盘菜单，参数为新状态）。</summary>
     public event Action<bool>? SystemProxyToggled;
 
+    /// <summary>用户切换分流模式（托盘菜单子项，参数为 rule/global/direct）。</summary>
+    public event Action<string>? ModeChanged;
+
     /// <summary>当前托盘图标形态。</summary>
     public TrayIconKind CurrentKind => _kind;
 
     private readonly MenuItem _proxyItem;
+    private readonly MenuItem _modeRuleItem;
+    private readonly MenuItem _modeGlobalItem;
+    private readonly MenuItem _modeDirectItem;
     private bool _suppressProxyItemEvents;
+    private bool _suppressModeItemEvents;
 
     public TrayIconService()
     {
-        var showItem = new MenuItem { Header = "显示主窗(_S)" };
+        var showItem = new MenuItem { Header = ClashBarX.Core.L10n.CoreL10n.T("tray.menu.show_window") };
         showItem.Click += (_, _) => ShowMainWindowRequested?.Invoke();
 
-        _proxyItem = new MenuItem { Header = "系统代理(_P)", IsCheckable = true };
+        _proxyItem = new MenuItem { Header = ClashBarX.Core.L10n.CoreL10n.T("tray.menu.system_proxy"), IsCheckable = true };
         _proxyItem.Click += (_, _) =>
         {
             if (_suppressProxyItemEvents)
@@ -58,18 +69,29 @@ public sealed class TrayIconService : IDisposable
             SystemProxyToggled?.Invoke(_proxyItem.IsChecked);
         };
 
-        var exitItem = new MenuItem { Header = "退出(_X)" };
+        // 分流模式子菜单（不打开主窗即可切换；源：菜单栏 mode 菜单语义）
+        var modeMenu = new MenuItem { Header = ClashBarX.Core.L10n.CoreL10n.T("tray.menu.mode") };
+        _modeRuleItem = MakeModeItem(ClashBarX.Core.L10n.CoreL10n.T("tray.menu.mode_rule"), "rule");
+        _modeGlobalItem = MakeModeItem(ClashBarX.Core.L10n.CoreL10n.T("tray.menu.mode_global"), "global");
+        _modeDirectItem = MakeModeItem(ClashBarX.Core.L10n.CoreL10n.T("tray.menu.mode_direct"), "direct");
+        modeMenu.Items.Add(_modeRuleItem);
+        modeMenu.Items.Add(_modeGlobalItem);
+        modeMenu.Items.Add(_modeDirectItem);
+
+        var exitItem = new MenuItem { Header = ClashBarX.Core.L10n.CoreL10n.T("tray.menu.exit") };
         exitItem.Click += (_, _) => ExitRequested?.Invoke();
 
         var menu = new ContextMenu();
         menu.Items.Add(showItem);
         menu.Items.Add(_proxyItem);
+        menu.Items.Add(modeMenu);
         menu.Items.Add(new Separator());
         menu.Items.Add(exitItem);
 
         _logoIcon = LoadEmbeddedIcon("tray.ico");
         _runningIcon = LoadEmbeddedIcon("tray-run.ico");
         _sleepingIcon = LoadEmbeddedIcon("tray-sleep.ico");
+        _tunIcon = LoadEmbeddedIcon("tray-tun.ico");
 
         _taskbarIcon = new H.NotifyIcon.TaskbarIcon
         {
@@ -85,6 +107,31 @@ public sealed class TrayIconService : IDisposable
         _taskbarIcon.ForceCreate(enablesEfficiencyMode: false);
     }
 
+    /// <summary>状态化提示文本（源：状态栏语义——tooltip 随内核状态与实时速率更新）。</summary>
+    public void SetToolTip(string text)
+    {
+        _lastStatusToolTip = text;
+        _taskbarIcon.ToolTipText = text;
+    }
+
+    /// <summary>
+    /// 轻量即时反馈（源：macOS banner 的 Windows 对应物）：tooltip 闪现消息 3 秒后
+    /// 恢复状态 tooltip（H.NotifyIcon 2.4.1 无气泡 API，tooltip 闪现为最接近的通道）。
+    /// </summary>
+    public void ShowTransientMessage(string message)
+    {
+        _taskbarIcon.ToolTipText = $"ClashBarX · {message}";
+        _tooltipResetTimer?.Dispose();
+        _tooltipResetTimer = new System.Threading.Timer(
+            _ => SetToolTip(_lastStatusToolTip),
+            null,
+            TimeSpan.FromSeconds(3),
+            Timeout.InfiniteTimeSpan);
+    }
+
+    private System.Threading.Timer? _tooltipResetTimer;
+    private string _lastStatusToolTip = "ClashBarX";
+
     /// <summary>切换托盘状态图标（内核运行中 / 已停止），与 macOS 菜单栏状态语义对齐。</summary>
     public void SetKind(TrayIconKind kind)
     {
@@ -98,6 +145,7 @@ public sealed class TrayIconService : IDisposable
         {
             TrayIconKind.Running => _runningIcon,
             TrayIconKind.Sleeping => _sleepingIcon,
+            TrayIconKind.Tun => _tunIcon,
             _ => _logoIcon,
         };
     }
@@ -116,12 +164,44 @@ public sealed class TrayIconService : IDisposable
         }
     }
 
+    /// <summary>程序化同步分流模式勾选态（不回环触发事件）。</summary>
+    public void SetModeChecked(string mode)
+    {
+        _suppressModeItemEvents = true;
+        try
+        {
+            _modeRuleItem.IsChecked = mode == "rule";
+            _modeGlobalItem.IsChecked = mode == "global";
+            _modeDirectItem.IsChecked = mode == "direct";
+        }
+        finally
+        {
+            _suppressModeItemEvents = false;
+        }
+    }
+
+    private MenuItem MakeModeItem(string header, string mode)
+    {
+        var item = new MenuItem { Header = header, IsCheckable = true };
+        item.Click += (_, _) =>
+        {
+            if (_suppressModeItemEvents)
+            {
+                return;
+            }
+
+            ModeChanged?.Invoke(mode);
+        };
+        return item;
+    }
+
     public void Dispose()
     {
         _taskbarIcon.Dispose();
         _logoIcon.Dispose();
         _runningIcon.Dispose();
         _sleepingIcon.Dispose();
+        _tunIcon.Dispose();
     }
 
     /// <summary>从程序集内嵌资源（csproj Resource）加载 ICO。</summary>

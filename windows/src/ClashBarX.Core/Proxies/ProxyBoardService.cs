@@ -69,6 +69,76 @@ public sealed class ProxyBoardService
         _client.RequestNoResponseAsync(
             MihomoEndpoint.SwitchProxy(groupName, targetNode), cancellationToken);
 
+    /// <summary>更新单个 provider（源：updateProxyProvider——PUT /providers/proxies/{name}）。</summary>
+    public Task UpdateProviderAsync(string providerName, CancellationToken cancellationToken = default) =>
+        _client.RequestNoResponseAsync(
+            MihomoEndpoint.UpdateProxyProvider(providerName), cancellationToken);
+
+    /// <summary>更新全部 provider（源：refreshAllProxyProviders——逐个更新，逐个容错）。</summary>
+    public async Task<IReadOnlyList<string>> UpdateAllProvidersAsync(CancellationToken cancellationToken = default)
+    {
+        ProviderSummary? providers = null;
+        try
+        {
+            providers = await _client
+                .RequestAsync<ProviderSummary>(MihomoEndpoint.ProxyProviders(), cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            return Array.Empty<string>();   // 列表拉取失败视为无 provider（源：静默容错）
+        }
+
+        var updated = new List<string>();
+        foreach (string name in providers?.Providers.Keys ?? Enumerable.Empty<string>())
+        {
+            try
+            {
+                await UpdateProviderAsync(name, cancellationToken).ConfigureAwait(false);
+                updated.Add(name);
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                // 单个失败不阻断其余（源：逐个容错）
+            }
+        }
+
+        return updated;
+    }
+
+    /// <summary>单个 provider 全量 healthcheck（源：providerActionButton(.healthcheck)——
+    /// GET /providers/proxies/{name}/healthcheck，测速参数取 provider 声明或缺省）。</summary>
+    public async Task HealthcheckProviderAsync(string providerName, CancellationToken cancellationToken = default)
+    {
+        (string url, int timeout) = await ResolveProviderHealthcheckParametersAsync(providerName, cancellationToken)
+            .ConfigureAwait(false);
+        await _client.RequestNoResponseAsync(
+            MihomoEndpoint.ProxyProviderHealthcheck(providerName, url, timeout), cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task<(string Url, int Timeout)> ResolveProviderHealthcheckParametersAsync(
+        string providerName, CancellationToken cancellationToken)
+    {
+        try
+        {
+            ProviderSummary? providers = await _client
+                .RequestAsync<ProviderSummary>(MihomoEndpoint.ProxyProviders(), cancellationToken)
+                .ConfigureAwait(false);
+            if (providers?.Providers.TryGetValue(providerName, out ProviderDetail? provider) == true
+                && provider != null)
+            {
+                return (provider.TestUrl ?? DefaultHealthcheckUrl, provider.Timeout ?? DefaultHealthcheckTimeoutMilliseconds);
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            // 参数解析失败走缺省
+        }
+
+        return (DefaultHealthcheckUrl, DefaultHealthcheckTimeoutMilliseconds);
+    }
+
     /// <summary>
     /// 组测速：返回节点名 → 延迟毫秒。未测到的成员按 0（超时）记录
     /// （源：groupDelayResult 的 members 全集语义）。
@@ -80,7 +150,7 @@ public sealed class ProxyBoardService
         ProxyGroup? group = board.Groups.FirstOrDefault(item => item.Name == groupName);
         if (group is null)
         {
-            throw new InvalidOperationException($"代理组不存在：{groupName}");
+            throw new InvalidOperationException($"proxy group not found: {groupName}");
         }
 
         (string url, int timeout) = ResolveHealthcheckParameters(group);
@@ -115,7 +185,7 @@ public sealed class ProxyBoardService
         ProxyGroup? group = board.Groups.FirstOrDefault(item => item.Name == groupName);
         if (group is null)
         {
-            throw new InvalidOperationException($"代理组不存在：{groupName}");
+            throw new InvalidOperationException($"proxy group not found: {groupName}");
         }
 
         (string url, int timeout) = ResolveHealthcheckParameters(group);

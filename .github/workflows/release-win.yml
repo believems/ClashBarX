@@ -1,0 +1,226 @@
+name: Release Windows
+
+# Windows 发版流水线（M4-5）：tag=win-v1.0.0 触发（应用内显示 1.0.0；
+# v1.0.0 已被 macOS 占用，从 v1.1.0 起双平台同 tag 统一版本号）。
+# 产物：ClashBarX-<版本>-setup.exe（Inno Setup）+ portable zip + 各自 sha256。
+on:
+  push:
+    tags:
+      - 'win-v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Optional explicit tag (win-v1.2.3 or win-1.2.3). Leave empty to auto-increment.'
+        required: false
+        type: string
+      bump:
+        description: 'Version bump when tag is empty.'
+        required: false
+        default: auto
+        type: choice
+        options:
+          - auto
+          - patch
+          - minor
+          - major
+
+jobs:
+  prepare-version:
+    if: github.event_name != 'push' || github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        env:
+          INPUT_TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || '' }}
+          INPUT_BUMP: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.bump || 'auto' }}
+        run: |
+          set -euo pipefail
+
+          # Windows 首发版独立编号（win-v 前缀；应用内显示去掉前缀的纯版本号）。
+          extract_version() {
+            local raw="$1"
+            if [[ "$raw" =~ ^win-v?([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+              echo "${BASH_REMATCH[1]}"
+              return 0
+            fi
+            return 1
+          }
+
+          tag=""
+          version=""
+
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            tag="${GITHUB_REF_NAME}"
+            if ! version="$(extract_version "$tag")"; then
+              echo "Tag '$tag' is not valid (expected win-v1.2.3 or win-1.2.3)." >&2
+              exit 1
+            fi
+          else
+            git fetch --tags --force
+
+            if [[ -n "${INPUT_TAG:-}" ]]; then
+              tag="${INPUT_TAG}"
+              if ! version="$(extract_version "$tag")"; then
+                echo "Input tag '$INPUT_TAG' is not valid (expected win-v1.2.3 or win-1.2.3)." >&2
+                exit 1
+              fi
+            else
+              last_tag="$(git tag -l 'win-v[1-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1 || true)"
+              if [[ -z "$last_tag" ]]; then
+                tag="win-v1.0.0"
+                version="1.0.0"
+                echo "No Windows release yet, starting at $tag"
+              else
+                base_version="$(extract_version "$last_tag")"
+                range="${last_tag}..HEAD"
+
+                bump="${INPUT_BUMP:-auto}"
+                if [[ "$bump" == "auto" || -z "$bump" ]]; then
+                  chmod +x Scripts/resolve_version_bump.sh
+                  if ! bump="$(git log --format='%s%n%b' $range | Scripts/resolve_version_bump.sh)"; then
+                    echo "No releasable commits found since ${last_tag}. Set bump manually." >&2
+                    exit 1
+                  fi
+                fi
+
+                IFS='.' read -r major minor patch <<< "$base_version"
+                case "$bump" in
+                  major) major=$((major + 1)); minor=0; patch=0 ;;
+                  minor) minor=$((minor + 1)); patch=0 ;;
+                  patch) patch=$((patch + 1)) ;;
+                  *) echo "Unsupported bump type: $bump" >&2; exit 1 ;;
+                esac
+                version="${major}.${minor}.${patch}"
+                tag="win-v${version}"
+                echo "Auto-calculated tag: $tag (bump: $bump, base: ${last_tag})"
+              fi
+            fi
+
+            if git ls-remote --tags origin "refs/tags/${tag}" | grep -q .; then
+              echo "Tag ${tag} already exists on origin, reusing it."
+            else
+              git config user.name "github-actions[bot]"
+              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+              git tag "$tag"
+              git push origin "$tag"
+              echo "Created and pushed tag: $tag"
+            fi
+          fi
+
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+  build-windows:
+    needs: prepare-version
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare-version.outputs.tag }}
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      # 测试与构建同 job；失败即阻塞 release——测试是发版门槛（对齐 release-dmg 语义）
+      - name: Run all tests
+        shell: pwsh
+        run: dotnet test windows/ClashBarX.sln --configuration Release
+
+      - name: Build portable zip
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          powershell -NoProfile -ExecutionPolicy Bypass -File windows/installer/build-portable.ps1 `
+            -Version "${{ needs.prepare-version.outputs.version }}"
+
+      - name: Build setup installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $iscc = (Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup*\ISCC.exe", "${env:ProgramFiles}\Inno Setup*\ISCC.exe" -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $iscc) { throw "ISCC.exe not found" }
+          powershell -NoProfile -ExecutionPolicy Bypass -File windows/installer/build-installer.ps1 `
+            -Version "${{ needs.prepare-version.outputs.version }}" -IsccPath "$iscc"
+
+      - name: Generate sha256
+        shell: pwsh
+        run: |
+          $dist = "windows/dist"
+          Get-ChildItem "$dist\*.exe", "$dist\*.zip" | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
+            "$hash  $($_.Name)" | Set-Content -Path "$($_.FullName).sha256" -NoNewline
+            Write-Host "$($_.Name): $hash"
+          }
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: win-release
+          path: |
+            windows/dist/*.exe
+            windows/dist/*.zip
+            windows/dist/*.sha256
+          if-no-files-found: error
+
+  release:
+    needs: [prepare-version, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare-version.outputs.tag }}
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: win-release
+          path: dist
+
+      - name: Compose release body
+        shell: bash
+        run: |
+          cat > release.md <<'EOF'
+          ## ClashBarX for Windows ${{ needs.prepare-version.outputs.version }}
+
+          - **安装版**：`ClashBarX-${{ needs.prepare-version.outputs.version }}-setup.exe` —— Inno Setup，用户级安装（%LOCALAPPDATA%\Programs），无需管理员；含开始菜单快捷方式与卸载。
+          - **绿色便携版**：`ClashBarX-${{ needs.prepare-version.outputs.version }}-portable-win-x64.zip` —— 自包含 .NET 8，解压即用。
+          - 数据目录 `%APPDATA%\ClashBarX`（配置/订阅/内核），卸载与升级均保留。
+          - 首次使用请导入订阅或在 `%APPDATA%\ClashBarX\config.yaml` 准备运行配置，并将 `mihomo.exe` 放入 `%APPDATA%\ClashBarX\core\`。
+          EOF
+
+      - name: Publish release assets
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.prepare-version.outputs.tag }}
+          name: ClashBarX for Windows ${{ needs.prepare-version.outputs.version }}
+          body_path: release.md
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/*.exe
+            dist/*.zip
+            dist/*.sha256

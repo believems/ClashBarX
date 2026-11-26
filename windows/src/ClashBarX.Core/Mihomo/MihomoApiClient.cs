@@ -155,7 +155,7 @@ public sealed class MihomoApiClient : IMihomoApiClient
         {
             // 端点超时（外部取消不在此列，会原样向上传播）
             throw new TimeoutException(
-                $"mihomo 请求超时（{endpoint.Timeout.TotalSeconds:0.##}s）：{endpoint.Method} {uri.PathAndQuery}");
+                $"mihomo request timed out ({endpoint.Timeout.TotalSeconds:0.##}s): {endpoint.Method} {uri.PathAndQuery}");
         }
     }
 

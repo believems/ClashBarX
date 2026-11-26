@@ -78,10 +78,12 @@ $assets = Join-Path $appRoot "Assets"
 Convert-PngToIco -SourcePng (Join-Path $macAssets "BrandLogo.imageset\logo.png") `
     -OutputIco (Join-Path $appRoot "app.ico") -Sizes @(256, 48, 32, 16)
 
-# 托盘默认与状态变体（源与 macOS 菜单栏同源：BrandLogo/BrandRun/BrandSleep）
+# 托盘默认与状态变体（源与 macOS 菜单栏同源：BrandLogo/BrandRun/BrandSleep/BrandTun）
 Convert-PngToIco -SourcePng (Join-Path $macAssets "BrandLogo.imageset\logo.png") `
     -OutputIco (Join-Path $assets "tray.ico") -Sizes @(32)
 Convert-PngToIco -SourcePng (Join-Path $macAssets "BrandRun.imageset\icon-run.png") `
     -OutputIco (Join-Path $assets "tray-run.ico") -Sizes @(32)
 Convert-PngToIco -SourcePng (Join-Path $macAssets "BrandSleep.imageset\icon-sleep.png") `
     -OutputIco (Join-Path $assets "tray-sleep.ico") -Sizes @(32)
+Convert-PngToIco -SourcePng (Join-Path $macAssets "BrandTun.imageset\icon-tun.png") `
+    -OutputIco (Join-Path $assets "tray-tun.ico") -Sizes @(32)

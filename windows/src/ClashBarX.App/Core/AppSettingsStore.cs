@@ -7,7 +7,18 @@ namespace ClashBarX.App.Core;
 public sealed record AppSettings(
     bool SystemProxyEnabled,
     bool ProxyGuardEnabled = false,
-    int ProxyGuardIntervalSeconds = 300)
+    int ProxyGuardIntervalSeconds = 300,
+    bool RuleOverrideEnabled = false,
+    IReadOnlyList<string>? SystemProxyBypassList = null,
+    string AppearanceMode = "system",
+    string Language = "zh-Hans",
+    bool LaunchAtLogin = false,
+    bool ShowTrafficOverview = true,
+    bool CloseConnectionsOnSwitch = false,
+    bool TunEnabled = false,
+    string TunStack = "mixed",
+    bool SsidStrategyEnabled = false,
+    string SsidStrategyRulesJson = "[]")
 {
     public static readonly AppSettings Default = new(false);
 }

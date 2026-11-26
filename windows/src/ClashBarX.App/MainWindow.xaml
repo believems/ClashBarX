@@ -4,35 +4,306 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:ClashBarX.App"
+        xmlns:core="clr-namespace:ClashBarX.App.Core"
+        xmlns:overrides="clr-namespace:ClashBarX.Core.Overrides;assembly=ClashBarX.Core"
         mc:Ignorable="d"
         Title="ClashBarX" Height="560" Width="760"
         WindowStartupLocation="CenterScreen">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <core:InverseBoolConverter x:Key="InverseBool" />
+        <core:InverseBoolToVisibilityConverter x:Key="InvertVis" />
+        <core:InverseBoolToVisibilityConverter x:Key="InverseBoolToVis" />
+        <core:StringToVisibilityConverter x:Key="StringToVis" />
     </Window.Resources>
     <DockPanel Margin="12">
-        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal">
-            <TextBlock x:Name="CoreStatusText"
-                       Text="内核未启动"
-                       FontSize="14" FontWeight="SemiBold"
-                       VerticalAlignment="Center" />
-            <ToggleButton x:Name="SystemProxyToggle"
-                          Content="系统代理"
-                          Margin="12,0,0,0"
-                          Padding="8,3"
-                          VerticalAlignment="Center" />
-        </StackPanel>
+        <!-- 远程机器切换器（源：MenuBarHeaderView.headerConnectionControl——状态点 + 目标下拉 + 管理） -->
+        <DockPanel DockPanel.Dock="Top">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <Ellipse x:Name="MachineStatusDot"
+                         Width="8" Height="8"
+                         Fill="#B0B7C0"
+                         VerticalAlignment="Center"
+                         Margin="0,0,6,0"
+                         ToolTip="{DynamicResource MachineTooltipUnknown}" />
+                <ComboBox x:Name="MachineTargetSelector"
+                          Width="170"
+                          FontSize="11"
+                          VerticalAlignment="Center"
+                          SelectionChanged="OnMachineTargetSelectionChanged" />
+                <Button x:Name="ManageMachinesButton"
+                        Content="{DynamicResource MachineManage}"
+                        FontSize="11"
+                        Padding="8,2"
+                        Margin="6,0,0,0"
+                        VerticalAlignment="Center"
+                        Click="OnManageMachinesClick" />
+                <!-- WebUI 入口（源：headerControllerWebUIButton——打开 external-ui；未配置时 metacubexd 引导） -->
+                <Button Content="{DynamicResource WebUIOpen}"
+                        FontSize="11"
+                        Padding="8,2"
+                        Margin="6,0,0,0"
+                        VerticalAlignment="Center"
+                        Click="OnOpenWebUIClick" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal">
+                <TextBlock x:Name="CoreStatusText"
+                           Text="{DynamicResource CoreStatusDefault}"
+                           FontSize="14" FontWeight="SemiBold"
+                           VerticalAlignment="Center" />
+                <!-- 手动内核生命周期（源：MenuBarHeaderView 的启动/停止/重启动作；远程目标禁用） -->
+                <Button x:Name="StartCoreButton"
+                        Content="{DynamicResource CoreStart}"
+                        FontSize="11"
+                        Padding="8,2"
+                        Margin="14,0,0,0"
+                        VerticalAlignment="Center"
+                        Click="OnCoreStartClick" />
+                <Button x:Name="StopCoreButton"
+                        Content="{DynamicResource CoreStop}"
+                        FontSize="11"
+                        Padding="8,2"
+                        Margin="6,0,0,0"
+                        VerticalAlignment="Center"
+                        Click="OnCoreStopClick" />
+                <Button x:Name="RestartCoreButton"
+                        Content="{DynamicResource CoreRestart}"
+                        FontSize="11"
+                        Padding="8,2"
+                        Margin="6,0,0,0"
+                        VerticalAlignment="Center"
+                        Click="OnCoreRestartClick" />
+            </StackPanel>
+        </DockPanel>
 
         <TabControl x:Name="MainTabs" Margin="0,8,0,0">
             <!-- 代理（M2-4）：流量摘要 + 分组卡（节点行内联展开） -->
-            <TabItem Header="代理">
+            <TabItem Header="{DynamicResource TabProxy}">
                 <DockPanel>
-                    <TextBlock DockPanel.Dock="Top"
-                               Text="{Binding TrafficSummary}"
-                               FontSize="13"
-                               FontWeight="SemiBold"
-                               Margin="4,6,4,6" />
+                    <DockPanel DockPanel.Dock="Top" Margin="4,6,4,6">
+                        <!-- 复制终端代理命令（源：copyLocalProxyCommand chip） -->
+                        <Button DockPanel.Dock="Right"
+                                Content="{DynamicResource ProxyCopyCommand}"
+                                FontSize="11"
+                                Padding="8,2"
+                                Margin="10,0,0,0"
+                                VerticalAlignment="Center"
+                                Click="OnCopyProxyCommandClick" />
+                        <!-- 分流模式（源：rule/global/direct segmented；PATCH /configs 即时生效） -->
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <RadioButton Content="{DynamicResource ModeRule}"
+                                         GroupName="ProxyMode"
+                                         FontSize="12"
+                                         Margin="0,0,10,0"
+                                         VerticalAlignment="Center"
+                                         IsChecked="{Binding IsModeRule}" />
+                            <RadioButton Content="{DynamicResource ModeGlobal}"
+                                         GroupName="ProxyMode"
+                                         FontSize="12"
+                                         Margin="0,0,10,0"
+                                         VerticalAlignment="Center"
+                                         IsChecked="{Binding IsModeGlobal}" />
+                            <RadioButton Content="{DynamicResource ModeDirect}"
+                                         GroupName="ProxyMode"
+                                         FontSize="12"
+                                         VerticalAlignment="Center"
+                                         IsChecked="{Binding IsModeDirect}" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding TrafficSummary}"
+                                   FontSize="13"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center"
+                                   Visibility="{Binding ShowTrafficOverview, Converter={StaticResource BoolToVis}}" />
+                    </DockPanel>
+                    <!-- TUN 快捷区（源：ProxyTabView.tunModeQuickToggleRow + tunStackMenu：
+                         stack 选择 + 开关；权限语义为管理员运行，未提权时开关触发 UAC 重启引导） -->
+                    <DockPanel x:Name="TunSectionRoot" DockPanel.Dock="Top" Margin="4,0,4,6">
+                        <DockPanel DockPanel.Dock="Right">
+                            <CheckBox Content="{DynamicResource ProxyTunToggle}"
+                                      FontSize="12"
+                                      VerticalAlignment="Center"
+                                      IsChecked="{Binding IsTunEnabled}"
+                                      IsEnabled="{Binding IsTunToggleEnabled}" />
+                            <ComboBox Width="110"
+                                      Margin="0,0,10,0"
+                                      VerticalAlignment="Center"
+                                      FontSize="12"
+                                      ToolTip="{DynamicResource ProxyTunStackHint}"
+                                      ItemsSource="{Binding StackOptions}"
+                                      SelectedValuePath="Stack"
+                                      SelectedValue="{Binding SelectedStack}"
+                                      IsEnabled="{Binding IsTunToggleEnabled}">
+                                <ComboBox.ItemContainerStyle>
+                                    <Style TargetType="ComboBoxItem">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsAvailable}" Value="False">
+                                                <Setter Property="IsEnabled" Value="False" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ComboBox.ItemContainerStyle>
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding DisplayText}" ToolTip="{Binding DisplayText}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </DockPanel>
+                        <TextBlock Text="{DynamicResource ProxyTunMode}"
+                                   FontWeight="SemiBold"
+                                   FontSize="12"
+                                   VerticalAlignment="Center" />
+                    </DockPanel>
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                        <!-- Provider 区（M5-5：源 proxyProvidersSection——可折叠、更新全部、
+                             行：节点数/更新时间/到期（<15 天警示）/配额条/healthcheck/刷新） -->
+                        <StackPanel x:Name="ProxyProvidersRoot" Margin="2,0,2,4">
+                            <StackPanel.Resources>
+                                <Style x:Key="ProviderActionStyle" TargetType="Button">
+                                    <Setter Property="FontSize" Value="11" />
+                                    <Setter Property="Padding" Value="6,1" />
+                                    <Setter Property="Margin" Value="4,0,0,0" />
+                                </Style>
+                            </StackPanel.Resources>
+                            <DockPanel Margin="2,4,2,2">
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                    <Button x:Name="UpdateAllProvidersButton"
+                                            Content="{DynamicResource ProvidersUpdateAll}"
+                                            Style="{StaticResource ProviderActionStyle}"
+                                            Command="{Binding UpdateAllCommand}"
+                                            IsEnabled="{Binding IsRefreshingAll, Converter={StaticResource InverseBool}}" />
+                                    <ToggleButton x:Name="ProvidersCollapseToggle"
+                                                  IsChecked="{Binding IsCollapsed}"
+                                                  FontSize="11"
+                                                  Padding="6,1"
+                                                  Margin="4,0,0,0"
+                                                  Content="▲▼" />
+                                </StackPanel>
+                                <TextBlock Text="{DynamicResource ProvidersTitle}"
+                                           FontWeight="SemiBold"
+                                           FontSize="12"
+                                           VerticalAlignment="Center" />
+                            </DockPanel>
+                            <ItemsControl ItemsSource="{Binding Rows}"
+                                          Visibility="{Binding IsCollapsed, Converter={StaticResource InverseBoolToVis}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border BorderBrush="#DDD" BorderThickness="1" CornerRadius="4"
+                                                Background="#FAFAFA" Margin="0,0,0,4" Padding="8,4">
+                                            <StackPanel>
+                                                <DockPanel>
+                                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                                        <Button Content="⚡"
+                                                                Style="{StaticResource ProviderActionStyle}"
+                                                                ToolTip="{DynamicResource ProvidersHealthcheck}"
+                                                                Command="{Binding DataContext.HealthcheckProviderCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                CommandParameter="{Binding Name}" />
+                                                        <Button Content="⟳"
+                                                                Style="{StaticResource ProviderActionStyle}"
+                                                                ToolTip="{DynamicResource ProvidersRefresh}"
+                                                                Command="{Binding DataContext.UpdateProviderCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                CommandParameter="{Binding Name}"
+                                                                IsEnabled="{Binding IsUpdating, Converter={StaticResource InverseBool}}" />
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12" />
+                                                        <TextBlock><Run Text="{Binding NodeCount, Mode=OneWay}" /><Run Text="{DynamicResource ProvidersNodeCount}" /></TextBlock>
+                                                                   FontSize="11"
+                                                                   Foreground="#5E6B78"
+                                                                   Margin="8,0,0,0"
+                                                                   VerticalAlignment="Center" />
+                                                        <TextBlock Text="{Binding UpdatedText}"
+                                                                   FontSize="11"
+                                                                   Foreground="#8A93A0"
+                                                                   Margin="10,0,0,0"
+                                                                   VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </DockPanel>
+                                                <StackPanel Margin="2,4,0,0"
+                                                            Visibility="{Binding QuotaText, Converter={StaticResource StringToVis}}">
+                                                    <DockPanel>
+                                                        <TextBlock DockPanel.Dock="Right"
+                                                                   Text="{Binding QuotaText}"
+                                                                   FontSize="11"
+                                                                   Foreground="#5E6B78"
+                                                                   VerticalAlignment="Center" />
+                                                        <TextBlock Text="{Binding ExpireText}"
+                                                                   FontSize="11"
+                                                                   VerticalAlignment="Center">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Foreground" Value="#5E6B78" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding ExpiresSoon}" Value="True">
+                                                                            <Setter Property="Foreground" Value="#B45309" />
+                                                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </DockPanel>
+                                                    <!-- 用量比例条（≥90% 红 / ≥75% 黄 / 其余灰；源：usedRatio 条） -->
+                                                    <ProgressBar Height="4"
+                                                                 Margin="0,4,0,0"
+                                                                 Maximum="1"
+                                                                 Minimum="0"
+                                                                 Value="{Binding UsedRatio, TargetNullValue=0}">
+                                                        <ProgressBar.Style>
+                                                            <Style TargetType="ProgressBar">
+                                                                <Setter Property="Foreground" Value="#5E6B78" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding QuotaLevel}" Value="warn">
+                                                                        <Setter Property="Foreground" Value="#B45309" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding QuotaLevel}" Value="critical">
+                                                                        <Setter Property="Foreground" Value="#C0392B" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </ProgressBar.Style>
+                                                    </ProgressBar>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                        <!-- 分组卡视图开关（源：compactTopIcon 开关组——延迟排序/历史信号条/hidden 分组/测全部） -->
+                        <DockPanel Margin="2,4,2,2">
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <Button x:Name="TestAllGroupsButton"
+                                        Content="{DynamicResource GroupsTestAll}"
+                                        FontSize="11"
+                                        Padding="8,1"
+                                        Command="{Binding TestAllGroupsCommand}"
+                                        IsEnabled="{Binding IsTestingAllGroupLatencies, Converter={StaticResource InverseBool}}"
+                                        ToolTip="{DynamicResource GroupsTestAllTooltip}" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <ToggleButton IsChecked="{Binding SortNodesByLatency}"
+                                              FontSize="11"
+                                              Padding="6,1"
+                                              Margin="0,0,6,0"
+                                              Content="{DynamicResource GroupsSortByLatency}" />
+                                <ToggleButton IsChecked="{Binding ShowLatencyHistory}"
+                                              FontSize="11"
+                                              Padding="6,1"
+                                              Margin="0,0,6,0"
+                                              Content="{DynamicResource GroupsLatencyHistory}" />
+                                <ToggleButton IsChecked="{Binding ShowHiddenProxyGroups}"
+                                              FontSize="11"
+                                              Padding="6,1"
+                                              Content="{DynamicResource GroupsShowHidden}" />
+                                <ToggleButton IsChecked="{Binding HideUnavailableProxyNodes}"
+                                              FontSize="11"
+                                              Padding="6,1"
+                                              Margin="6,0,0,0"
+                                              Content="{DynamicResource GroupsHideUnavailable}" />
+                            </StackPanel>
+                        </DockPanel>
                         <ItemsControl x:Name="ProxyGroupsList" ItemsSource="{Binding Groups}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -40,11 +311,11 @@
                                               Padding="4,2"
                                               BorderBrush="#DDD"
                                               BorderThickness="1"
-                                              IsExpanded="False">
+                                              IsExpanded="{Binding IsExpanded}">
                                         <Expander.Header>
                                             <DockPanel Margin="0,2">
                                                 <Button DockPanel.Dock="Right"
-                                                        Content="测速"
+                                                        Content="{DynamicResource GroupTest}"
                                                         Padding="8,1"
                                                         Margin="6,0,0,0"
                                                         FontSize="11"
@@ -67,9 +338,15 @@
                                                 <TextBlock Text="{Binding Name}"
                                                            FontWeight="SemiBold"
                                                            VerticalAlignment="Center" />
+                                                <!-- 分组图标（源：proxyGroupLeadingIcon——URL 直载，加载失败静默） -->
+                                                <Image Source="{Binding GroupIcon}"
+                                                       Width="16" Height="16"
+                                                       Margin="6,0,0,0"
+                                                       VerticalAlignment="Center"
+                                                       Stretch="Uniform" />
                                             </DockPanel>
                                         </Expander.Header>
-                                        <!-- 节点行：类型徽章 + 名称 + 延迟 + 单节点测速 -->
+                                        <!-- 节点行：类型徽章 + 名称 + 信号条 + 延迟 + 单节点测速 -->
                                         <ItemsControl ItemsSource="{Binding Nodes}" Margin="6,2">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
@@ -79,9 +356,31 @@
                                                                 Padding="4,0"
                                                                 Margin="6,0,0,0"
                                                                 FontSize="11"
-                                                                ToolTip="测速"
+                                                                ToolTip="{DynamicResource GroupTest}"
                                                                 Command="{Binding DataContext.TestNodeCommand, RelativeSource={RelativeSource AncestorType=Expander}}"
                                                                 CommandParameter="{Binding}" />
+                                                        <!-- 延迟历史信号条（源：LatencySignalBars——5 槽右对齐、高度随延迟、颜色分好坏） -->
+                                                        <ItemsControl DockPanel.Dock="Right"
+                                                                      ItemsSource="{Binding SignalBars}"
+                                                                      Visibility="{Binding HasSignalBars, Converter={StaticResource BoolToVis}}"
+                                                                      Margin="8,0,0,0"
+                                                                      VerticalAlignment="Center">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <StackPanel Orientation="Horizontal" />
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <Rectangle Width="2"
+                                                                               Height="{Binding Height}"
+                                                                               RadiusX="0.75"
+                                                                               RadiusY="0.75"
+                                                                               Margin="0,0,1.5,0"
+                                                                               Fill="{Binding ColorHex}" />
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
                                                         <TextBlock DockPanel.Dock="Right"
                                                                    Text="{Binding DelayText}"
                                                                    Foreground="#5E6B78"
@@ -127,12 +426,275 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+            </TabItem>
+
+            <!-- 规则（M4-1）：列表（目标/类型/策略/规则集统计）+ 类型过滤 + 搜索 + 策略分组 -->
+            <TabItem Header="{DynamicResource TabRules}">
+                <DockPanel x:Name="RulesRoot" Margin="4,8,4,4">
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
+                        <Button DockPanel.Dock="Right"
+                                Content="{DynamicResource RulesRefreshProviders}"
+                                Padding="10,2"
+                                Margin="10,0,0,0"
+                                FontSize="11"
+                                Command="{Binding RefreshCommand}" />
+                        <ToggleButton DockPanel.Dock="Right"
+                                      Content="{DynamicResource RulesGroupByPolicy}"
+                                      Padding="10,2"
+                                      FontSize="11"
+                                      IsChecked="{Binding GroupByPolicy}" />
+                        <TextBlock Text="{Binding StatsText}"
+                                   FontWeight="SemiBold"
+                                   FontSize="12"
+                                   VerticalAlignment="Center" />
+                    </DockPanel>
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
+                        <ComboBox DockPanel.Dock="Right"
+                                  Width="110"
+                                  Margin="8,0,0,0"
+                                  ItemsSource="{Binding PolicyOptions}"
+                                  DisplayMemberPath="Label"
+                                  SelectedValuePath="Value"
+                                  SelectedValue="{Binding PolicyFilter}" />
+                        <ComboBox DockPanel.Dock="Right"
+                                  Width="84"
+                                  ItemsSource="{Binding TypeFilterOptions}"
+                                  DisplayMemberPath="Label"
+                                  SelectedValuePath="Value"
+                                  SelectedValue="{Binding TypeFilter}" />
+                        <TextBox Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}"
+                                 VerticalContentAlignment="Center"
+                                 Padding="6,2"
+                                 Margin="0,0,8,0" />
+                    </DockPanel>
+                    <TextBlock DockPanel.Dock="Top"
+                               Text="{Binding CountText}"
+                               Foreground="#5E6B78"
+                               FontSize="11"
+                               Margin="0,0,0,4" />
+                    <!-- 规则覆写（M4-1b：内嵌卡片——「列表是查看，覆写是操作」；源 OverrideTabView） -->
+                    <Border DockPanel.Dock="Bottom"
+                            x:Name="OverrideCardRoot"
+                            Margin="0,6,0,0"
+                            Padding="8"
+                            BorderBrush="#DDD"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Background="#FAFAFA">
+                        <StackPanel>
+                            <DockPanel>
+                                <CheckBox DockPanel.Dock="Right"
+                                          Content="{DynamicResource NetworkSystemProxyEnable}"
+                                          FontSize="12"
+                                          IsChecked="{Binding IsEnabled}" />
+                                <TextBlock Text="{DynamicResource OverrideTitle}"
+                                           FontWeight="SemiBold"
+                                           FontSize="12"
+                                           VerticalAlignment="Center" />
+                            </DockPanel>
+                            <TextBlock Text="{Binding DisabledHint}"
+                                       Foreground="#5E6B78"
+                                       FontSize="10"
+                                       Margin="0,4,0,0"
+                                       TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsEnabled}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <StackPanel Margin="0,6,0,0"
+                                        Visibility="{Binding IsEnabled, Converter={StaticResource BoolToVis}}">
+                                <!-- 三文件区行（同一时间只展开一个） -->
+                                <Button Command="{Binding ToggleFileCommand}"
+                                        CommandParameter="{x:Static overrides:RuleOverrideFile.Prepend}"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        HorizontalContentAlignment="Stretch"
+                                        Padding="2,3">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="↑" FontSize="12" VerticalAlignment="Center" />
+                                        <TextBlock Text="{DynamicResource OverridePrependHint}" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center" />
+                                        <TextBlock Foreground="#5E6B78" FontSize="11" Margin="10,0,0,0" VerticalAlignment="Center"><Run Text="{Binding Counts.Prepend, Mode=OneWay}" /><Run Text="{DynamicResource OverrideCountEntries}" /></TextBlock>
+                                    </StackPanel>
+                                </Button>
+                                <Button Command="{Binding ToggleFileCommand}"
+                                        CommandParameter="{x:Static overrides:RuleOverrideFile.Append}"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        HorizontalContentAlignment="Stretch"
+                                        Padding="2,3">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="↓" FontSize="12" VerticalAlignment="Center" />
+                                        <TextBlock Text="{DynamicResource OverrideAppendHint}" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center" />
+                                        <TextBlock Foreground="#5E6B78" FontSize="11" Margin="10,0,0,0" VerticalAlignment="Center"><Run Text="{Binding Counts.Append, Mode=OneWay}" /><Run Text="{DynamicResource OverrideCountEntries}" /></TextBlock>
+                                    </StackPanel>
+                                </Button>
+                                <Button Command="{Binding ToggleFileCommand}"
+                                        CommandParameter="{x:Static overrides:RuleOverrideFile.RuleProviders}"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        HorizontalContentAlignment="Stretch"
+                                        Padding="2,3">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="≡" FontSize="12" VerticalAlignment="Center" />
+                                        <TextBlock Text="{DynamicResource OverrideRuleSetsHint}" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center" />
+                                        <TextBlock Foreground="#5E6B78" FontSize="11" Margin="10,0,0,0" VerticalAlignment="Center"><Run Text="{Binding Counts.RuleProviders, Mode=OneWay}" /><Run Text="{DynamicResource OverrideCountSets}" /></TextBlock>
+                                    </StackPanel>
+                                </Button>
+                                <!-- 编辑器（展开时显示，固定高 180；源：PlainTextEditor editorHeight） -->
+                                <Grid Margin="0,6,0,0"
+                                      Visibility="{Binding HasExpandedFile, Converter={StaticResource BoolToVis}}">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="*" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBox Text="{Binding CurrentDraft, UpdateSourceTrigger=PropertyChanged}"
+                                             AcceptsReturn="True"
+                                             TextWrapping="NoWrap"
+                                             VerticalScrollBarVisibility="Auto"
+                                             HorizontalScrollBarVisibility="Auto"
+                                             FontFamily="Consolas, Microsoft YaHei UI"
+                                             FontSize="12"
+                                             Height="180"
+                                             Background="White"
+                                             BorderBrush="#CCC" />
+                                    <StackPanel Grid.Row="1"
+                                                Orientation="Horizontal"
+                                                HorizontalAlignment="Right"
+                                                Margin="0,4,0,0">
+                                        <Button Content="{DynamicResource OverrideRevert}"
+                                                Padding="10,2"
+                                                FontSize="11"
+                                                Margin="0,0,8,0"
+                                                Command="{Binding RevertCommand}"
+                                                IsEnabled="{Binding IsDirty}" />
+                                        <Button Content="{DynamicResource NetworkBypassSave}"
+                                                Padding="10,2"
+                                                FontSize="11"
+                                                Command="{Binding SaveCommand}"
+                                                IsEnabled="{Binding IsDirty}" />
+                                    </StackPanel>
+                                </Grid>
+                                <!-- 状态行 -->
+                                <TextBlock Margin="0,6,0,0"
+                                           FontSize="11"
+                                           TextWrapping="Wrap"
+                                           Text="{Binding StatusText}"
+                                           Visibility="{Binding HasStatus, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="#1B7F3B" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding StatusLevel}" Value="error">
+                                                    <Setter Property="Foreground" Value="#C0392B" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding StatusLevel}" Value="info">
+                                                    <Setter Property="Foreground" Value="#5E6B78" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <!-- 操作按钮 -->
+                                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                    <Button Padding="10,2"
+                                            FontSize="11"
+                                            MinWidth="88"
+                                            HorizontalAlignment="Left"
+                                            Command="{Binding ApplyNowCommand}">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Content" Value="{DynamicResource OverrideApplyNow}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsApplying}" Value="True">
+                                                        <Setter Property="Content" Value="{DynamicResource CommonProcessing}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="{DynamicResource OverrideOpenFolder}"
+                                            Padding="10,2"
+                                            FontSize="11"
+                                            Margin="8,0,0,0"
+                                            Command="{Binding OpenFolderCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding Rows}">
+                            <ItemsControl.Resources>
+                                <DataTemplate DataType="{x:Type core:RuleGroupHeaderViewModel}">
+                                    <Button Command="{Binding DataContext.ToggleGroupCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding Policy}"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            HorizontalContentAlignment="Stretch"
+                                            Padding="2,4"
+                                            Margin="0,4,0,2">
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Right"
+                                                       Foreground="#5E6B78"
+                                                       FontSize="11"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock VerticalAlignment="Center">
+                                                <Run Text="{Binding Policy, Mode=OneWay}" FontWeight="SemiBold" />
+                                                <Run Text="· " Foreground="#5E6B78" /><Run Text="{Binding Count, Mode=OneWay}" Foreground="#5E6B78" /><Run Text="{DynamicResource OverrideCountEntries}" Foreground="#5E6B78" />
+                                            </TextBlock>
+                                        </DockPanel>
+                                    </Button>
+                                </DataTemplate>
+                                <DataTemplate DataType="{x:Type core:RuleRowViewModel}">
+                                    <Border Padding="2,4" BorderBrush="#EAEAEA" BorderThickness="0,0,0,1">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="200" />
+                                                <ColumnDefinition Width="130" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="{Binding Target}"
+                                                           FontWeight="SemiBold"
+                                                           FontSize="12"
+                                                           TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding TypeText}"
+                                                           Foreground="#8A93A0"
+                                                           FontSize="10"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding PolicyText}"
+                                                       FontSize="11"
+                                                       Foreground="#5E6B78"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding StatsText}"
+                                                       FontSize="11"
+                                                       Foreground="#8A93A0"
+                                                       VerticalAlignment="Center"
+                                                       TextAlignment="Right" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.Resources>
+                        </ItemsControl>
                     </ScrollViewer>
                 </DockPanel>
             </TabItem>
 
             <!-- 连接（M3-1/M3-4）：列表（host/规则/链路/上下行速率）+ 三维度流量统计 -->
-            <TabItem Header="连接">
+            <TabItem Header="{DynamicResource TabConnections}">
                 <Grid x:Name="ConnectionsRoot" Margin="4,8,4,4">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -141,12 +703,12 @@
                     <!-- 视图切换：连接 / 统计（源：connectionsStore.showsStatistics segmented） -->
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,4">
                         <RadioButton GroupName="ConnectionView"
-                                     Content="连接"
+                                     Content="{DynamicResource ConnectionsListTab}"
                                      IsChecked="True"
                                      FontSize="12"
                                      VerticalAlignment="Center" />
                         <RadioButton GroupName="ConnectionView"
-                                     Content="统计"
+                                     Content="{DynamicResource ConnectionsStatsTab}"
                                      IsChecked="{Binding ShowsStatistics}"
                                      Margin="12,0,0,0"
                                      FontSize="12"
@@ -169,7 +731,7 @@
                     <DockPanel Grid.Row="1" Visibility="{Binding ShowsList, Converter={StaticResource BoolToVis}}">
                     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
                         <Button DockPanel.Dock="Right"
-                                Content="关闭全部"
+                                Content="{DynamicResource ConnectionsCloseAll}"
                                 Padding="8,2"
                                 Margin="8,0,0,0"
                                 FontSize="11"
@@ -181,7 +743,7 @@
                                    Margin="10,0,0,0"
                                    VerticalAlignment="Center" />
                         <ToggleButton DockPanel.Dock="Right"
-                                      Content="降序"
+                                      Content="{DynamicResource ConnectionsSortDesc}"
                                       Padding="8,2"
                                       Margin="8,0,0,0"
                                       FontSize="11"
@@ -215,7 +777,7 @@
                                                     Padding="5,0"
                                                     Margin="8,0,0,0"
                                                     FontSize="11"
-                                                    ToolTip="关闭连接"
+                                                    ToolTip="{DynamicResource ConnectionsCloseOne}"
                                                     Command="{Binding CloseConnectionCommand}"
                                                     CommandParameter="{Binding}" />
                                             <StackPanel>
@@ -274,7 +836,7 @@
                                             <StackPanel DockPanel.Dock="Right"
                                                         Orientation="Horizontal"
                                                         MinWidth="200">
-                                                <TextBlock Text="合计"
+                                                <TextBlock Text="{DynamicResource ConnectionsTotal}"
                                                            FontSize="10"
                                                            Foreground="#8A93A0"
                                                            VerticalAlignment="Center" />
@@ -308,64 +870,52 @@
                 </Grid>
             </TabItem>
 
-            <!-- 订阅（M2-3）：URL 导入 + 配置列表切换/删除 -->
-            <TabItem Header="订阅">
-                <DockPanel Margin="4,8,4,4">
-                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
-                        <Button x:Name="ImportButton"
-                                DockPanel.Dock="Right"
-                                Content="导入"
-                                Padding="10,2"
-                                MinWidth="60"
-                                Click="OnImportClick" />
-                        <TextBox x:Name="SubscriptionUrlBox"
-                                 VerticalContentAlignment="Center"
-                                 Padding="4,2" />
-                    </DockPanel>
-                    <ListBox x:Name="ConfigFilesBox"
-                             MinHeight="72"
-                             MaxHeight="200" />
-                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0">
-                        <Button Content="启用"
-                                Padding="10,2"
-                                MinWidth="60"
-                                Margin="0,0,8,0"
-                                Click="OnEnableClick" />
-                        <Button Content="删除"
-                                Padding="10,2"
-                                MinWidth="60"
-                                Click="OnRemoveClick" />
-                    </StackPanel>
-                </DockPanel>
-            </TabItem>
-
             <!-- 日志（M3-2）：mihomo WS 流 + 等级过滤 + 搜索 + 渲染上限 -->
-            <TabItem Header="日志">
+            <TabItem Header="{DynamicResource TabLogs}">
                 <DockPanel x:Name="LogsRoot" Margin="4,8,4,4">
                     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
                         <Button DockPanel.Dock="Right"
-                                Content="清空"
+                                Content="{DynamicResource LogsClear}"
                                 Padding="10,2"
                                 MinWidth="52"
                                 Margin="8,0,0,0"
                                 FontSize="11"
                                 Command="{Binding ClearAllCommand}" />
+                        <!-- 内核日志等级快捷入口（源：日志页级别菜单直接改内核设置） -->
+                        <ComboBox DockPanel.Dock="Right"
+                                  Width="90"
+                                  Margin="8,0,0,0"
+                                  FontSize="11"
+                                  ItemsSource="{Binding LogLevelOptions}"
+                                  DisplayMemberPath="Label"
+                                  SelectedValuePath="Value"
+                                  SelectedValue="{Binding LogLevel}" />
                         <Button DockPanel.Dock="Right"
-                                Content="复制全部"
+                                Content="{DynamicResource LogsCopyAll}"
                                 Padding="10,2"
                                 FontSize="11"
                                 Click="OnCopyLogsClick" />
-                        <CheckBox Content="错误"
+                        <!-- 来源过滤（源：logsSourceFilterButtons——空集 = 全部） -->
+                        <CheckBox Content="ClashBarX"
+                                  IsChecked="{Binding IsClashBarSourceSelected}"
+                                  VerticalAlignment="Center"
+                                  FontSize="12" />
+                        <CheckBox Content="Mihomo"
+                                  IsChecked="{Binding IsMihomoSourceSelected}"
+                                  Margin="10,0,0,0"
+                                  VerticalAlignment="Center"
+                                  FontSize="12" />
+                        <CheckBox Content="{DynamicResource LogsLevelError}"
                                   IsChecked="{Binding IsErrorSelected}"
                                   Margin="14,0,0,0"
                                   VerticalAlignment="Center"
                                   FontSize="12" />
-                        <CheckBox Content="警告"
+                        <CheckBox Content="{DynamicResource LogsLevelWarning}"
                                   IsChecked="{Binding IsWarningSelected}"
                                   Margin="10,0,0,0"
                                   VerticalAlignment="Center"
                                   FontSize="12" />
-                        <CheckBox Content="信息"
+                        <CheckBox Content="{DynamicResource LogsLevelInfo}"
                                   IsChecked="{Binding IsInfoSelected}"
                                   Margin="10,0,0,0"
                                   VerticalAlignment="Center"
@@ -422,75 +972,526 @@
                     </ListBox>
                 </DockPanel>
             </TabItem>
-            <!-- 设置（M3-3）：自动代理守护——开关 + 周期 + 立即检查 + 结果反馈行（开启才展开） -->
-            <TabItem Header="设置">
-                <DockPanel x:Name="GuardSettingsRoot" Margin="4,8,4,4">
-                    <StackPanel>
-                        <CheckBox IsChecked="{Binding IsGuardEnabled}"
-                                  Content="自动代理守护（自动切换可用节点）"
-                                  FontWeight="SemiBold"
-                                  FontSize="13" />
-                        <StackPanel Margin="20,8,0,0"
-                                    Visibility="{Binding IsGuardEnabled, Converter={StaticResource BoolToVis}}">
-                            <StackPanel Orientation="Horizontal" Margin="0,4">
-                                <TextBlock Text="探测周期（秒）" VerticalAlignment="Center" FontSize="12" />
-                                <TextBox Text="{Binding IntervalText}"
-                                         Width="64"
-                                         Margin="8,0,0,0"
-                                         Padding="4,2"
-                                         VerticalContentAlignment="Center" />
+            <!-- 网络（M4-2）：系统代理/绕过列表 + 自动代理守护 + 订阅管理 -->
+            <TabItem Header="{DynamicResource TabNetwork}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="4,8,4,4">
+                        <!-- 系统代理 + 绕过列表（源：SystemTabView 绕过区块 + 快捷开关） -->
+                        <Border x:Name="SystemProxySectionRoot"
+                                Padding="8"
+                                BorderBrush="#DDD"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Background="#FAFAFA"
+                                Margin="0,0,0,8">
+                            <StackPanel>
+                                <DockPanel>
+                                    <CheckBox DockPanel.Dock="Right"
+                                              Content="{DynamicResource NetworkSystemProxyEnable}"
+                                              FontSize="12"
+                                              IsChecked="{Binding IsEnabled}" />
+                                    <TextBlock Text="{DynamicResource NetworkSystemProxyTitle}"
+                                               FontWeight="SemiBold"
+                                               FontSize="12"
+                                               VerticalAlignment="Center" />
+                                </DockPanel>
+                                <TextBlock Text="{DynamicResource NetworkBypassHint}"
+                                           FontSize="11"
+                                           Foreground="#5E6B78"
+                                           Margin="0,6,0,0"
+                                           TextWrapping="Wrap" />
+                                <ItemsControl ItemsSource="{Binding Exceptions}" Margin="16,4,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <DockPanel Margin="0,1">
+                                                <Button DockPanel.Dock="Right"
+                                                        Content="✕"
+                                                        Padding="5,0"
+                                                        FontSize="11"
+                                                        ToolTip="{DynamicResource NetworkBypassRemove}"
+                                                        Command="{Binding DataContext.RemoveExceptionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}" />
+                                                <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                                                         Padding="4,2"
+                                                         VerticalContentAlignment="Center" />
+                                            </DockPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <DockPanel Margin="16,4,0,0">
+                                    <Button DockPanel.Dock="Right"
+                                            Content="{DynamicResource NetworkBypassAdd}"
+                                            Padding="8,1"
+                                            FontSize="11"
+                                            Command="{Binding AddExceptionCommand}"
+                                            IsEnabled="{Binding CanAddException}" />
+                                    <TextBox Text="{Binding NewException, UpdateSourceTrigger=PropertyChanged}"
+                                             VerticalContentAlignment="Center"
+                                             Padding="4,2" />
+                                </DockPanel>
+                                <StackPanel Orientation="Horizontal" Margin="16,8,0,0">
+                                    <Button Content="{DynamicResource NetworkBypassReset}"
+                                            Padding="10,2"
+                                            FontSize="11"
+                                            Margin="0,0,8,0"
+                                            Command="{Binding ResetExceptionsCommand}" />
+                                    <Button Content="{DynamicResource NetworkBypassSave}"
+                                            Padding="10,2"
+                                            FontSize="11"
+                                            Command="{Binding SaveExceptionsCommand}"
+                                            IsEnabled="{Binding HasPendingChanges}" />
+                                </StackPanel>
                             </StackPanel>
-                            <Button Margin="0,6,0,0"
-                                    Padding="10,2"
+                        </Border>
+                        <!-- 自动代理守护（M3-3 区块挪入网络页；开关 + 周期 + 立即检查 + 结果反馈行） -->
+                        <Border x:Name="GuardSettingsRoot"
+                                Padding="8"
+                                BorderBrush="#DDD"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Background="#FAFAFA"
+                                Margin="0,0,0,8">
+                            <StackPanel>
+                                <CheckBox IsChecked="{Binding IsGuardEnabled}"
+                                          Content="{DynamicResource NetworkGuardTitle}"
+                                          FontWeight="SemiBold"
+                                          FontSize="12" />
+                                <StackPanel Margin="16,8,0,0"
+                                            Visibility="{Binding IsGuardEnabled, Converter={StaticResource BoolToVis}}">
+                                    <StackPanel Orientation="Horizontal" Margin="0,4">
+                                        <TextBlock Text="{DynamicResource NetworkGuardInterval}" VerticalAlignment="Center" FontSize="12" />
+                                        <TextBox Text="{Binding IntervalText}"
+                                                 Width="64"
+                                                 Margin="8,0,0,0"
+                                                 Padding="4,2"
+                                                 VerticalContentAlignment="Center" />
+                                    </StackPanel>
+                                    <Button Margin="0,6,0,0"
+                                            Padding="10,2"
+                                            MinWidth="96"
+                                            HorizontalAlignment="Left"
+                                            Command="{Binding CheckNowCommand}">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Content" Value="{DynamicResource GuardCheckNow}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsProbing}" Value="True">
+                                                        <Setter Property="Content" Value="{DynamicResource CommonChecking}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <TextBlock Margin="0,8,0,0"
+                                               FontSize="12"
+                                               Text="{Binding OutcomeText}"
+                                               Visibility="{Binding HasOutcome, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="#1B7F3B" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding OutcomeLevel}" Value="warning">
+                                                        <Setter Property="Foreground" Value="#B7791F" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                                <TextBlock Text="{Binding DisabledHint}"
+                                           Foreground="#5E6B78"
+                                           FontSize="11"
+                                           Margin="16,8,0,0"
+                                           TextWrapping="Wrap">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsGuardEnabled}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                        <!-- SSID 策略（M5-3：源 ProxyTabView 的 ssidStrategy 快捷项——开关 + 当前 SSID + 绑定管理） -->
+                        <Border x:Name="SsidStrategyRoot"
+                                Padding="8"
+                                BorderBrush="#DDD"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Background="#FAFAFA"
+                                Margin="0,0,0,8">
+                            <StackPanel>
+                                <DockPanel>
+                                    <CheckBox DockPanel.Dock="Right"
+                                              Content="{DynamicResource SsidStrategyToggle}"
+                                              FontSize="12"
+                                              IsChecked="{Binding IsEnabled}" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{DynamicResource SsidStrategyTitle}"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding CurrentSsidText}"
+                                                   FontSize="11"
+                                                   Foreground="#5E6B78"
+                                                   Margin="10,0,0,0"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </DockPanel>
+                                <TextBlock Text="{DynamicResource SsidStrategyHint}"
+                                           FontSize="11"
+                                           Foreground="#5E6B78"
+                                           Margin="0,4,0,0"
+                                           TextWrapping="Wrap" />
+                                <ItemsControl ItemsSource="{Binding Bindings}" Margin="0,6,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <DockPanel Margin="0,1">
+                                                <Button DockPanel.Dock="Right"
+                                                        Content="✕"
+                                                        Padding="5,0"
+                                                        FontSize="11"
+                                                        ToolTip="{DynamicResource SsidStrategyUnbind}"
+                                                        Click="OnSsidUnbindClick" />
+                                                <TextBlock FontSize="11"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="#5E6B78">
+                                                    <Run Text="{Binding Ssid}" FontWeight="SemiBold" />
+                                                    <Run Text=" → " />
+                                                    <Run Text="{Binding ConfigFileName}" />
+                                                </TextBlock>
+                                            </DockPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <Button Content="{DynamicResource SsidStrategyBindCurrent}"
+                                        FontSize="11"
+                                        Padding="8,1"
+                                        Margin="0,6,0,0"
+                                        HorizontalAlignment="Left"
+                                        IsEnabled="{Binding IsEnabled}"
+                                        Click="OnSsidBindCurrentClick" />
+                            </StackPanel>
+                        </Border>
+                        <!-- 订阅管理（M2-3 区块挪入网络页；远程目标时整体只读） -->
+                        <Border x:Name="SubscriptionSectionRoot"
+                                Padding="8"
+                                BorderBrush="#DDD"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Background="#FAFAFA">
+                            <StackPanel>
+                                <DockPanel Margin="0,0,0,6">
+                                    <TextBlock x:Name="RemoteReadonlyHint"
+                                               DockPanel.Dock="Right"
+                                               Text="{DynamicResource MachineRemoteReadonly}"
+                                               FontSize="11"
+                                               Foreground="#B45309"
+                                               VerticalAlignment="Center"
+                                               Visibility="Collapsed" />
+                                    <TextBlock Text="{DynamicResource NetworkSubscriptionTitle}"
+                                               FontWeight="SemiBold"
+                                               FontSize="12" />
+                                </DockPanel>
+                                <DockPanel Margin="0,0,0,6">
+                                    <Button x:Name="ImportButton"
+                                            DockPanel.Dock="Right"
+                                            Content="{DynamicResource NetworkSubscriptionImport}"
+                                            Padding="10,2"
+                                            MinWidth="60"
+                                            Click="OnImportClick" />
+                                    <TextBox x:Name="SubscriptionUrlBox"
+                                             VerticalContentAlignment="Center"
+                                             Padding="4,2" />
+                                </DockPanel>
+                                <ListBox x:Name="ConfigFilesBox"
+                                         MinHeight="72"
+                                         MaxHeight="200" />
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0">
+                                    <!-- 远程订阅更新（源：ProxyTabView 订阅行刷新/更新全部） -->
+                                    <Button Content="{DynamicResource SubscriptionUpdate}"
+                                            Padding="10,2"
+                                            MinWidth="60"
+                                            Margin="0,0,8,0"
+                                            Click="OnRefreshSubscriptionClick" />
+                                    <Button Content="{DynamicResource SubscriptionUpdateAll}"
+                                            Padding="10,2"
+                                            MinWidth="72"
+                                            Margin="0,0,8,0"
+                                            Click="OnRefreshAllSubscriptionsClick" />
+                                    <Button Content="{DynamicResource NetworkSystemProxyEnable}"
+                                            Padding="10,2"
+                                            MinWidth="60"
+                                            Margin="0,0,8,0"
+                                            Click="OnEnableClick" />
+                                    <Button Content="{DynamicResource NetworkSubscriptionRemove}"
+                                            Padding="10,2"
+                                            MinWidth="60"
+                                            Click="OnRemoveClick" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- 设置（M4-3）：外观 / 语言 / 开机自启 / 流量概览 -->
+            <TabItem Header="{DynamicResource TabSettings}">
+                <Border x:Name="SettingsRoot"
+                        Padding="8"
+                        BorderBrush="#DDD"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Background="#FAFAFA"
+                        Margin="4,8,4,4"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Top"
+                        MinWidth="380">
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource SettingsAppearanceTitle}"
+                                   FontWeight="SemiBold"
+                                   FontSize="12"
+                                   Margin="0,0,0,6" />
+                        <ComboBox Width="180"
+                                  HorizontalAlignment="Left"
+                                  ItemsSource="{Binding AppearanceOptions}"
+                                  DisplayMemberPath="Label"
+                                  SelectedValuePath="Value"
+                                  SelectedValue="{Binding AppearanceMode}" />
+
+                        <TextBlock Text="{DynamicResource SettingsLanguageTitle}"
+                                   FontWeight="SemiBold"
+                                   FontSize="12"
+                                   Margin="0,14,0,6" />
+                        <ComboBox Width="180"
+                                  HorizontalAlignment="Left"
+                                  ItemsSource="{Binding LanguageOptions}"
+                                  DisplayMemberPath="Label"
+                                  SelectedValuePath="Value"
+                                  SelectedValue="{Binding Language}" />
+
+                        <TextBlock Text="{DynamicResource SettingsLaunchAtLoginTitle}"
+                                   FontWeight="SemiBold"
+                                   FontSize="12"
+                                   Margin="0,14,0,6" />
+                        <CheckBox Content="{DynamicResource SettingsLaunchAtLoginHint}"
+                                  FontSize="12"
+                                  IsChecked="{Binding LaunchAtLogin}" />
+                        <TextBlock Text="{DynamicResource SettingsLaunchAtLoginFailed}"
+                                   FontSize="11"
+                                   Foreground="#C0392B"
+                                   Margin="18,4,0,0"
+                                   Visibility="{Binding LaunchAtLoginFailed, Converter={StaticResource BoolToVis}}" />
+
+                        <TextBlock Text="{DynamicResource SettingsTrafficOverviewTitle}"
+                                   FontWeight="SemiBold"
+                                   FontSize="12"
+                                   Margin="0,14,0,6" />
+                        <CheckBox Content="{DynamicResource SettingsTrafficOverviewHint}"
+                                  FontSize="12"
+                                  IsChecked="{Binding ShowTrafficOverview}" />
+
+                        <!-- 核心设置（源：SystemTabView 核心设置区；经 PATCH /configs 即时生效） -->
+                        <Border Padding="8"
+                                BorderBrush="#DDD"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Margin="0,16,0,0"
+                                DataContext="{Binding CoreSettings}">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource SettingsCoreSection}"
+                                           FontWeight="SemiBold"
+                                           FontSize="12"
+                                           Margin="0,0,0,6" />
+                                <CheckBox Content="{DynamicResource SettingsAllowLan}"
+                                          FontSize="12"
+                                          IsChecked="{Binding AllowLan}" />
+                                <CheckBox Content="IPv6"
+                                          FontSize="12"
+                                          Margin="0,4,0,0"
+                                          IsChecked="{Binding Ipv6}" />
+                                <CheckBox Content="{DynamicResource SettingsTcpConcurrent}"
+                                          FontSize="12"
+                                          Margin="0,4,0,0"
+                                          IsChecked="{Binding TcpConcurrent}" />
+                                <CheckBox Content="{DynamicResource SettingsCloseConnections}"
+                                          FontSize="12"
+                                          Margin="0,4,0,0"
+                                          IsChecked="{Binding CloseConnections}" />
+                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                    <TextBlock Text="{DynamicResource SettingsLogLevel}"
+                                               FontSize="12"
+                                               VerticalAlignment="Center" />
+                                    <ComboBox Width="110"
+                                              Margin="10,0,0,0"
+                                              ItemsSource="{Binding LogLevelOptions}"
+                                              DisplayMemberPath="Label"
+                                              SelectedValuePath="Value"
+                                              SelectedValue="{Binding LogLevel}" />
+                                </StackPanel>
+
+                                <!-- 代理端口五项（750ms 防抖自动保存） -->
+                                <TextBlock Text="{DynamicResource SettingsProxyPorts}"
+                                           FontWeight="SemiBold"
+                                           FontSize="12"
+                                           Margin="0,14,0,6" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="90" />
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="90" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource SettingsMixedPort}" FontSize="12" VerticalAlignment="Center" />
+                                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding MixedPortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" Margin="0,2,8,2" VerticalContentAlignment="Center" />
+                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="{DynamicResource SettingsHttpPort}" FontSize="12" VerticalAlignment="Center" />
+                                    <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding PortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" Margin="0,2,0,2" VerticalContentAlignment="Center" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource SettingsSocksPort}" FontSize="12" VerticalAlignment="Center" />
+                                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SocksPortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" Margin="0,2,8,2" VerticalContentAlignment="Center" />
+                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="{DynamicResource SettingsRedirPort}" FontSize="12" VerticalAlignment="Center" />
+                                    <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding RedirPortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" Margin="0,2,0,2" VerticalContentAlignment="Center" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource SettingsTproxyPort}" FontSize="12" VerticalAlignment="Center" />
+                                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding TproxyPortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" Margin="0,2,8,2" VerticalContentAlignment="Center" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 维护（源：SystemTabView 维护区；GEO 热更新 + 内核自升级） -->
+                        <TextBlock Text="{DynamicResource SettingsMaintenance}"
+                                   FontWeight="SemiBold"
+                                   FontSize="12"
+                                   Margin="0,16,0,6" />
+                        <StackPanel Orientation="Horizontal">
+                            <Button Padding="10,2"
+                                    FontSize="11"
                                     MinWidth="96"
-                                    HorizontalAlignment="Left"
-                                    Command="{Binding CheckNowCommand}">
+                                    Command="{Binding UpgradeGeoCommand}">
                                 <Button.Style>
                                     <Style TargetType="Button">
-                                        <Setter Property="Content" Value="立即检查" />
+                                        <Setter Property="Content" Value="{DynamicResource MaintenanceUpdateGeo}" />
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsProbing}" Value="True">
-                                                <Setter Property="Content" Value="检查中…" />
+                                            <DataTrigger Binding="{Binding IsMaintaining}" Value="True">
+                                                <Setter Property="Content" Value="{DynamicResource CommonProcessing}" />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </Button.Style>
                             </Button>
-                            <TextBlock Margin="0,8,0,0"
-                                       FontSize="12"
-                                       Text="{Binding OutcomeText}"
-                                       Visibility="{Binding HasOutcome, Converter={StaticResource BoolToVis}}">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="#1B7F3B" />
+                            <Button Padding="10,2"
+                                    FontSize="11"
+                                    MinWidth="96"
+                                    Margin="8,0,0,0"
+                                    Command="{Binding UpgradeCoreCommand}">
+                                <Button.Style>
+                                    <Style TargetType="Button">
+                                        <Setter Property="Content" Value="{DynamicResource MaintenanceUpgradeCore}" />
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding OutcomeLevel}" Value="warning">
-                                                <Setter Property="Foreground" Value="#B7791F" />
+                                            <DataTrigger Binding="{Binding IsMaintaining}" Value="True">
+                                                <Setter Property="Content" Value="{DynamicResource CommonProcessing}" />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
+                                </Button.Style>
+                            </Button>
+                            <Button Padding="10,2"
+                                    FontSize="11"
+                                    Margin="8,0,0,0"
+                                    Command="{Binding FlushFakeIPCommand}"
+                                    Content="{DynamicResource MaintenanceFlushFakeIP}" />
+                            <Button Padding="10,2"
+                                    FontSize="11"
+                                    Margin="8,0,0,0"
+                                    Command="{Binding FlushDNSCommand}"
+                                    Content="{DynamicResource MaintenanceFlushDNS}" />
+                            <Button Padding="10,2"
+                                    FontSize="11"
+                                    Margin="8,0,0,0"
+                                    Content="{DynamicResource MaintenanceOpenCoreDir}"
+                                    Click="OnOpenCoreDirectoryClick" />
                         </StackPanel>
-                        <!-- 关闭时的说明行（源：ui.settings.proxy_guard_disabled_hint） -->
-                        <TextBlock Text="{Binding DisabledHint}"
-                                   Foreground="#5E6B78"
-                                   FontSize="12"
-                                   Margin="20,8,0,0"
-                                   TextWrapping="Wrap">
+                        <TextBlock Margin="0,6,0,0"
+                                   FontSize="11"
+                                   TextWrapping="Wrap"
+                                   Text="{Binding MaintenanceStatusText}"
+                                   Visibility="{Binding HasMaintenanceStatus, Converter={StaticResource BoolToVis}}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
-                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Setter Property="Foreground" Value="#1B7F3B" />
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsGuardEnabled}" Value="True">
-                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        <DataTrigger Binding="{Binding MaintenanceStatusLevel}" Value="error">
+                                            <Setter Property="Foreground" Value="#C0392B" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <!-- 关于与更新检查（源：MenuBarCommonViews footer——版本行 + 新版本链接） -->
+                        <TextBlock Text="{DynamicResource SettingsAbout}"
+                                   FontWeight="SemiBold"
+                                   FontSize="12"
+                                   Margin="0,14,0,6" />
+                        <StackPanel Orientation="Horizontal">
+                            <Button FontSize="11"
+                                    Padding="8,2"
+                                    Click="OnOpenReleasePageClick"
+                                    ToolTip="{DynamicResource AboutVersionTooltip}">
+                                <Button.Content>
+                                    <TextBlock>
+                                        <Run Text="{DynamicResource AboutVersionPrefix}" />
+                                        <Run Text="{Binding CurrentVersionText, Mode=OneWay}" />
+                                    </TextBlock>
+                                </Button.Content>
+                            </Button>
+                            <!-- 有新版本：醒目链接（源：footer 的下载徽章） -->
+                            <Button Visibility="{Binding HasAvailableUpdate, Converter={StaticResource BoolToVis}}"
+                                    Click="OnOpenReleasePageClick"
+                                    FontSize="11"
+                                    FontWeight="SemiBold"
+                                    Foreground="#0B6BCB"
+                                    Padding="8,2"
+                                    Margin="6,0,0,0"
+                                    Background="Transparent"
+                                    BorderThickness="0">
+                                <TextBlock>
+                                    <Run Text="⬇ " />
+                                    <Run Text="{Binding AvailableUpdateVersionText, Mode=OneWay}" />
+                                </TextBlock>
+                            </Button>
+                            <Button Content="{DynamicResource AboutCheckUpdate}"
+                                    FontSize="11"
+                                    Padding="8,2"
+                                    Margin="12,0,0,0"
+                                    Command="{Binding CheckUpdateCommand}"
+                                    IsEnabled="{Binding IsCheckingUpdate, Converter={StaticResource InverseBool}}" />
+                        </StackPanel>
+                        <TextBlock Margin="0,6,0,0"
+                                   FontSize="11"
+                                   TextWrapping="Wrap"
+                                   Text="{Binding UpdateStatusText}"
+                                   Visibility="{Binding HasUpdateStatus, Converter={StaticResource BoolToVis}}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="#1B7F3B" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding UpdateCheckFailed}" Value="True">
+                                            <Setter Property="Foreground" Value="#C0392B" />
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </TextBlock.Style>
                         </TextBlock>
                     </StackPanel>
-                </DockPanel>
+                </Border>
             </TabItem>
         </TabControl>
     </DockPanel>

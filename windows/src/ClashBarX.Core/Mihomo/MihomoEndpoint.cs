@@ -66,7 +66,7 @@ public sealed class MihomoEndpoint
         MihomoEndpointKind.FlushFakeIpCache or MihomoEndpointKind.FlushDnsCache
             or MihomoEndpointKind.UpgradeCore or MihomoEndpointKind.UpgradeGeo => MihomoHttpMethod.Post,
 
-        _ => throw new InvalidOperationException($"未知端点种类：{Kind}"),
+        _ => throw new InvalidOperationException($"unknown endpoint kind: {Kind}"),
     };
 
     /// <summary>已转义的请求路径（如 /group/%E4%B8%AD/delay）。</summary>
@@ -173,7 +173,7 @@ public sealed class MihomoEndpoint
         MihomoEndpointKind.FlushDnsCache => "/cache/dns/flush",
         MihomoEndpointKind.UpgradeCore => "/upgrade",
         MihomoEndpointKind.UpgradeGeo => "/upgrade/geo",
-        _ => throw new InvalidOperationException($"未知端点种类：{Kind}"),
+        _ => throw new InvalidOperationException($"unknown endpoint kind: {Kind}"),
     };
 
     private IReadOnlyList<KeyValuePair<string, string>> BuildQuery()

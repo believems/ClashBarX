@@ -22,6 +22,14 @@ public static class ClashBarXPaths
     /// <summary>默认运行配置文件位置（M2 订阅导入前的手工配置入口）。</summary>
     public static string DefaultConfigPath(string? overrideBase = null) =>
         Path.Combine(AppDataRoot(overrideBase), "config.yaml");
+
+    /// <summary>规则覆写三文件目录（源：workingDirectoryManager.root/overrides）。</summary>
+    public static string OverridesDirectory(string? overrideBase = null) =>
+        Path.Combine(AppDataRoot(overrideBase), "overrides");
+
+    /// <summary>覆写生成的运行时配置目录（源：stateDirectory/runtime）。</summary>
+    public static string RuntimeConfigDirectory(string? overrideBase = null) =>
+        Path.Combine(AppDataRoot(overrideBase), "state", "runtime");
 }
 
 /// <summary>内核二进制缺失（源：CoreService.swift 的 MihomoBinaryResolutionError）。</summary>
