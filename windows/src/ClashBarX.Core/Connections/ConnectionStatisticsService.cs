@@ -14,6 +14,21 @@ public sealed class ConnectionStatisticsService
     private readonly object _gate = new();
     private readonly JsonSerializerOptions _json = JsonSharedOptions.Json;
 
+    /// <summary>
+    /// 从进程路径提取文件名。mihomo 上报的路径是 Windows 形态（反斜杠），
+    /// 而 Core 层需跨平台解析：Path.GetFileName 在 Linux 上不认 '\'，
+    /// 故手动按 '\' 与 '/' 两种分隔符取末段（Linux CI 实测发现）。
+    /// </summary>
+    private static string? FileNameFromProcessPath(string? path)
+    {
+        if (string.IsNullOrEmpty(path))
+        {
+            return path;
+        }
+        int index = Math.Max(path.LastIndexOf('\\'), path.LastIndexOf('/'));
+        return index >= 0 ? path[(index + 1)..] : path;
+    }
+
     private Dictionary<string, (long Upload, long Download)> _activeConnections = new();
     private Dictionary<string, TrafficStatisticsEntry> _nodeTotals = new();
     private Dictionary<string, TrafficStatisticsEntry> _applicationTotals = new();
@@ -63,7 +78,7 @@ public sealed class ConnectionStatisticsService
                 string? processPath = metadata?.ProcessPath;
                 string? process = metadata?.Process;
                 string application = processPath ?? process ?? "";
-                string applicationName = process ?? Path.GetFileName(processPath ?? "") ?? "";
+                string applicationName = process ?? FileNameFromProcessPath(processPath) ?? "";
                 Accumulate(_applicationTotals, application, applicationName, uploadDelta, downloadDelta);
 
                 string domain = metadata?.Host ?? metadata?.SniffHost ?? metadata?.DestinationIP ?? "";
