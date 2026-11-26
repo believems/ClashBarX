@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using ClashBarX.Core.Mihomo;
 using ClashBarX.Core.Models;
 using ClashBarX.Core.Tun;
+using ClashBarX.Core.Versioning;
 using ClashBarX.Core.Tests.TestInfrastructure;
 
 namespace ClashBarX.Core.Tests.Tun;

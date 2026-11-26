@@ -1,4 +1,4 @@
-namespace ClashBarX.Core.Tun;
+namespace ClashBarX.Core.Versioning;
 
 /// <summary>
 /// 语义版本比较（源：AppRelease.swift 的 AppSemanticVersion）：
@@ -54,6 +54,22 @@ public readonly struct AppSemanticVersion : IEquatable<AppSemanticVersion>, ICom
     public string DisplayString => string.Join(".", Components);
 
     private int[] Components => _components ?? Array.Empty<int>();
+
+    /// <summary>归一化显示版本（源：normalizedDisplayVersion——可解析取组件；v 前缀剥离；原样兜底）。</summary>
+    public static string NormalizedDisplayVersion(string rawVersion)
+    {
+        if (Parse(rawVersion) is { } parsed)
+        {
+            return parsed.DisplayString;
+        }
+
+        string trimmed = rawVersion.Trim();
+        return trimmed.StartsWith('v')
+            && trimmed.Length > 1
+            && char.IsDigit(trimmed[1])
+            ? trimmed[1..]
+            : trimmed;
+    }
 
     public bool Equals(AppSemanticVersion other) => CompareTo(other) == 0;
 

@@ -119,6 +119,123 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
 
     public Func<Task<string>>? FlushDNSRequested { get; set; }
 
+    // ---- 关于与更新检查（源：MenuBarCommonViews footer + availableAppUpdate） ----
+
+    /// <summary>检查更新委托（App 层注入 fetch + resolve；返回可用更新，null = 已是最新）。</summary>
+    public Func<Task<ClashBarX.Core.Updates.AppReleaseInfo?>>? CheckUpdateRequested { get; set; }
+
+    /// <summary>用户请求打开发布页（有更新打开 release 页，否则打开 releases 列表）。</summary>
+    public event Action<string>? OpenReleasePageRequested;
+
+    private string _currentVersionText = "1.0.0";
+    private ClashBarX.Core.Updates.AppReleaseInfo? _availableUpdate;
+    private bool _isCheckingUpdate;
+    private string? _updateStatusText;
+    private bool _updateCheckFailed;
+
+    /// <summary>当前应用版本（源：currentAppVersionText；装配层注入程序集版本）。</summary>
+    public string CurrentVersionText
+    {
+        get => _currentVersionText;
+        set => SetProperty(ref _currentVersionText, value);
+    }
+
+    /// <summary>可用更新（null = 无；源：availableAppReleaseInfo）。</summary>
+    public ClashBarX.Core.Updates.AppReleaseInfo? AvailableUpdate
+    {
+        get => _availableUpdate;
+        private set
+        {
+            if (SetProperty(ref _availableUpdate, value))
+            {
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasAvailableUpdate)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(AvailableUpdateVersionText)));
+            }
+        }
+    }
+
+    public bool HasAvailableUpdate => AvailableUpdate is not null;
+
+    public string AvailableUpdateVersionText => AvailableUpdate?.DisplayVersion ?? string.Empty;
+
+    public bool IsCheckingUpdate
+    {
+        get => _isCheckingUpdate;
+        private set => SetProperty(ref _isCheckingUpdate, value);
+    }
+
+    /// <summary>更新检查反馈行（null = 隐藏）。</summary>
+    public string? UpdateStatusText
+    {
+        get => _updateStatusText;
+        private set
+        {
+            if (SetProperty(ref _updateStatusText, value))
+            {
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasUpdateStatus)));
+            }
+        }
+    }
+
+    public bool HasUpdateStatus => UpdateStatusText is { Length: > 0 };
+
+    /// <summary>检查失败（错误着色；源：fetch 失败静默——手动检查给出反馈）。</summary>
+    public bool UpdateCheckFailed
+    {
+        get => _updateCheckFailed;
+        private set => SetProperty(ref _updateCheckFailed, value);
+    }
+
+    public System.Windows.Input.ICommand CheckUpdateCommand { get; }
+
+    /// <summary>发布页入口（源：appReleaseIndexURL / update.releaseURL）。</summary>
+    public const string ReleasesIndexUrl = "https://github.com/believems/ClashBarX/releases";
+
+    public void OpenReleasePage()
+    {
+        string url = AvailableUpdate?.ReleaseUrl ?? ReleasesIndexUrl;
+        OpenReleasePageRequested?.Invoke(url);
+    }
+
+    /// <summary>启动自动检查结果回填（源：refreshLatestAppRelease——同结果不重复刷）。</summary>
+    public void ApplyLatestRelease(ClashBarX.Core.Updates.AppReleaseInfo? latest)
+    {
+        ClashBarX.Core.Updates.AppReleaseInfo? update = ClashBarX.Core.Updates.AppReleaseService
+            .ResolveAvailableUpdate(latest, CurrentVersionText);
+        if (update is not null)
+        {
+            AvailableUpdate = update;
+            UpdateStatusText = $"有新版本 {update.DisplayVersion}";
+            UpdateCheckFailed = false;
+        }
+    }
+
+    private async Task RunUpdateCheckAsync()
+    {
+        if (IsCheckingUpdate || CheckUpdateRequested is null)
+        {
+            return;
+        }
+
+        IsCheckingUpdate = true;
+        try
+        {
+            ClashBarX.Core.Updates.AppReleaseInfo? update = await CheckUpdateRequested();
+            AvailableUpdate = update;
+            UpdateCheckFailed = false;
+            UpdateStatusText = update is null ? "已是最新版本" : $"有新版本 {update.DisplayVersion}";
+        }
+        catch (Exception error)
+        {
+            UpdateCheckFailed = true;
+            UpdateStatusText = $"检查更新失败：{error.Message}";
+        }
+        finally
+        {
+            IsCheckingUpdate = false;
+        }
+    }
+
     private bool _isMaintaining;
     private string? _maintenanceStatusText;
     private string _maintenanceStatusLevel = "info";
@@ -164,6 +281,7 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
         UpgradeCoreCommand = new RelayCommand(_ => RunMaintenanceAsync(UpgradeCoreRequested));
         FlushFakeIPCommand = new RelayCommand(_ => RunMaintenanceAsync(FlushFakeIPRequested));
         FlushDNSCommand = new RelayCommand(_ => RunMaintenanceAsync(FlushDNSRequested));
+        CheckUpdateCommand = new RelayCommand(_ => RunUpdateCheckAsync());
     }
 
     /// <summary>执行维护动作并反馈结果（进行中禁用按钮；源：维护区交互）。</summary>

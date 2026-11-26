@@ -11,6 +11,7 @@
         WindowStartupLocation="CenterScreen">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <core:InverseBoolConverter x:Key="InverseBool" />
     </Window.Resources>
     <DockPanel Margin="12">
         <!-- 远程机器切换器（源：MenuBarHeaderView.headerConnectionControl——状态点 + 目标下拉 + 管理） -->
@@ -1239,6 +1240,56 @@
                                     <Setter Property="Foreground" Value="#1B7F3B" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding MaintenanceStatusLevel}" Value="error">
+                                            <Setter Property="Foreground" Value="#C0392B" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <!-- 关于与更新检查（源：MenuBarCommonViews footer——版本行 + 新版本链接） -->
+                        <TextBlock Text="关于"
+                                   FontWeight="SemiBold"
+                                   FontSize="12"
+                                   Margin="0,14,0,6" />
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="{Binding CurrentVersionText, StringFormat=版本 {0}}"
+                                    FontSize="11"
+                                    Padding="8,2"
+                                    Click="OnOpenReleasePageClick"
+                                    ToolTip="{DynamicResource AboutVersionTooltip}" />
+                            <!-- 有新版本：醒目链接（源：footer 的下载徽章） -->
+                            <Button Visibility="{Binding HasAvailableUpdate, Converter={StaticResource BoolToVis}}"
+                                    Click="OnOpenReleasePageClick"
+                                    FontSize="11"
+                                    FontWeight="SemiBold"
+                                    Foreground="#0B6BCB"
+                                    Padding="8,2"
+                                    Margin="6,0,0,0"
+                                    Background="Transparent"
+                                    BorderThickness="0">
+                                <TextBlock>
+                                    <Run Text="⬇ " />
+                                    <Run Text="{Binding AvailableUpdateVersionText, Mode=OneWay}" />
+                                </TextBlock>
+                            </Button>
+                            <Button Content="{DynamicResource AboutCheckUpdate}"
+                                    FontSize="11"
+                                    Padding="8,2"
+                                    Margin="12,0,0,0"
+                                    Command="{Binding CheckUpdateCommand}"
+                                    IsEnabled="{Binding IsCheckingUpdate, Converter={StaticResource InverseBool}}" />
+                        </StackPanel>
+                        <TextBlock Margin="0,6,0,0"
+                                   FontSize="11"
+                                   TextWrapping="Wrap"
+                                   Text="{Binding UpdateStatusText}"
+                                   Visibility="{Binding HasUpdateStatus, Converter={StaticResource BoolToVis}}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="#1B7F3B" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding UpdateCheckFailed}" Value="True">
                                             <Setter Property="Foreground" Value="#C0392B" />
                                         </DataTrigger>
                                     </Style.Triggers>

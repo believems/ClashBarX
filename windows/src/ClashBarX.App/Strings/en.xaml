@@ -57,4 +57,7 @@
     <sys:String x:Key="SsidStrategyHint">Automatically switch to the bound config when the Wi-Fi name changes (hot reload)</sys:String>
     <sys:String x:Key="SsidStrategyBindCurrent">Bind current Wi-Fi → current config</sys:String>
     <sys:String x:Key="SsidStrategyUnbind">Unbind</sys:String>
+
+    <sys:String x:Key="AboutVersionTooltip">Open the releases page</sys:String>
+    <sys:String x:Key="AboutCheckUpdate">Check for updates</sys:String>
 </ResourceDictionary>

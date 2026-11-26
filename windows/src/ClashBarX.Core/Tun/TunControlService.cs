@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using ClashBarX.Core.Mihomo;
 using ClashBarX.Core.Models;
+using ClashBarX.Core.Versioning;
 
 namespace ClashBarX.Core.Tun;
 

@@ -22,6 +22,7 @@ using ClashBarX.Core.Streams;
 using ClashBarX.Core.Subscriptions;
 using ClashBarX.Core.SystemProxy;
 using ClashBarX.Core.Tun;
+using ClashBarX.Core.Updates;
 
 namespace ClashBarX.App;
 
@@ -63,6 +64,7 @@ public partial class App : Application
     private SsidStrategySectionViewModel? _ssidStrategy;
     /// <summary>SSID 策略日志指纹去重（源：ssidStrategyLastLogFingerprint）。</summary>
     private string? _ssidStrategyLastLogFingerprint;
+    private AppReleaseService? _releaseService;
     private ConnectionsPageViewModel? _connectionsPage;
     private ConnectionStatisticsService? _connectionStatistics;
     private bool _connectionsProcessMatchingEnabled;
@@ -266,6 +268,26 @@ public partial class App : Application
             AppearanceManager.ApplyLanguage(languageChanged);
             SaveCurrentSettings();
         };
+
+        // 关于与更新检查（源：refreshLatestAppRelease + availableAppUpdate + footer 链接）
+        _releaseService = new AppReleaseService();
+        string currentVersion = CurrentAppVersionText();
+        _settingsPage.CurrentVersionText = currentVersion;
+        _settingsPage.CheckUpdateRequested = async () =>
+            AppReleaseService.ResolveAvailableUpdate(
+                await _releaseService!.FetchLatestReleaseAsync(currentVersion), currentVersion);
+        _settingsPage.OpenReleasePageRequested += url =>
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+            }
+            catch (Exception error)
+            {
+                _mainWindow?.AppendLog($"[about] 打开发布页失败：{error.Message}");
+            }
+        };
+        _ = CheckUpdateAtStartupAsync();
         _settingsPage.TrafficOverviewChanged += visible =>
         {
             if (_proxyPage != null)
@@ -349,6 +371,7 @@ public partial class App : Application
         _proxyRefreshTimer?.Dispose();
         _rulesRefreshTimer?.Dispose();
         _ssidMonitor?.Dispose();
+        _releaseService?.Dispose();
         _configWatcher?.Dispose();
         _configRootWatcher?.Dispose();
         _configDebounceTimer?.Dispose();
@@ -846,6 +869,29 @@ public partial class App : Application
             Dispatcher.BeginInvoke(RefreshMachineSelector);
         };
         window.ShowDialog();
+    }
+
+    // ---- 应用更新（M5-4：源 AppViewModel+Maintenance.swift 的 currentAppVersionText/
+    //      refreshLatestAppRelease + MenuBarCommonViews footer） ----
+
+    /// <summary>当前应用版本（源：currentAppVersionText——程序集产品版本，缺省 0.0.1）。</summary>
+    private static string CurrentAppVersionText() =>
+        typeof(App).Assembly.GetName().Version?.ToString(3) is { Length: > 0 } version ? version : "0.0.1";
+
+    /// <summary>启动自动检查（源：refreshLatestAppRelease——失败静默、同结果不刷）。</summary>
+    private async Task CheckUpdateAtStartupAsync()
+    {
+        try
+        {
+            AppReleaseInfo? latest = await _releaseService!
+                .FetchLatestReleaseAsync(CurrentAppVersionText())
+                .ConfigureAwait(true);
+            Dispatcher.BeginInvoke(() => _settingsPage?.ApplyLatestRelease(latest));
+        }
+        catch (Exception)
+        {
+            // 源：catch 后仅在未取消时静默（无 UI 反馈）
+        }
     }
 
     // ---- SSID 策略（M5-3：源 AppViewModel+SSIDStrategy.swift + SSIDMonitorService.swift。

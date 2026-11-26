@@ -1,6 +1,6 @@
-using ClashBarX.Core.Tun;
+using ClashBarX.Core.Versioning;
 
-namespace ClashBarX.Core.Tests.Tun;
+namespace ClashBarX.Core.Tests.Versioning;
 
 /// <summary>语义版本比较规格测试（源：AppRelease.swift 的 AppSemanticVersion）。</summary>
 public class AppSemanticVersionTests

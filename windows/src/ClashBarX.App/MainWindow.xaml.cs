@@ -129,8 +129,17 @@ public partial class MainWindow : Window
     }
 
     /// <summary>注入设置页模型。调用方负责 UI 线程编组。</summary>
-    public void SetSettingsPage(SettingsPageViewModel viewModel) =>
+    public void SetSettingsPage(SettingsPageViewModel viewModel)
+    {
+        _settingsPage = viewModel;
         SettingsRoot.DataContext = viewModel;
+    }
+
+    private SettingsPageViewModel? _settingsPage;
+
+    /// <summary>打开发布页（有更新 → release 页；否则 → releases 列表；源：footer 链接语义）。</summary>
+    private void OnOpenReleasePageClick(object sender, RoutedEventArgs e) =>
+        _settingsPage?.OpenReleasePage();
 
     public void SetConnectionsPage(ConnectionsPageViewModel viewModel)
     {
