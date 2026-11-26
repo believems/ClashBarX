@@ -368,11 +368,16 @@ public partial class App : Application
                         }
                     }
 
-                    // 可见性感知：仅连接 tab 可见时输出全量列表（源：applyConnectionsUpdate 的 tab 判定）
-                    bool connectionsVisible = _mainWindow is { IsVisible: true, IsConnectionsTabSelected: true };
+                    // 可见性感知：列表仅在连接 tab 可见且非统计视图时输出；统计视图喂当前维度
+                    //（源：applyConnectionsUpdate 的 includeConnections/statisticsDimension 口径）
+                    bool connectionsVisible = _mainWindow is { IsVisible: true, IsConnectionsTabSelected: true }
+                        && _connectionsPage?.ShowsList != false;
+                    bool statisticsVisible = _mainWindow is { IsVisible: true, IsConnectionsTabSelected: true }
+                        && _connectionsPage?.ShowsStatistics == true;
                     ConnectionStatisticsUpdate update = _connectionStatistics!.Process(
                         payload,
-                        includeConnections: connectionsVisible);
+                        includeConnections: connectionsVisible,
+                        statisticsDimension: statisticsVisible ? _connectionsPage?.StatisticsDimension : null);
                     await Dispatcher.BeginInvoke(() => _connectionsPage?.IngestSnapshot(update));
                 }
                 catch (JsonException)

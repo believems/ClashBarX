@@ -275,4 +275,81 @@ public class ConnectionsPageViewModelTests
         Assert.Equal("–", ConnectionsPageViewModel.FormatRate(0.5));
         Assert.Equal("100B/s", ConnectionsPageViewModel.FormatRate(100));
     }
+
+    // ---- 三维度流量统计（M3-4：源 TrafficStatisticsView + ConnectionsStore 的统计态） ----
+
+    [Fact]
+    public void 统计快照喂入后按维度重建行()
+    {
+        var harness = new Harness();
+        harness.ViewModel.ShowsStatistics = true;
+        var statistics = new TrafficStatisticsSnapshot(
+            TrafficStatisticsDimension.Node,
+            new[]
+            {
+                new TrafficStatisticsEntry("节点A", "节点A", 2048, 4096),
+                new TrafficStatisticsEntry("节点B", "节点B", 512, 256),
+            });
+
+        harness.ViewModel.IngestSnapshot(new ConnectionStatisticsUpdate(2, 1, 2, null, statistics));
+
+        Assert.Equal(2, harness.ViewModel.StatisticsRows.Count);
+        Assert.Equal("节点A", harness.ViewModel.StatisticsRows[0].Name);
+        Assert.Equal("6.0KB", harness.ViewModel.StatisticsRows[0].TotalText);   // Core 已按 total 降序
+        Assert.Equal("2.0KB", harness.ViewModel.StatisticsRows[0].UploadText);
+        Assert.Equal("4.0KB", harness.ViewModel.StatisticsRows[0].DownloadText);
+    }
+
+    [Fact]
+    public void 维度不一致的快照不刷新统计行()
+    {
+        var harness = new Harness();
+        harness.ViewModel.ShowsStatistics = true;
+        var domainStatistics = new TrafficStatisticsSnapshot(
+            TrafficStatisticsDimension.Domain,
+            new[] { new TrafficStatisticsEntry("a.com", "a.com", 100, 100) });
+
+        // 默认 node 维度：domain 快照丢弃（源：dimension 一致才入 store）
+        harness.ViewModel.IngestSnapshot(new ConnectionStatisticsUpdate(1, 1, 2, null, domainStatistics));
+        Assert.Empty(harness.ViewModel.StatisticsRows);
+
+        // 切到 domain 维度后重喂才显示
+        harness.ViewModel.StatisticsDimension = TrafficStatisticsDimension.Domain;
+        harness.ViewModel.IngestSnapshot(new ConnectionStatisticsUpdate(1, 1, 2, null, domainStatistics));
+        Assert.Single(harness.ViewModel.StatisticsRows);
+        Assert.Equal("a.com", harness.ViewModel.StatisticsRows[0].Name);
+    }
+
+    [Fact]
+    public void 空名统计条目显示未识别()
+    {
+        var harness = new Harness();
+        harness.ViewModel.ShowsStatistics = true;
+        var statistics = new TrafficStatisticsSnapshot(
+            TrafficStatisticsDimension.Application,
+            new[] { new TrafficStatisticsEntry("", "", 10, 10) });
+
+        harness.ViewModel.StatisticsDimension = TrafficStatisticsDimension.Application;
+        harness.ViewModel.IngestSnapshot(new ConnectionStatisticsUpdate(1, 1, 2, null, statistics));
+
+        Assert.Equal("未识别", harness.ViewModel.StatisticsRows[0].Name);
+    }
+
+    [Fact]
+    public void 统计视图关闭时不重建行()
+    {
+        var harness = new Harness();
+        var statistics = new TrafficStatisticsSnapshot(
+            TrafficStatisticsDimension.Node,
+            new[] { new TrafficStatisticsEntry("节点A", "节点A", 100, 100) });
+
+        // ShowsStatistics=false：快照喂入但不重建（源：仅统计视图可见才计算）
+        harness.ViewModel.IngestSnapshot(new ConnectionStatisticsUpdate(1, 1, 2, null, statistics));
+        Assert.Empty(harness.ViewModel.StatisticsRows);
+
+        // 打开统计视图：已存快照重建成行
+        harness.ViewModel.ShowsStatistics = true;
+        harness.ViewModel.IngestSnapshot(new ConnectionStatisticsUpdate(1, 1, 2, null, statistics));
+        Assert.Single(harness.ViewModel.StatisticsRows);
+    }
 }

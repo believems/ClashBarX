@@ -54,6 +54,9 @@ public sealed class ConnectionsPageViewModel : INotifyPropertyChanged
     private bool _isSortDescending = true;
     private bool _isReorderingPaused;
     private string _summaryText = "0/0";
+    private bool _showsStatistics;
+    private TrafficStatisticsDimension _statisticsDimension = TrafficStatisticsDimension.Node;
+    private TrafficStatisticsSnapshot? _statistics;
 
     private Dictionary<string, TrafficSample> _samples = new();
     private Dictionary<string, (double Upload, double Download)> _speeds = new();
@@ -176,11 +179,53 @@ public sealed class ConnectionsPageViewModel : INotifyPropertyChanged
         private set => SetProperty(ref _summaryText, value);
     }
 
+    /// <summary>统计视图切换（源：connectionsStore.showsStatistics——segmented「连接/统计」）。</summary>
+    public bool ShowsStatistics
+    {
+        get => _showsStatistics;
+        set
+        {
+            if (SetProperty(ref _showsStatistics, value))
+            {
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsList)));
+            }
+        }
+    }
+
+    public bool ShowsList => !ShowsStatistics;
+
+    /// <summary>统计维度（源：connectionsStore.statisticsDimension，默认 node）。</summary>
+    public TrafficStatisticsDimension StatisticsDimension
+    {
+        get => _statisticsDimension;
+        set
+        {
+            if (SetProperty(ref _statisticsDimension, value))
+            {
+                RebuildStatisticsRows();
+            }
+        }
+    }
+
+    /// <summary>维度下拉选项（源：ui.statistics.dimension.*）。</summary>
+    public IReadOnlyList<EnumOption<TrafficStatisticsDimension>> DimensionOptions { get; } = new[]
+    {
+        new EnumOption<TrafficStatisticsDimension>("节点", TrafficStatisticsDimension.Node),
+        new EnumOption<TrafficStatisticsDimension>("应用", TrafficStatisticsDimension.Application),
+        new EnumOption<TrafficStatisticsDimension>("域名", TrafficStatisticsDimension.Domain),
+    };
+
+    /// <summary>统计条目（源：TrafficStatisticsView 的行集合）。</summary>
+    public ObservableCollection<StatisticRowViewModel> StatisticsRows { get; } = new();
+
+    /// <summary>采样提示（源：ui.statistics.session + sampling_hint）。</summary>
+    public string StatisticsHint => "本次运行累计（重启或切换内核后清零，采样统计可能漏计短连接）";
+
     public ICommand CloseConnectionCommand { get; }
 
     public ICommand CloseAllConnectionsCommand { get; }
 
-    /// <summary>喂入一帧连接快照：先做速率差分，再按过滤/排序重建行。</summary>
+    /// <summary>喂入一帧连接快照：先做速率差分，再按过滤/排序重建行；带统计时刷新统计视图。</summary>
     public void IngestSnapshot(ConnectionStatisticsUpdate update)
     {
         if (update.Connections is { } connections)
@@ -189,8 +234,39 @@ public sealed class ConnectionsPageViewModel : INotifyPropertyChanged
             IngestSpeeds(connections);
         }
 
+        // 仅维度一致的快照才显示（源：statistics.dimension == statisticsDimension 才入 store）
+        if (update.Statistics is { } statistics && statistics.Dimension == StatisticsDimension)
+        {
+            _statistics = statistics;
+            RebuildStatisticsRows();
+        }
+
         RebuildRows();
         SummaryText = $"{Connections.Count}/{Math.Min(update.TotalCount, RetainedRowLimit)}";
+    }
+
+    /// <summary>重建统计行（源：TrafficStatisticsView——名称/合计/上下行，空名显示「未识别」）。</summary>
+    private void RebuildStatisticsRows()
+    {
+        if (!_showsStatistics)
+        {
+            return;
+        }
+
+        StatisticsRows.Clear();
+        if (_statistics is null)
+        {
+            return;
+        }
+
+        foreach (TrafficStatisticsEntry entry in _statistics.Entries)
+        {
+            StatisticsRows.Add(new StatisticRowViewModel(
+                string.IsNullOrWhiteSpace(entry.Name) ? "未识别" : entry.Name,
+                FormatBytes(entry.Total),
+                FormatBytes(entry.Upload),
+                FormatBytes(entry.Download)));
+        }
     }
 
     /// <summary>差分速率（源：ingestSnapshot——新值权重 0.5，间隔不足沿用旧样本）。</summary>
@@ -494,3 +570,6 @@ public sealed class ConnectionRowViewModel : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 }
+
+/// <summary>统计行：名称 + 合计 + 上/下行字节（源：TrafficStatisticsView 的行）。</summary>
+public sealed record StatisticRowViewModel(string Name, string TotalText, string UploadText, string DownloadText);

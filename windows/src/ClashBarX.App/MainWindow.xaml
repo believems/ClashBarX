@@ -131,9 +131,38 @@
                 </DockPanel>
             </TabItem>
 
-            <!-- 连接（M3-1）：实时连接列表（host/规则/链路/上下行速率）+ 关闭连接 -->
+            <!-- 连接（M3-1/M3-4）：列表（host/规则/链路/上下行速率）+ 三维度流量统计 -->
             <TabItem Header="连接">
                 <DockPanel x:Name="ConnectionsRoot" Margin="4,8,4,4">
+                    <!-- 视图切换：连接 / 统计（源：connectionsStore.showsStatistics segmented） -->
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,4">
+                        <RadioButton GroupName="ConnectionView"
+                                     Content="连接"
+                                     IsChecked="True"
+                                     FontSize="12"
+                                     VerticalAlignment="Center" />
+                        <RadioButton GroupName="ConnectionView"
+                                     Content="统计"
+                                     IsChecked="{Binding ShowsStatistics}"
+                                     Margin="12,0,0,0"
+                                     FontSize="12"
+                                     VerticalAlignment="Center" />
+                        <ComboBox Width="76"
+                                  Margin="16,0,0,0"
+                                  ItemsSource="{Binding DimensionOptions}"
+                                  DisplayMemberPath="Label"
+                                  SelectedValuePath="Value"
+                                  SelectedValue="{Binding StatisticsDimension}"
+                                  Visibility="{Binding ShowsStatistics, Converter={StaticResource BoolToVis}}" />
+                        <TextBlock Text="{Binding StatisticsHint}"
+                                   Foreground="#8A93A0"
+                                   FontSize="10"
+                                   Margin="12,0,0,0"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"
+                                   Visibility="{Binding ShowsStatistics, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
+                    <DockPanel Visibility="{Binding ShowsList, Converter={StaticResource BoolToVis}}">
                     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
                         <Button DockPanel.Dock="Right"
                                 Content="关闭全部"
@@ -223,6 +252,49 @@
                                                            Margin="0,2,0,0"
                                                            TextTrimming="CharacterEllipsis" />
                                             </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                    </DockPanel>
+                    <!-- 统计视图（源：TrafficStatisticsView——名称/合计/上下行） -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  Visibility="{Binding ShowsStatistics, Converter={StaticResource BoolToVis}}">
+                        <ItemsControl ItemsSource="{Binding StatisticsRows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Padding="4,5" BorderBrush="#EAEAEA" BorderThickness="0,0,0,1">
+                                        <DockPanel>
+                                            <StackPanel DockPanel.Dock="Right"
+                                                        Orientation="Horizontal"
+                                                        MinWidth="200">
+                                                <TextBlock Text="合计"
+                                                           FontSize="10"
+                                                           Foreground="#8A93A0"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Text="{Binding TotalText}"
+                                                           FontWeight="SemiBold"
+                                                           FontSize="12"
+                                                           Margin="8,0,0,0"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Text="{Binding UploadText}"
+                                                           FontSize="11"
+                                                           Foreground="#0B6BCB"
+                                                           Margin="16,0,0,0"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Text="{Binding DownloadText}"
+                                                           FontSize="11"
+                                                           Foreground="#1B7F3B"
+                                                           Margin="10,0,0,0"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding Name}"
+                                                       FontSize="12"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       ToolTip="{Binding Name}" />
                                         </DockPanel>
                                     </Border>
                                 </DataTemplate>
