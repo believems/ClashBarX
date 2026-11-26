@@ -11,6 +11,7 @@ using ClashBarX.Core.Mihomo;
 using ClashBarX.Core.Models;
 using ClashBarX.Core.Proxies;
 using ClashBarX.Core.ProxyGuard;
+using ClashBarX.Core.Rules;
 using ClashBarX.Core.Runtime;
 using ClashBarX.Core.Streams;
 using ClashBarX.Core.Subscriptions;
@@ -49,6 +50,8 @@ public partial class App : Application
     private ConnectionsPageViewModel? _connectionsPage;
     private ConnectionStatisticsService? _connectionStatistics;
     private bool _connectionsProcessMatchingEnabled;
+    private RulesBoardService? _rulesBoard;
+    private RulesPageViewModel? _rulesPage;
 
     /// <summary>连接页 UI 可见性快照（UI 线程维护，供 WS 后台线程读取——直接读 WPF 属性会跨线程异常）。</summary>
     private volatile bool _connectionsUiVisible;
@@ -67,6 +70,8 @@ public partial class App : Application
     private StreamCoordinator? _streams;
     private System.Threading.Timer? _proxyRefreshTimer;
     private string? _lastProxyRefreshError;
+    private System.Threading.Timer? _rulesRefreshTimer;
+    private string? _lastRulesRefreshError;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -110,6 +115,7 @@ public partial class App : Application
         StartApiPolling();
         SetupSystemProxy();
         SetupProxyPage();
+        SetupRulesPage();
         SetupConnectionsPage();
         SetupLogsPage();
         SetupProxyGuard();
@@ -119,6 +125,7 @@ public partial class App : Application
     {
         // 兜底：正常退出路径也会先在此终结内核，避免任何路径漏杀
         _proxyRefreshTimer?.Dispose();
+        _rulesRefreshTimer?.Dispose();
         _mihomoLogFlushTimer?.Stop();
         _proxyGuard?.Dispose();
         _guardTriggerEvent?.Dispose();
@@ -339,6 +346,52 @@ public partial class App : Application
             {
                 _lastProxyRefreshError = fingerprint;
                 _mainWindow?.AppendLog($"[proxy] 面板刷新失败：{error.Message}");
+            }
+        }
+    }
+
+    // ---- 规则页（M4-1：信息架构源 RulesTabView/RulesViewModel；源数据流 refreshProvidersAndRules） ----
+
+    private void SetupRulesPage()
+    {
+        _rulesBoard = new RulesBoardService(_apiClient!);
+        _rulesPage = new RulesPageViewModel(
+            () => RefreshRulesAsync(useProvidersRefresh: true),
+            () => _processManager?.IsRunning == true);
+        _mainWindow!.SetRulesPage(_rulesPage);
+
+        // 规则 tab 激活时的低频轮询（源：refreshLowFrequency 的 rules 前台 20s 间隔）
+        _rulesRefreshTimer = new System.Threading.Timer(
+            _ => Dispatcher.BeginInvoke(() => _ = RefreshRulesAsync(useProvidersRefresh: false)),
+            null,
+            TimeSpan.FromSeconds(3),
+            TimeSpan.FromSeconds(20));
+    }
+
+    private async Task RefreshRulesAsync(bool useProvidersRefresh)
+    {
+        if (_mainWindow is not { IsVisible: true, IsRulesTabSelected: true }
+            || _processManager?.IsRunning != true)
+        {
+            return;
+        }
+
+        try
+        {
+            RulesBoard board = useProvidersRefresh
+                ? await _rulesBoard!.RefreshProvidersAsync()
+                : await _rulesBoard!.RefreshAsync();
+            _rulesPage?.ApplyBoard(board);
+            _lastRulesRefreshError = null;
+        }
+        catch (Exception error)
+        {
+            // 连续失败按指纹去重记录（照代理页面板刷新的模式）
+            string fingerprint = error.GetType().FullName + ":" + error.Message;
+            if (_lastRulesRefreshError != fingerprint)
+            {
+                _lastRulesRefreshError = fingerprint;
+                _mainWindow?.AppendLog($"[rules] 面板刷新失败：{error.Message}");
             }
         }
     }

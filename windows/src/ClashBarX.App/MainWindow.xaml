@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:ClashBarX.App"
+        xmlns:core="clr-namespace:ClashBarX.App.Core"
         mc:Ignorable="d"
         Title="ClashBarX" Height="560" Width="760"
         WindowStartupLocation="CenterScreen">
@@ -126,6 +127,112 @@
                                     </Expander>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </TabItem>
+
+            <!-- 规则（M4-1）：列表（目标/类型/策略/规则集统计）+ 类型过滤 + 搜索 + 策略分组 -->
+            <TabItem Header="规则">
+                <DockPanel x:Name="RulesRoot" Margin="4,8,4,4">
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
+                        <Button DockPanel.Dock="Right"
+                                Content="刷新规则集"
+                                Padding="10,2"
+                                Margin="10,0,0,0"
+                                FontSize="11"
+                                Command="{Binding RefreshCommand}" />
+                        <ToggleButton DockPanel.Dock="Right"
+                                      Content="按策略分组"
+                                      Padding="10,2"
+                                      FontSize="11"
+                                      IsChecked="{Binding GroupByPolicy}" />
+                        <TextBlock Text="{Binding StatsText}"
+                                   FontWeight="SemiBold"
+                                   FontSize="12"
+                                   VerticalAlignment="Center" />
+                    </DockPanel>
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
+                        <ComboBox DockPanel.Dock="Right"
+                                  Width="110"
+                                  Margin="8,0,0,0"
+                                  ItemsSource="{Binding PolicyOptions}"
+                                  DisplayMemberPath="Label"
+                                  SelectedValuePath="Value"
+                                  SelectedValue="{Binding PolicyFilter}" />
+                        <ComboBox DockPanel.Dock="Right"
+                                  Width="84"
+                                  ItemsSource="{Binding TypeFilterOptions}"
+                                  DisplayMemberPath="Label"
+                                  SelectedValuePath="Value"
+                                  SelectedValue="{Binding TypeFilter}" />
+                        <TextBox Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}"
+                                 VerticalContentAlignment="Center"
+                                 Padding="6,2"
+                                 Margin="0,0,8,0" />
+                    </DockPanel>
+                    <TextBlock DockPanel.Dock="Top"
+                               Text="{Binding CountText}"
+                               Foreground="#5E6B78"
+                               FontSize="11"
+                               Margin="0,0,0,4" />
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding Rows}">
+                            <ItemsControl.Resources>
+                                <DataTemplate DataType="{x:Type core:RuleGroupHeaderViewModel}">
+                                    <Button Command="{Binding DataContext.ToggleGroupCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding Policy}"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            HorizontalContentAlignment="Stretch"
+                                            Padding="2,4"
+                                            Margin="0,4,0,2">
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Right"
+                                                       Foreground="#5E6B78"
+                                                       FontSize="11"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock VerticalAlignment="Center">
+                                                <Run Text="{Binding Policy, Mode=OneWay}" FontWeight="SemiBold" />
+                                                <Run Text="{Binding Count, Mode=OneWay, StringFormat=· {0} 条}" Foreground="#5E6B78" />
+                                            </TextBlock>
+                                        </DockPanel>
+                                    </Button>
+                                </DataTemplate>
+                                <DataTemplate DataType="{x:Type core:RuleRowViewModel}">
+                                    <Border Padding="2,4" BorderBrush="#EAEAEA" BorderThickness="0,0,0,1">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="200" />
+                                                <ColumnDefinition Width="130" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="{Binding Target}"
+                                                           FontWeight="SemiBold"
+                                                           FontSize="12"
+                                                           TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding TypeText}"
+                                                           Foreground="#8A93A0"
+                                                           FontSize="10"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding PolicyText}"
+                                                       FontSize="11"
+                                                       Foreground="#5E6B78"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding StatsText}"
+                                                       FontSize="11"
+                                                       Foreground="#8A93A0"
+                                                       VerticalAlignment="Center"
+                                                       TextAlignment="Right" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.Resources>
                         </ItemsControl>
                     </ScrollViewer>
                 </DockPanel>
