@@ -1,0 +1,12 @@
+# .NET 构建产物
+bin/
+obj/
+TestResults/
+artifacts/
+*.binlog
+
+# IDE
+.vs/
+.idea/
+*.user
+*.suo
