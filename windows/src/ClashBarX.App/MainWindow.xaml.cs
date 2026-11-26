@@ -107,6 +107,27 @@ public partial class MainWindow : Window
     public void SetTunSection(TunSectionViewModel viewModel) =>
         TunSectionRoot.DataContext = viewModel;
 
+    /// <summary>注入网络页 SSID 策略区模型。调用方负责 UI 线程编组。</summary>
+    public void SetSsidStrategySection(SsidStrategySectionViewModel viewModel) =>
+        SsidStrategyRoot.DataContext = viewModel;
+
+    private void OnSsidBindCurrentClick(object sender, RoutedEventArgs e)
+    {
+        if (SsidStrategyRoot.DataContext is SsidStrategySectionViewModel viewModel)
+        {
+            viewModel.RequestBindCurrent();
+        }
+    }
+
+    private void OnSsidUnbindClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is SsidBindingRowViewModel row
+            && SsidStrategyRoot.DataContext is SsidStrategySectionViewModel viewModel)
+        {
+            viewModel.RequestRemove(row.Ssid);
+        }
+    }
+
     /// <summary>注入设置页模型。调用方负责 UI 线程编组。</summary>
     public void SetSettingsPage(SettingsPageViewModel viewModel) =>
         SettingsRoot.DataContext = viewModel;
@@ -247,6 +268,7 @@ public partial class MainWindow : Window
         SubscriptionSectionRoot.IsEnabled = !isRemote;
         GuardSettingsRoot.IsEnabled = !isRemote;
         OverrideCardRoot.IsEnabled = !isRemote;
+        SsidStrategyRoot.IsEnabled = !isRemote;   // 源：toggleCurrentSSIDBinding 的 remote guard
         RemoteReadonlyHint.Visibility = isRemote ? Visibility.Visible : Visibility.Collapsed;
         StartCoreButton.IsEnabled = !isRemote;
         StopCoreButton.IsEnabled = !isRemote;

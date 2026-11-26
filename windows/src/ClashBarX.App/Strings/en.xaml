@@ -51,4 +51,10 @@
     <sys:String x:Key="MachineFieldHttps">HTTPS connection</sys:String>
     <sys:String x:Key="MachineSave">Save</sys:String>
     <sys:String x:Key="MachineRemoteReadonly">Remote, read-only (local config locked)</sys:String>
+
+    <sys:String x:Key="SsidStrategyTitle">SSID Auto Switch</sys:String>
+    <sys:String x:Key="SsidStrategyToggle">Enable</sys:String>
+    <sys:String x:Key="SsidStrategyHint">Automatically switch to the bound config when the Wi-Fi name changes (hot reload)</sys:String>
+    <sys:String x:Key="SsidStrategyBindCurrent">Bind current Wi-Fi → current config</sys:String>
+    <sys:String x:Key="SsidStrategyUnbind">Unbind</sys:String>
 </ResourceDictionary>

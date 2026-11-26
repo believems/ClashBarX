@@ -16,7 +16,9 @@ public sealed record AppSettings(
     bool ShowTrafficOverview = true,
     bool CloseConnectionsOnSwitch = false,
     bool TunEnabled = false,
-    string TunStack = "mixed")
+    string TunStack = "mixed",
+    bool SsidStrategyEnabled = false,
+    string SsidStrategyRulesJson = "[]")
 {
     public static readonly AppSettings Default = new(false);
 }

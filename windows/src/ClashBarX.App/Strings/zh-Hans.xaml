@@ -51,4 +51,10 @@
     <sys:String x:Key="MachineFieldHttps">HTTPS 连接</sys:String>
     <sys:String x:Key="MachineSave">保存</sys:String>
     <sys:String x:Key="MachineRemoteReadonly">远程只读（本机配置不可变更）</sys:String>
+
+    <sys:String x:Key="SsidStrategyTitle">SSID 自动切换</sys:String>
+    <sys:String x:Key="SsidStrategyToggle">启用</sys:String>
+    <sys:String x:Key="SsidStrategyHint">Wi-Fi 名称变化时自动切换到绑定的配置（热重载）</sys:String>
+    <sys:String x:Key="SsidStrategyBindCurrent">绑定当前 Wi-Fi → 当前配置</sys:String>
+    <sys:String x:Key="SsidStrategyUnbind">解除绑定</sys:String>
 </ResourceDictionary>

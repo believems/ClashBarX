@@ -15,6 +15,7 @@ using ClashBarX.Core.Overrides;
 using ClashBarX.Core.Proxies;
 using ClashBarX.Core.ProxyGuard;
 using ClashBarX.Core.Remote;
+using ClashBarX.Core.Ssid;
 using ClashBarX.Core.Rules;
 using ClashBarX.Core.Runtime;
 using ClashBarX.Core.Streams;
@@ -58,6 +59,10 @@ public partial class App : Application
     private RemoteMachineStore? _remoteStore;
     /// <summary>机器目标切换中（源：isSwitchingMachine——禁用头部切换器与 WebUI 入口）。</summary>
     private bool _isSwitchingMachine;
+    private WlanSsidMonitor? _ssidMonitor;
+    private SsidStrategySectionViewModel? _ssidStrategy;
+    /// <summary>SSID 策略日志指纹去重（源：ssidStrategyLastLogFingerprint）。</summary>
+    private string? _ssidStrategyLastLogFingerprint;
     private ConnectionsPageViewModel? _connectionsPage;
     private ConnectionStatisticsService? _connectionStatistics;
     private bool _connectionsProcessMatchingEnabled;
@@ -171,6 +176,7 @@ public partial class App : Application
         SetupSystemProxy();
         SetupProxyPage();
         SetupTunSection();
+        SetupSsidStrategy();
         SetupRulesPage();
         SetupConnectionsPage();
         SetupLogsPage();
@@ -342,6 +348,7 @@ public partial class App : Application
         // 兜底：正常退出路径也会先在此终结内核，避免任何路径漏杀
         _proxyRefreshTimer?.Dispose();
         _rulesRefreshTimer?.Dispose();
+        _ssidMonitor?.Dispose();
         _configWatcher?.Dispose();
         _configRootWatcher?.Dispose();
         _configDebounceTimer?.Dispose();
@@ -839,6 +846,189 @@ public partial class App : Application
             Dispatcher.BeginInvoke(RefreshMachineSelector);
         };
         window.ShowDialog();
+    }
+
+    // ---- SSID 策略（M5-3：源 AppViewModel+SSIDStrategy.swift + SSIDMonitorService.swift。
+    //      Windows 读 SSID 走 WLAN API（WlanSsidMonitor，P/Invoke 隔离在 App 层），
+    //      无 macOS 的定位授权门槛；命中即热重载目标配置） ----
+
+    private void SetupSsidStrategy()
+    {
+        AppSettings saved = _settingsStore.Load();
+        _ssidMonitor = new WlanSsidMonitor();
+        _ssidMonitor.SsidChanged += ssid =>
+            Dispatcher.BeginInvoke(() => OnSsidChanged(ssid));
+
+        _ssidStrategy = new SsidStrategySectionViewModel();
+        _ssidStrategy.RestoreEnabled(saved.SsidStrategyEnabled);
+        _ssidStrategy.ApplyBindings(LoadSsidStrategyRules());
+        _ssidStrategy.EnabledToggled += enabled =>
+        {
+            // 源：handleSSIDStrategyEnabledStateChanged——开即监听并应用，关即停
+            SaveCurrentSettings();
+            if (enabled)
+            {
+                _ssidMonitor?.Start();
+                _ = ApplySsidStrategyForCurrentSsidAsync();
+            }
+            else
+            {
+                _ssidStrategyLastLogFingerprint = null;
+                _ssidMonitor?.Stop();
+            }
+        };
+        _ssidStrategy.BindCurrentRequested += OnBindCurrentSsidRequested;
+        _ssidStrategy.RemoveBindingRequested += ssid =>
+        {
+            // 源：removeSSIDStrategyBinding
+            IReadOnlyList<SsidStrategyRule> next = SsidStrategyRule.Remove(ssid, LoadSsidStrategyRules());
+            SaveSsidStrategyRules(next);
+            _mainWindow?.AppendLog($"[ssid] 已解除 {ssid} 的绑定");
+            _ = ApplySsidStrategyForCurrentSsidAsync();
+        };
+        _mainWindow!.SetSsidStrategySection(_ssidStrategy);
+
+        if (saved.SsidStrategyEnabled)
+        {
+            _ssidMonitor.Start();
+        }
+    }
+
+    /// <summary>SSID 变化（源：handleSSIDMonitorSnapshot——回填显示并触发策略应用）。</summary>
+    private void OnSsidChanged(string? ssid)
+    {
+        _ssidStrategy?.ApplyCurrentSsid(ssid);
+        if (_ssidStrategy?.IsEnabled == true && _remoteStore?.IsRemoteTarget != true)
+        {
+            _ = ApplySsidStrategyForCurrentSsidAsync();
+        }
+    }
+
+    /// <summary>绑定当前 SSID 到当前选中配置（源：toggleCurrentSSIDBinding——同绑定则解绑）。</summary>
+    private void OnBindCurrentSsidRequested()
+    {
+        // 源：guard !isRemoteTarget
+        if (_remoteStore?.IsRemoteTarget == true)
+        {
+            return;
+        }
+
+        if (_ssidStrategy?.IsEnabled != true)
+        {
+            LogSsidStrategyOnce("warning", "enable-first", "[ssid] 请先开启 SSID 自动切换");
+            return;
+        }
+
+        string? currentSsid = _ssidMonitor?.PublishCurrentSsid();
+        if (string.IsNullOrWhiteSpace(currentSsid))
+        {
+            _mainWindow?.AppendLog("[ssid] 当前 Wi-Fi 名称不可用，无法绑定");
+            return;
+        }
+
+        string? selectedConfig = _subscriptions?.GetSelectedFileName();
+        if (string.IsNullOrWhiteSpace(selectedConfig))
+        {
+            _mainWindow?.AppendLog("[ssid] 当前无选中配置，无法绑定");
+            return;
+        }
+
+        IReadOnlyList<SsidStrategyRule> rules = LoadSsidStrategyRules();
+        if (rules.Any(rule => rule.Ssid == currentSsid && rule.ConfigFileName == selectedConfig))
+        {
+            // 源：重复绑定 → 解除（toggle 语义）
+            IReadOnlyList<SsidStrategyRule> next = SsidStrategyRule.Remove(currentSsid, rules);
+            SaveSsidStrategyRules(next);
+            _mainWindow?.AppendLog($"[ssid] 已解除 {currentSsid} 的绑定");
+            return;
+        }
+
+        IReadOnlyList<SsidStrategyRule> upserted = SsidStrategyRule.Upsert(currentSsid, selectedConfig, rules);
+        SaveSsidStrategyRules(upserted);
+        _mainWindow?.AppendLog($"[ssid] 已绑定 {currentSsid} → {selectedConfig}");
+        _ = ApplySsidStrategyForCurrentSsidAsync();
+    }
+
+    /// <summary>
+    /// 命中应用（源：applySSIDStrategyForCurrentSSIDIfNeeded + resolveSSIDStrategyConfig）：
+    /// noAction 清指纹；missingConfig 指纹告警；switchToConfig 热重载 + banner 对应物。
+    /// </summary>
+    private async Task ApplySsidStrategyForCurrentSsidAsync()
+    {
+        if (_ssidStrategy?.IsEnabled != true || _remoteStore?.IsRemoteTarget == true)
+        {
+            return;
+        }
+
+        string? currentSsid = _ssidMonitor?.QueryCurrentSsid();
+        string? currentConfigName = _subscriptions?.GetSelectedFileName();
+        IReadOnlyList<string> available = _subscriptions?.ListConfigFiles() ?? new List<string>();
+        SsidStrategyResolution resolution = SsidStrategyResolver.Resolve(
+            currentSsid, currentConfigName, LoadSsidStrategyRules(), available);
+
+        switch (resolution.Kind)
+        {
+            case SsidStrategyResolutionKind.NoAction:
+                _ssidStrategyLastLogFingerprint = null;
+                break;
+
+            case SsidStrategyResolutionKind.MissingConfig:
+                LogSsidStrategyOnce(
+                    "warning",
+                    $"missing-config:{resolution.ConfigFileName}",
+                    $"[ssid] 绑定的配置 {resolution.ConfigFileName} 不存在，无法自动切换");
+                break;
+
+            case SsidStrategyResolutionKind.SwitchToConfig:
+                _ssidStrategyLastLogFingerprint = null;
+                string ssidDisplay = string.IsNullOrWhiteSpace(currentSsid) ? "未知" : currentSsid!;
+                _mainWindow?.AppendLog($"[ssid] Wi-Fi 切换为 {ssidDisplay}，自动切换配置 {resolution.ConfigFileName}");
+                _subscriptions!.Select(resolution.ConfigFileName!);
+                RefreshConfigList();
+                await ApplySelectedConfigAsync();
+                // 源：StatusItemBanner（wifi.circle.fill）的 Windows 对应物：tooltip 闪现
+                _tray?.ShowTransientMessage($"SSID 策略：{ssidDisplay} → {resolution.ConfigFileName}");
+                break;
+        }
+    }
+
+    private IReadOnlyList<SsidStrategyRule> LoadSsidStrategyRules()
+    {
+        try
+        {
+            string json = _settingsStore.Load().SsidStrategyRulesJson;
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return Array.Empty<SsidStrategyRule>();
+            }
+
+            return SsidStrategyRule.Normalize(
+                System.Text.Json.JsonSerializer.Deserialize<List<SsidStrategyRule>>(json) ?? new());
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return Array.Empty<SsidStrategyRule>();   // 损坏 JSON 按空规则处理
+        }
+    }
+
+    private void SaveSsidStrategyRules(IReadOnlyList<SsidStrategyRule> rules)
+    {
+        string json = System.Text.Json.JsonSerializer.Serialize(rules);
+        _settingsStore.Save(_settingsStore.Load() with { SsidStrategyRulesJson = json });
+        _ssidStrategy?.ApplyBindings(rules);
+    }
+
+    /// <summary>指纹去重日志（源：logSSIDStrategyOnce）。</summary>
+    private void LogSsidStrategyOnce(string level, string fingerprint, string message)
+    {
+        if (_ssidStrategyLastLogFingerprint == fingerprint)
+        {
+            return;
+        }
+
+        _ssidStrategyLastLogFingerprint = fingerprint;
+        _mainWindow?.AppendLog(message);
+        _ = level;   // 级别区分保留字段（当前只有 warning 路径使用）
     }
 
     // ---- TUN（M5-1：源 AppViewModel+Tun.swift + ProxyTabView 的 tunModeQuickToggleRow/tunStackMenu。
@@ -1659,6 +1849,9 @@ public partial class App : Application
             LaunchAtLogin = _settingsPage?.LaunchAtLogin ?? saved.LaunchAtLogin,
             ShowTrafficOverview = _settingsPage?.ShowTrafficOverview ?? saved.ShowTrafficOverview,
             CloseConnectionsOnSwitch = _settingsPage?.CoreSettings.CloseConnections ?? saved.CloseConnectionsOnSwitch,
+            TunEnabled = _tunSection?.IsTunEnabled ?? saved.TunEnabled,
+            TunStack = string.IsNullOrWhiteSpace(_tunSection?.SelectedStack) ? saved.TunStack : _tunSection!.SelectedStack!,
+            SsidStrategyEnabled = _ssidStrategy?.IsEnabled ?? saved.SsidStrategyEnabled,
         });
     }
 
