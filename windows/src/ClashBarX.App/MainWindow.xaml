@@ -1,0 +1,21 @@
+<Window x:Class="ClashBarX.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:ClashBarX.App"
+        mc:Ignorable="d"
+        Title="ClashBarX" Height="220" Width="380"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize">
+    <StackPanel Margin="16" VerticalAlignment="Center">
+        <TextBlock Text="ClashBarX（Windows 版）"
+                   FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+        <TextBlock Text="M1 骨架阶段：协议层（26 端点 API 客户端 + WebSocket 四流）已就绪。"
+                   Margin="0,10,0,0" TextWrapping="Wrap" HorizontalAlignment="Center"
+                   Foreground="#666"/>
+        <TextBlock Text="托盘常驻与内核 sidecar 启停将在后续里程碑接入。"
+                   Margin="0,6,0,0" TextWrapping="Wrap" HorizontalAlignment="Center"
+                   Foreground="#666"/>
+    </StackPanel>
+</Window>
