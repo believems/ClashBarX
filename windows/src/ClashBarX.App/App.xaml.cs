@@ -1,11 +1,16 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Windows;
+using System.Windows.Threading;
 using ClashBarX.App.Core;
+using ClashBarX.Core.Connections;
 using ClashBarX.Core.Json;
+using ClashBarX.Core.Logging;
 using ClashBarX.Core.Mihomo;
 using ClashBarX.Core.Models;
 using ClashBarX.Core.Proxies;
+using ClashBarX.Core.ProxyGuard;
 using ClashBarX.Core.Runtime;
 using ClashBarX.Core.Streams;
 using ClashBarX.Core.Subscriptions;
@@ -41,6 +46,24 @@ public partial class App : Application
     private MainWindow? _mainWindow;
     private ProxyPageViewModel? _proxyPage;
     private ProxyBoardService? _proxyBoard;
+    private ConnectionsPageViewModel? _connectionsPage;
+    private ConnectionStatisticsService? _connectionStatistics;
+    private bool _connectionsProcessMatchingEnabled;
+
+    /// <summary>连接页 UI 可见性快照（UI 线程维护，供 WS 后台线程读取——直接读 WPF 属性会跨线程异常）。</summary>
+    private volatile bool _connectionsUiVisible;
+
+    /// <summary>连接页统计视图态快照（UI 线程维护：VM 属性变化经 PropertyChanged 联动刷新）。</summary>
+    private volatile bool _connectionsShowsStatistics;
+    private TrafficStatisticsDimension _connectionsStatisticsDimension = TrafficStatisticsDimension.Node;
+    private LogsPageViewModel? _logsPage;
+    private DispatcherTimer? _mihomoLogFlushTimer;
+    private ProxyGuardService? _proxyGuard;
+    private ProxyGuardSettingsViewModel? _guardSettings;
+    /// <summary>守护周期秒数（UI 线程写、守护后台循环每轮读——volatile 保证可见性）。</summary>
+    private volatile int _guardIntervalSeconds = 300;
+    private bool _cliProxyGuardTrigger;
+    private EventWaitHandle? _guardTriggerEvent;
     private StreamCoordinator? _streams;
     private System.Threading.Timer? _proxyRefreshTimer;
     private string? _lastProxyRefreshError;
@@ -49,8 +72,19 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // CLI 触发（源：--proxy-guard——已有实例时通知其立即探测后本进程退出
+        //（ProxyGuardCLI 的 exit(0) 语义）；本实例为首个实例时随启动触发）
+        _cliProxyGuardTrigger = Environment.GetCommandLineArgs()
+            .Contains(ProxyGuardService.CliTriggerArgument, StringComparer.OrdinalIgnoreCase);
+        if (_cliProxyGuardTrigger && TryTriggerRunningGuardInstance())
+        {
+            Shutdown();   // 已通知运行中实例，不再启动第二份主窗/托盘/内核（避免抢占 9090 控制端口）
+            return;
+        }
+
         _processManager = new MihomoProcessManager();
-        _processManager.OnLog += line => Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog(line));
+        _processManager.OnLog += line => Dispatcher.BeginInvoke(() =>
+            _logsPage?.QueueMihomoLog(MihomoLogDecoder.NormalizeLevel(line), line));
         _processManager.OnTermination += _ => Dispatcher.BeginInvoke(RefreshPresentationState);
 
         _subscriptions = new SubscriptionService(
@@ -76,12 +110,18 @@ public partial class App : Application
         StartApiPolling();
         SetupSystemProxy();
         SetupProxyPage();
+        SetupConnectionsPage();
+        SetupLogsPage();
+        SetupProxyGuard();
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
         // 兜底：正常退出路径也会先在此终结内核，避免任何路径漏杀
         _proxyRefreshTimer?.Dispose();
+        _mihomoLogFlushTimer?.Stop();
+        _proxyGuard?.Dispose();
+        _guardTriggerEvent?.Dispose();
         _streams?.Dispose();
         _proxyWatcher?.Dispose();
         _poller?.Dispose();
@@ -301,6 +341,299 @@ public partial class App : Application
                 _mainWindow?.AppendLog($"[proxy] 面板刷新失败：{error.Message}");
             }
         }
+    }
+
+    // ---- 连接页（M3-1：信息架构源 ConnectionsTabView/ConnectionsViewModel） ----
+
+    private void SetupConnectionsPage()
+    {
+        _connectionStatistics = new ConnectionStatisticsService();
+        _connectionsPage = new ConnectionsPageViewModel(
+            CloseConnectionAsync,
+            CloseAllConnectionsAsync,
+            message => Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog(message)));
+        _mainWindow!.SetConnectionsPage(_connectionsPage);
+
+        // UI 可见性在 UI 线程上缓存成快照（WS 回调线程直接读 WPF 属性会抛跨线程异常）；
+        // 统计视图态（VM 普通属性）同样纳入快照，避免 WS 线程与 UI 线程的帧间错配
+        _mainWindow.TabSelectionChanged += (_, _) => RefreshConnectionsVisibility();
+        _mainWindow.IsVisibleChanged += (_, _) => RefreshConnectionsVisibility();
+        _mainWindow.StateChanged += (_, _) => RefreshConnectionsVisibility();
+        _connectionsPage.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(ConnectionsPageViewModel.ShowsStatistics)
+                or nameof(ConnectionsPageViewModel.StatisticsDimension))
+            {
+                RefreshConnectionsVisibility();
+            }
+        };
+        RefreshConnectionsVisibility();
+        StartConnectionsStream();
+    }
+
+    /// <summary>日志页内存上限档位（仅 UI 线程：窗口可见且非最小化才用 5000 档）。</summary>
+    private void UpdateLogsPanelVisibility() =>
+        _logsPage?.SetPanelVisible(
+            _mainWindow is { IsVisible: true, WindowState: not WindowState.Minimized });
+
+    /// <summary>连接页可见性与统计视图态快照（仅 UI 线程调用：tab 选中 + 窗口可见且非最小化）。</summary>
+    private void RefreshConnectionsVisibility()
+    {
+        _connectionsUiVisible = _mainWindow
+            is { IsVisible: true, WindowState: not WindowState.Minimized, IsConnectionsTabSelected: true };
+        _connectionsShowsStatistics = _connectionsPage?.ShowsStatistics == true;
+        _connectionsStatisticsDimension = _connectionsPage?.StatisticsDimension ?? TrafficStatisticsDimension.Node;
+    }
+
+    private void StartConnectionsStream()
+    {
+        _connectionsProcessMatchingEnabled = false;
+        _streams!.Start(
+            "connections",
+            () => _apiClient!.CreateWebSocketConnection(MihomoEndpoint.Connections(intervalMilliseconds: 1000)),
+            async payload =>
+            {
+                try
+                {
+                    // 首帧确认 controller 就绪后开启进程识别（应用维度统计前提；源：enableTrafficStatisticsProcessMatching）
+                    if (!_connectionsProcessMatchingEnabled)
+                    {
+                        _connectionsProcessMatchingEnabled = true;
+                        try
+                        {
+                            await _apiClient!.RequestNoResponseAsync(MihomoEndpoint.PatchConfigs(
+                                new JsonObject { ["find-process-mode"] = "always" }));
+                        }
+                        catch (Exception error) when (error is not OperationCanceledException)
+                        {
+                            Dispatcher.BeginInvoke(() =>
+                                _mainWindow?.AppendLog($"[connections] 开启进程识别失败：{error.Message}"));
+                        }
+                    }
+
+                    // 可见性感知：列表仅在连接页可见且非统计视图时输出；统计视图喂当前维度
+                    //（源：applyConnectionsUpdate 的 includeConnections/statisticsDimension 口径）。
+                    // 窗口/tab/统计态全部读 UI 线程维护的快照
+                    bool statisticsVisible = _connectionsUiVisible && _connectionsShowsStatistics;
+                    bool connectionsVisible = _connectionsUiVisible && !_connectionsShowsStatistics;
+                    ConnectionStatisticsUpdate update = _connectionStatistics!.Process(
+                        payload,
+                        includeConnections: connectionsVisible,
+                        statisticsDimension: statisticsVisible ? _connectionsStatisticsDimension : null);
+                    await Dispatcher.BeginInvoke(() => _connectionsPage?.IngestSnapshot(update));
+                }
+                catch (JsonException)
+                {
+                    // 噪声/半包 payload 丢弃（normalize 已滤常见噪声）
+                }
+                catch (Exception error)
+                {
+                    // 解码侧意外异常编组到 UI 线程记录，避免在线程池直调 UI 控件后循环触发重连
+                    Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog($"[connections] 处理失败：{error.Message}"));
+                }
+            });
+    }
+
+    private Task CloseConnectionAsync(string connectionId) =>
+        _apiClient!.RequestNoResponseAsync(MihomoEndpoint.CloseConnection(connectionId));
+
+    private Task CloseAllConnectionsAsync() =>
+        _apiClient!.RequestNoResponseAsync(MihomoEndpoint.CloseAllConnections());
+
+    // ---- 日志页（M3-2：信息架构源 LogsTabView/LogsViewModel + Logging 管线） ----
+
+    private void SetupLogsPage()
+    {
+        _logsPage = new LogsPageViewModel();
+        _mainWindow!.SetLogsPage(_logsPage);
+
+        // mihomo 日志 150ms 批量刷（源：mihomoLogFlushIntervalNanoseconds = 150ms）
+        _mihomoLogFlushTimer = new DispatcherTimer { Interval = LogsPageViewModel.MihomoLogFlushInterval };
+        _mihomoLogFlushTimer.Tick += (_, _) => _logsPage.FlushPendingMihomoLogs();
+        _mihomoLogFlushTimer.Start();
+
+        // 面板可见性：隐藏或最小化时收紧内存上限到 20（源：hiddenPanelMaxInMemoryLogEntries；
+        // 最小化时 IsVisible 不变，需联动 StateChanged——对齐 Swift 面板关闭即停的语义）
+        _mainWindow.IsVisibleChanged += (_, _) => UpdateLogsPanelVisibility();
+        _mainWindow.StateChanged += (_, _) => UpdateLogsPanelVisibility();
+        UpdateLogsPanelVisibility();
+
+        StartLogsStream();
+    }
+
+    private void StartLogsStream()
+    {
+        _streams!.Start(
+            "logs",
+            () => _apiClient!.CreateWebSocketConnection(MihomoEndpoint.Logs(level: null)),
+            async payload =>
+            {
+                try
+                {
+                    if (MihomoLogDecoder.TryDecode(payload.Span, out string level, out string message))
+                    {
+                        await Dispatcher.BeginInvoke(() => _logsPage?.QueueMihomoLog(level, message));
+                    }
+                }
+                catch (Exception error)
+                {
+                    // 解码侧意外异常编组到 UI 线程记录，避免在线程池直调 UI 后循环触发重连
+                    Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog($"[logs] 处理失败：{error.Message}"));
+                }
+            });
+    }
+
+    // ---- 代理守护（M3-3：源 AppViewModel+ProxyGuard.swift；CLI 触发的进程间通知
+    //      选型为命名 EventWaitHandle——对齐 macOS 的 DistributedNotificationCenter，
+    //      语义为「通知运行中实例立即探测；无实例时随应用启动触发」） ----
+
+    /// <summary>守护触发的跨进程命名事件名（对应 macOS 的 com.clashbarx.proxyguard.trigger）。</summary>
+    private const string GuardTriggerEventName = "ClashBarX.ProxyGuard.Trigger";
+
+    private void SetupProxyGuard()
+    {
+        AppSettings settings = _settingsStore.Load();
+        _guardIntervalSeconds = Math.Max(ProxyGuardService.MinimumIntervalSeconds, settings.ProxyGuardIntervalSeconds);
+
+        _proxyGuard = new ProxyGuardService(
+            _apiClient!,
+            ProbeViaCoreProxyAsync,
+            () => _guardIntervalSeconds,
+            canProbe: () => _processManager?.IsRunning == true && _poller?.Status == ApiHealth.Healthy);
+        // Logged 与 ProbeCompleted 来自后台线程，统一编组到 UI
+        _proxyGuard.Logged += (level, message) =>
+            Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog($"[guard] {message}"));
+        _proxyGuard.ProbeCompleted += state =>
+            Dispatcher.BeginInvoke(() => _guardSettings?.ApplyProbeState(state));
+
+        _guardSettings = new ProxyGuardSettingsViewModel(CheckGuardNowAsync, () => _processManager?.IsRunning == true);
+        _guardSettings.Restore(settings.ProxyGuardEnabled, _guardIntervalSeconds);
+        _guardSettings.GuardToggled += OnGuardToggled;
+        _guardSettings.IntervalChanged += seconds =>
+        {
+            _guardIntervalSeconds = seconds;
+            SaveCurrentSettings();
+        };
+        _mainWindow!.SetGuardSettings(_guardSettings);
+
+        if (settings.ProxyGuardEnabled)
+        {
+            // 仅按持久化开关启动（CLI 触发不越过用户开关——源：startProxyGuardIfNeeded 的
+            // guard proxyGuardEnabled 语义）；开启态下 CLI 触发首启先探一次
+            _proxyGuard.Start(probeImmediately: _cliProxyGuardTrigger);
+        }
+
+        StartGuardTriggerListener();
+    }
+
+    /// <summary>探测：经内核混合端口对 204 URL 发 HEAD（源：probeConnectivity 的 127.0.0.1:{mixedPort} 口径）。</summary>
+    private async Task<bool> ProbeViaCoreProxyAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            ConfigSnapshot config = await _apiClient!.RequestAsync<ConfigSnapshot>(
+                MihomoEndpoint.GetConfigs(), cancellationToken);
+            int mixedPort = config.MixedPort ?? 0;
+            return mixedPort > 0
+                && await ProxyGuardProbe.ProbeAsync(ProxyGuardService.DefaultProbeUrl, mixedPort, null, cancellationToken);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            return false;   // 探测失败视为不可用（源：非 2xx / 超时 / 错误均失败）
+        }
+    }
+
+    private async Task CheckGuardNowAsync()
+    {
+        if (_proxyGuard is null)
+        {
+            return;
+        }
+
+        // 立即检查时守护可能未运行（开关关）：临时启动一次探测
+        if (!_proxyGuard.IsRunning)
+        {
+            _proxyGuard.Start();
+        }
+
+        await _proxyGuard.ProbeNowAsync();
+    }
+
+    private void OnGuardToggled(bool enabled)
+    {
+        if (enabled)
+        {
+            _proxyGuard?.Start();
+        }
+        else
+        {
+            _proxyGuard?.Stop();
+        }
+
+        SaveCurrentSettings();
+    }
+
+    /// <summary>合并当前守护设置后落盘（系统代理开关等其他字段保持已存值）。</summary>
+    private void SaveCurrentSettings()
+    {
+        AppSettings saved = _settingsStore.Load();
+        _settingsStore.Save(saved with
+        {
+            ProxyGuardEnabled = _guardSettings?.IsGuardEnabled ?? saved.ProxyGuardEnabled,
+            ProxyGuardIntervalSeconds = _guardIntervalSeconds,
+        });
+    }
+
+    /// <summary>
+    /// 通知运行中的其他实例立即探测（源：DistributedNotificationCenter 触发分支）。
+    /// 返回是否成功通知到既有实例——事件为内核对象，实例退出即销毁，存在即视为活着。
+    /// </summary>
+    private bool TryTriggerRunningGuardInstance()
+    {
+        if (EventWaitHandle.TryOpenExisting(GuardTriggerEventName, out EventWaitHandle? existing))
+        {
+            try
+            {
+                return existing.Set();
+            }
+            finally
+            {
+                existing.Dispose();
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>监听命名事件：CLI 或其他实例触发时立即探测。</summary>
+    private void StartGuardTriggerListener()
+    {
+        _guardTriggerEvent = new EventWaitHandle(false, EventResetMode.AutoReset, GuardTriggerEventName);
+        _ = Task.Run(async () =>
+        {
+            while (true)
+            {
+                bool signaled;
+                try
+                {
+                    signaled = _guardTriggerEvent.WaitOne();
+                }
+                catch (ObjectDisposedException)
+                {
+                    return;
+                }
+
+                if (!signaled)
+                {
+                    return;
+                }
+
+                if (_proxyGuard is { IsRunning: true } guard)
+                {
+                    await guard.ProbeNowAsync().ConfigureAwait(false);
+                }
+            }
+        });
     }
 
     // ---- 订阅管理（M2-3） ----

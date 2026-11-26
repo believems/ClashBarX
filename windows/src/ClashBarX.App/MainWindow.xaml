@@ -7,6 +7,9 @@
         mc:Ignorable="d"
         Title="ClashBarX" Height="560" Width="760"
         WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    </Window.Resources>
     <DockPanel Margin="12">
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal">
             <TextBlock x:Name="CoreStatusText"
@@ -128,6 +131,183 @@
                 </DockPanel>
             </TabItem>
 
+            <!-- 连接（M3-1/M3-4）：列表（host/规则/链路/上下行速率）+ 三维度流量统计 -->
+            <TabItem Header="连接">
+                <Grid x:Name="ConnectionsRoot" Margin="4,8,4,4">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <!-- 视图切换：连接 / 统计（源：connectionsStore.showsStatistics segmented） -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,4">
+                        <RadioButton GroupName="ConnectionView"
+                                     Content="连接"
+                                     IsChecked="True"
+                                     FontSize="12"
+                                     VerticalAlignment="Center" />
+                        <RadioButton GroupName="ConnectionView"
+                                     Content="统计"
+                                     IsChecked="{Binding ShowsStatistics}"
+                                     Margin="12,0,0,0"
+                                     FontSize="12"
+                                     VerticalAlignment="Center" />
+                        <ComboBox Width="76"
+                                  Margin="16,0,0,0"
+                                  ItemsSource="{Binding DimensionOptions}"
+                                  DisplayMemberPath="Label"
+                                  SelectedValuePath="Value"
+                                  SelectedValue="{Binding StatisticsDimension}"
+                                  Visibility="{Binding ShowsStatistics, Converter={StaticResource BoolToVis}}" />
+                        <TextBlock Text="{Binding StatisticsHint}"
+                                   Foreground="#8A93A0"
+                                   FontSize="10"
+                                   Margin="12,0,0,0"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"
+                                   Visibility="{Binding ShowsStatistics, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
+                    <DockPanel Grid.Row="1" Visibility="{Binding ShowsList, Converter={StaticResource BoolToVis}}">
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
+                        <Button DockPanel.Dock="Right"
+                                Content="关闭全部"
+                                Padding="8,2"
+                                Margin="8,0,0,0"
+                                FontSize="11"
+                                Command="{Binding CloseAllConnectionsCommand}" />
+                        <TextBlock DockPanel.Dock="Right"
+                                   Text="{Binding SummaryText}"
+                                   Foreground="#5E6B78"
+                                   FontSize="11"
+                                   Margin="10,0,0,0"
+                                   VerticalAlignment="Center" />
+                        <ToggleButton DockPanel.Dock="Right"
+                                      Content="降序"
+                                      Padding="8,2"
+                                      Margin="8,0,0,0"
+                                      FontSize="11"
+                                      IsChecked="{Binding IsSortDescending}" />
+                        <ComboBox DockPanel.Dock="Right"
+                                  Width="104"
+                                  Margin="8,0,0,0"
+                                  ItemsSource="{Binding SortKeyOptions}"
+                                  DisplayMemberPath="Label"
+                                  SelectedValuePath="Value"
+                                  SelectedValue="{Binding SortKey}" />
+                        <ComboBox DockPanel.Dock="Left"
+                                  Width="76"
+                                  ItemsSource="{Binding TransportFilterOptions}"
+                                  DisplayMemberPath="Label"
+                                  SelectedValuePath="Value"
+                                  SelectedValue="{Binding TransportFilter}" />
+                        <TextBox Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}"
+                                 VerticalContentAlignment="Center"
+                                 Padding="6,2"
+                                 Margin="8,0,8,0" />
+                    </DockPanel>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="ConnectionsList" ItemsSource="{Binding Connections}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Padding="4,5" BorderBrush="#EAEAEA" BorderThickness="0,0,0,1">
+                                        <DockPanel>
+                                            <Button DockPanel.Dock="Right"
+                                                    Content="✕"
+                                                    Padding="5,0"
+                                                    Margin="8,0,0,0"
+                                                    FontSize="11"
+                                                    ToolTip="关闭连接"
+                                                    Command="{Binding CloseConnectionCommand}"
+                                                    CommandParameter="{Binding}" />
+                                            <StackPanel>
+                                                <!-- 行1：host + 规则 -->
+                                                <DockPanel>
+                                                    <TextBlock DockPanel.Dock="Right"
+                                                               Text="{Binding Rule}"
+                                                               Foreground="#5E6B78"
+                                                               FontSize="11"
+                                                               Margin="10,0,0,0"
+                                                               VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding Host}"
+                                                               FontWeight="SemiBold"
+                                                               FontSize="12"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </DockPanel>
+                                                <!-- 行2：时间 / 网络 / ↑速率 / ↓速率 / ↑累计 / ↓累计 -->
+                                                <Grid Margin="0,2,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition />
+                                                        <ColumnDefinition />
+                                                        <ColumnDefinition />
+                                                        <ColumnDefinition />
+                                                        <ColumnDefinition />
+                                                        <ColumnDefinition />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="{Binding Started}" Foreground="#5E6B78" FontSize="11" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Network}" Foreground="#5E6B78" FontSize="11" Margin="10,0,0,0" />
+                                                    <TextBlock Grid.Column="2" Text="{Binding UploadRate}" FontSize="11" Foreground="#0B6BCB" Margin="10,0,0,0" />
+                                                    <TextBlock Grid.Column="3" Text="{Binding DownloadRate}" FontSize="11" Foreground="#1B7F3B" Margin="10,0,0,0" />
+                                                    <TextBlock Grid.Column="4" Text="{Binding Upload}" FontSize="11" Foreground="#8A93A0" Margin="10,0,0,0" TextAlignment="Right" />
+                                                    <TextBlock Grid.Column="5" Text="{Binding Download}" FontSize="11" Foreground="#8A93A0" Margin="10,0,0,0" TextAlignment="Right" />
+                                                </Grid>
+                                                <!-- 行3：链路 -->
+                                                <TextBlock Text="{Binding Chain}"
+                                                           Foreground="#8A93A0"
+                                                           FontSize="10"
+                                                           Margin="0,2,0,0"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                    </DockPanel>
+                    <!-- 统计视图（源：TrafficStatisticsView——名称/合计/上下行） -->
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                                  Visibility="{Binding ShowsStatistics, Converter={StaticResource BoolToVis}}">
+                        <ItemsControl ItemsSource="{Binding StatisticsRows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Padding="4,5" BorderBrush="#EAEAEA" BorderThickness="0,0,0,1">
+                                        <DockPanel>
+                                            <StackPanel DockPanel.Dock="Right"
+                                                        Orientation="Horizontal"
+                                                        MinWidth="200">
+                                                <TextBlock Text="合计"
+                                                           FontSize="10"
+                                                           Foreground="#8A93A0"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Text="{Binding TotalText}"
+                                                           FontWeight="SemiBold"
+                                                           FontSize="12"
+                                                           Margin="8,0,0,0"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Text="{Binding UploadText}"
+                                                           FontSize="11"
+                                                           Foreground="#0B6BCB"
+                                                           Margin="16,0,0,0"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Text="{Binding DownloadText}"
+                                                           FontSize="11"
+                                                           Foreground="#1B7F3B"
+                                                           Margin="10,0,0,0"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding Name}"
+                                                       FontSize="12"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       ToolTip="{Binding Name}" />
+                                        </DockPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
+
             <!-- 订阅（M2-3）：URL 导入 + 配置列表切换/删除 -->
             <TabItem Header="订阅">
                 <DockPanel Margin="4,8,4,4">
@@ -159,16 +339,158 @@
                 </DockPanel>
             </TabItem>
 
-            <!-- 日志 -->
+            <!-- 日志（M3-2）：mihomo WS 流 + 等级过滤 + 搜索 + 渲染上限 -->
             <TabItem Header="日志">
-                <TextBox x:Name="LogTextBox"
-                         IsReadOnly="True"
-                         VerticalScrollBarVisibility="Auto"
-                         TextWrapping="NoWrap"
-                         FontFamily="Consolas, Microsoft YaHei UI"
-                         FontSize="12"
-                         Margin="0,8,0,0"
-                         Background="#FAFAFA" />
+                <DockPanel x:Name="LogsRoot" Margin="4,8,4,4">
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
+                        <Button DockPanel.Dock="Right"
+                                Content="清空"
+                                Padding="10,2"
+                                MinWidth="52"
+                                Margin="8,0,0,0"
+                                FontSize="11"
+                                Command="{Binding ClearAllCommand}" />
+                        <Button DockPanel.Dock="Right"
+                                Content="复制全部"
+                                Padding="10,2"
+                                FontSize="11"
+                                Click="OnCopyLogsClick" />
+                        <CheckBox Content="错误"
+                                  IsChecked="{Binding IsErrorSelected}"
+                                  Margin="14,0,0,0"
+                                  VerticalAlignment="Center"
+                                  FontSize="12" />
+                        <CheckBox Content="警告"
+                                  IsChecked="{Binding IsWarningSelected}"
+                                  Margin="10,0,0,0"
+                                  VerticalAlignment="Center"
+                                  FontSize="12" />
+                        <CheckBox Content="信息"
+                                  IsChecked="{Binding IsInfoSelected}"
+                                  Margin="10,0,0,0"
+                                  VerticalAlignment="Center"
+                                  FontSize="12" />
+                        <TextBlock Text="{Binding MatchedCountText}"
+                                   Foreground="#5E6B78"
+                                   FontSize="11"
+                                   VerticalAlignment="Center" />
+                    </DockPanel>
+                    <TextBox DockPanel.Dock="Top"
+                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                             VerticalContentAlignment="Center"
+                             Padding="6,2"
+                             Margin="0,0,0,4" />
+                    <ListBox ItemsSource="{Binding VisibleLogs}"
+                             FontFamily="Consolas, Microsoft YaHei UI"
+                             FontSize="12"
+                             Background="#FAFAFA"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             VirtualizingPanel.IsVirtualizing="True">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="2,1">
+                                    <TextBlock DockPanel.Dock="Left"
+                                               Text="{Binding Timestamp}"
+                                               Foreground="#8A93A0"
+                                               FontSize="11"
+                                               VerticalAlignment="Top" />
+                                    <TextBlock DockPanel.Dock="Left"
+                                               Text="{Binding Source}"
+                                               FontSize="11"
+                                               Foreground="#5E6B78"
+                                               Margin="8,0,0,0"
+                                               VerticalAlignment="Top" />
+                                    <TextBlock Text="{Binding Message}"
+                                               TextWrapping="Wrap"
+                                               Margin="8,0,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Level}" Value="error">
+                                                        <Setter Property="Foreground" Value="#C0392B" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Level}" Value="warning">
+                                                        <Setter Property="Foreground" Value="#B7791F" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </DockPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </TabItem>
+            <!-- 设置（M3-3）：自动代理守护——开关 + 周期 + 立即检查 + 结果反馈行（开启才展开） -->
+            <TabItem Header="设置">
+                <DockPanel x:Name="GuardSettingsRoot" Margin="4,8,4,4">
+                    <StackPanel>
+                        <CheckBox IsChecked="{Binding IsGuardEnabled}"
+                                  Content="自动代理守护（自动切换可用节点）"
+                                  FontWeight="SemiBold"
+                                  FontSize="13" />
+                        <StackPanel Margin="20,8,0,0"
+                                    Visibility="{Binding IsGuardEnabled, Converter={StaticResource BoolToVis}}">
+                            <StackPanel Orientation="Horizontal" Margin="0,4">
+                                <TextBlock Text="探测周期（秒）" VerticalAlignment="Center" FontSize="12" />
+                                <TextBox Text="{Binding IntervalText}"
+                                         Width="64"
+                                         Margin="8,0,0,0"
+                                         Padding="4,2"
+                                         VerticalContentAlignment="Center" />
+                            </StackPanel>
+                            <Button Margin="0,6,0,0"
+                                    Padding="10,2"
+                                    MinWidth="96"
+                                    HorizontalAlignment="Left"
+                                    Command="{Binding CheckNowCommand}">
+                                <Button.Style>
+                                    <Style TargetType="Button">
+                                        <Setter Property="Content" Value="立即检查" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsProbing}" Value="True">
+                                                <Setter Property="Content" Value="检查中…" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                            <TextBlock Margin="0,8,0,0"
+                                       FontSize="12"
+                                       Text="{Binding OutcomeText}"
+                                       Visibility="{Binding HasOutcome, Converter={StaticResource BoolToVis}}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="#1B7F3B" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding OutcomeLevel}" Value="warning">
+                                                <Setter Property="Foreground" Value="#B7791F" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                        <!-- 关闭时的说明行（源：ui.settings.proxy_guard_disabled_hint） -->
+                        <TextBlock Text="{Binding DisabledHint}"
+                                   Foreground="#5E6B78"
+                                   FontSize="12"
+                                   Margin="20,8,0,0"
+                                   TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsGuardEnabled}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </DockPanel>
             </TabItem>
         </TabControl>
     </DockPanel>
