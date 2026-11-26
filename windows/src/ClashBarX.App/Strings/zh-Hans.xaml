@@ -36,4 +36,19 @@
     <sys:String x:Key="ProxyTunMode">TUN 模式</sys:String>
     <sys:String x:Key="ProxyTunToggle">启用</sys:String>
     <sys:String x:Key="ProxyTunStackHint">TUN 协议栈；切换 stack 将重启 TUN 并需要管理员权限</sys:String>
+
+    <sys:String x:Key="MachineManagerTitle">远程机器</sys:String>
+    <sys:String x:Key="MachineLocal">本机</sys:String>
+    <sys:String x:Key="MachineAdd">添加机器</sys:String>
+    <sys:String x:Key="MachineEdit">编辑</sys:String>
+    <sys:String x:Key="MachineDelete">删除</sys:String>
+    <sys:String x:Key="MachineSwitch">切换</sys:String>
+    <sys:String x:Key="MachineManage">管理</sys:String>
+    <sys:String x:Key="MachineFieldName">名称</sys:String>
+    <sys:String x:Key="MachineFieldHost">主机</sys:String>
+    <sys:String x:Key="MachineFieldPort">端口</sys:String>
+    <sys:String x:Key="MachineFieldSecret">API 密钥</sys:String>
+    <sys:String x:Key="MachineFieldHttps">HTTPS 连接</sys:String>
+    <sys:String x:Key="MachineSave">保存</sys:String>
+    <sys:String x:Key="MachineRemoteReadonly">远程只读（本机配置不可变更）</sys:String>
 </ResourceDictionary>

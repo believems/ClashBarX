@@ -13,31 +13,57 @@
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
     </Window.Resources>
     <DockPanel Margin="12">
-        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal">
-            <TextBlock x:Name="CoreStatusText"
-                       Text="内核未启动"
-                       FontSize="14" FontWeight="SemiBold"
-                       VerticalAlignment="Center" />
-            <!-- 手动内核生命周期（源：MenuBarHeaderView 的启动/停止/重启动作） -->
-            <Button Content="启动内核"
-                    FontSize="11"
-                    Padding="8,2"
-                    Margin="14,0,0,0"
-                    VerticalAlignment="Center"
-                    Click="OnCoreStartClick" />
-            <Button Content="停止内核"
-                    FontSize="11"
-                    Padding="8,2"
-                    Margin="6,0,0,0"
-                    VerticalAlignment="Center"
-                    Click="OnCoreStopClick" />
-            <Button Content="重启内核"
-                    FontSize="11"
-                    Padding="8,2"
-                    Margin="6,0,0,0"
-                    VerticalAlignment="Center"
-                    Click="OnCoreRestartClick" />
-        </StackPanel>
+        <!-- 远程机器切换器（源：MenuBarHeaderView.headerConnectionControl——状态点 + 目标下拉 + 管理） -->
+        <DockPanel DockPanel.Dock="Top">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <Ellipse x:Name="MachineStatusDot"
+                         Width="8" Height="8"
+                         Fill="#B0B7C0"
+                         VerticalAlignment="Center"
+                         Margin="0,0,6,0"
+                         ToolTip="未知" />
+                <ComboBox x:Name="MachineTargetSelector"
+                          Width="170"
+                          FontSize="11"
+                          VerticalAlignment="Center"
+                          SelectionChanged="OnMachineTargetSelectionChanged" />
+                <Button x:Name="ManageMachinesButton"
+                        Content="{DynamicResource MachineManage}"
+                        FontSize="11"
+                        Padding="8,2"
+                        Margin="6,0,0,0"
+                        VerticalAlignment="Center"
+                        Click="OnManageMachinesClick" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal">
+                <TextBlock x:Name="CoreStatusText"
+                           Text="内核未启动"
+                           FontSize="14" FontWeight="SemiBold"
+                           VerticalAlignment="Center" />
+                <!-- 手动内核生命周期（源：MenuBarHeaderView 的启动/停止/重启动作；远程目标禁用） -->
+                <Button x:Name="StartCoreButton"
+                        Content="启动内核"
+                        FontSize="11"
+                        Padding="8,2"
+                        Margin="14,0,0,0"
+                        VerticalAlignment="Center"
+                        Click="OnCoreStartClick" />
+                <Button x:Name="StopCoreButton"
+                        Content="停止内核"
+                        FontSize="11"
+                        Padding="8,2"
+                        Margin="6,0,0,0"
+                        VerticalAlignment="Center"
+                        Click="OnCoreStopClick" />
+                <Button x:Name="RestartCoreButton"
+                        Content="重启内核"
+                        FontSize="11"
+                        Padding="8,2"
+                        Margin="6,0,0,0"
+                        VerticalAlignment="Center"
+                        Click="OnCoreRestartClick" />
+            </StackPanel>
+        </DockPanel>
 
         <TabControl x:Name="MainTabs" Margin="0,8,0,0">
             <!-- 代理（M2-4）：流量摘要 + 分组卡（节点行内联展开） -->
@@ -901,17 +927,26 @@
                                 </TextBlock>
                             </StackPanel>
                         </Border>
-                        <!-- 订阅管理（M2-3 区块挪入网络页） -->
-                        <Border Padding="8"
+                        <!-- 订阅管理（M2-3 区块挪入网络页；远程目标时整体只读） -->
+                        <Border x:Name="SubscriptionSectionRoot"
+                                Padding="8"
                                 BorderBrush="#DDD"
                                 BorderThickness="1"
                                 CornerRadius="4"
                                 Background="#FAFAFA">
                             <StackPanel>
-                                <TextBlock Text="订阅"
-                                           FontWeight="SemiBold"
-                                           FontSize="12"
-                                           Margin="0,0,0,6" />
+                                <DockPanel Margin="0,0,0,6">
+                                    <TextBlock x:Name="RemoteReadonlyHint"
+                                               DockPanel.Dock="Right"
+                                               Text="{DynamicResource MachineRemoteReadonly}"
+                                               FontSize="11"
+                                               Foreground="#B45309"
+                                               VerticalAlignment="Center"
+                                               Visibility="Collapsed" />
+                                    <TextBlock Text="订阅"
+                                               FontWeight="SemiBold"
+                                               FontSize="12" />
+                                </DockPanel>
                                 <DockPanel Margin="0,0,0,6">
                                     <Button x:Name="ImportButton"
                                             DockPanel.Dock="Right"

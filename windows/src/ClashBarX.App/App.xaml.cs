@@ -14,6 +14,7 @@ using ClashBarX.Core.Models;
 using ClashBarX.Core.Overrides;
 using ClashBarX.Core.Proxies;
 using ClashBarX.Core.ProxyGuard;
+using ClashBarX.Core.Remote;
 using ClashBarX.Core.Rules;
 using ClashBarX.Core.Runtime;
 using ClashBarX.Core.Streams;
@@ -54,6 +55,9 @@ public partial class App : Application
     private ProxyBoardService? _proxyBoard;
     private TunControlService? _tunControl;
     private TunSectionViewModel? _tunSection;
+    private RemoteMachineStore? _remoteStore;
+    /// <summary>机器目标切换中（源：isSwitchingMachine——禁用头部切换器与 WebUI 入口）。</summary>
+    private bool _isSwitchingMachine;
     private ConnectionsPageViewModel? _connectionsPage;
     private ConnectionStatisticsService? _connectionStatistics;
     private bool _connectionsProcessMatchingEnabled;
@@ -130,6 +134,8 @@ public partial class App : Application
         _mainWindow.SubscriptionRefreshRequested += OnSubscriptionRefreshRequested;
         _mainWindow.SubscriptionRefreshAllRequested += OnSubscriptionRefreshAllRequested;
         _mainWindow.CopyProxyCommandRequested += OnCopyProxyCommandRequested;
+        _mainWindow.MachineTargetSwitchRequested += machineId => _ = SwitchMachineTargetAsync(machineId);
+        _mainWindow.ManageMachinesRequested += OpenRemoteMachineManager;
 
         _tray = new TrayIconService();
         _tray.ShowMainWindowRequested += ShowMainWindow;
@@ -147,6 +153,18 @@ public partial class App : Application
         // 启动即显示主窗（可见反馈）；关闭主窗 = 隐藏到托盘，退出走托盘菜单
         _mainWindow.Show();
         RefreshConfigList();
+
+        // 远程机器仓库（源：RemoteMachineStore——启动恢复激活目标，远程目标下
+        // 不拉本机内核（源：Initialization 的 isRemoteTarget guard）且 API 指向远程）
+        _remoteStore = new RemoteMachineStore();
+        _remoteStore.MachinesChanged += () => Dispatcher.BeginInvoke(() =>
+        {
+            RefreshMachineSelector();
+            ApplyRemoteReadonlyState();
+        });
+        _remoteStore.StatusChanged += machineId => Dispatcher.BeginInvoke(() => UpdateMachineStatusDot(machineId));
+        RefreshMachineSelector();
+        ApplyRemoteReadonlyState();
 
         _ = StartCoreAtStartupAsync();
         StartApiPolling();
@@ -350,6 +368,12 @@ public partial class App : Application
 
     private async Task StartCoreAtStartupAsync()
     {
+        // 远程目标不拉本机内核（源：AppViewModel+Initialization 的 isRemoteTarget guard）
+        if (_remoteStore?.IsRemoteTarget == true)
+        {
+            return;
+        }
+
         MihomoProcessManager manager = _processManager!;
         try
         {
@@ -384,13 +408,17 @@ public partial class App : Application
     /// </summary>
     private void StartApiPolling()
     {
-        _apiClient = new MihomoApiClient(DefaultController);
+        // 远程目标时 API 指向远程控制器（源：switchToMachineTarget 的 controller 切换）；
+        // UpdateCredentials 后流与轮询随连接工厂闭包自动跟随新目标
+        (string controller, string? secret) = ResolveActiveController();
+        _apiClient = new MihomoApiClient(controller, secret);
         _poller = new ApiStatusPoller(
             _apiClient,
             intervalProvider: () => _mainWindow is { IsVisible: true } ? ForegroundPollInterval : BackgroundPollInterval);
         _poller.StatusChanged += status =>
         {
             Dispatcher.BeginInvoke(RefreshPresentationState);
+            Dispatcher.BeginInvoke(() => UpdateMachineStatusDot(null));   // 本机目标时头部点跟随 API 健康
             if (status == ApiHealth.Healthy && !_coreSettingsLoaded)
             {
                 Dispatcher.BeginInvoke(() => _ = LoadCoreSettingsSnapshotAsync());
@@ -524,9 +552,11 @@ public partial class App : Application
             // 绕过列表优先用持久化值（源：saveSystemProxyExceptions 后的启用链路）
             IReadOnlyList<string> bypass =
                 _settingsStore.Load().SystemProxyBypassList ?? SystemProxyDefaults.DefaultBypassList;
-            _systemProxy?.Enable(new SystemProxyTarget("127.0.0.1", mixedPort, bypass));
+            // 远程目标时系统代理指向远程内核（源：resolveSystemProxyTargetFromRuntimeConfig 的 controllerHost）
+            string proxyHost = _remoteStore?.ActiveMachine is { } machine ? machine.Host : "127.0.0.1";
+            _systemProxy?.Enable(new SystemProxyTarget(proxyHost, mixedPort, bypass));
             _settingsStore.Save(_settingsStore.Load() with { SystemProxyEnabled = true });
-            _tray?.ShowTransientMessage($"系统代理已开启（127.0.0.1:{mixedPort}）");
+            _tray?.ShowTransientMessage($"系统代理已开启（{proxyHost}:{mixedPort}）");
         }
         catch (Exception error)
         {
@@ -628,6 +658,189 @@ public partial class App : Application
         }
     }
 
+    // ---- 远程机器（M5-2：源 RemoteMachineStore/RemoteMachineManagerView/
+    //      AppViewModel+RemoteMachine.swift——切换前连通验证、状态清空、只读联动） ----
+
+    /// <summary>当前控制器地址与密钥（远程目标用机器值；本机用默认 127.0.0.1:9090）。</summary>
+    private (string Controller, string? Secret) ResolveActiveController() =>
+        _remoteStore?.ActiveMachine is { } machine
+            ? (machine.ControllerAddress, machine.Secret)
+            : (DefaultController, null);
+
+    /// <summary>重建头部目标下拉并选中当前目标（不回环触发切换）。</summary>
+    private void RefreshMachineSelector()
+    {
+        if (_remoteStore == null || _mainWindow == null)
+        {
+            return;
+        }
+
+        string localLabel = $"本机 · {DefaultController}";
+        _mainWindow.SetMachineTargets(
+            localLabel,
+            _remoteStore.Machines.Select(machine => (machine.Id, machine.Name)).ToList(),
+            _remoteStore.ActiveMachineId);
+        UpdateMachineStatusDot(null);
+    }
+
+    /// <summary>头部状态点（当前目标的连通态；本机跟随 API 健康，远程跟随机器探测）。</summary>
+    private void UpdateMachineStatusDot(Guid? _)
+    {
+        if (_mainWindow == null || _remoteStore == null)
+        {
+            return;
+        }
+
+        if (_remoteStore.ActiveMachine is { } machine)
+        {
+            MachineConnectionStatus status = _remoteStore.StatusOf(machine.Id);
+            (string color, string text) = status.Kind switch
+            {
+                MachineConnectionKind.Checking => ("#7FA8D9", "检测中…"),
+                MachineConnectionKind.Connected => ("#34A853", $"已连接 · {status.Version ?? "OK"}"),
+                MachineConnectionKind.Failed => ("#D93025", $"连接失败：{status.Reason ?? "未知"}"),
+                _ => ("#B0B7C0", "未知"),
+            };
+            _mainWindow.SetMachineStatusDot(color, text);
+        }
+        else
+        {
+            bool healthy = _poller?.Status == ApiHealth.Healthy;
+            _mainWindow.SetMachineStatusDot(
+                healthy ? "#34A853" : "#B0B7C0",
+                healthy ? "本机 API 正常" : "本机 API 未就绪");
+        }
+    }
+
+    /// <summary>远程目标的只读联动（订阅/守护/覆写/内核动作禁用 + 提示条）。</summary>
+    private void ApplyRemoteReadonlyState() =>
+        _mainWindow?.SetRemoteReadonly(_remoteStore?.IsRemoteTarget == true);
+
+    /// <summary>
+    /// 切换机器目标（源：switchToMachineTarget——远程先连通验证，失败不切换；
+    /// 成功后停流清数据、API 跟随新目标、快照重拉；切回本机时补拉内核）。
+    /// </summary>
+    private async Task SwitchMachineTargetAsync(Guid? machineId)
+    {
+        if (_isSwitchingMachine || _remoteStore == null)
+        {
+            return;
+        }
+
+        RemoteMachine? machine = machineId is { } id
+            ? _remoteStore.Machines.FirstOrDefault(item => item.Id == id)
+            : null;
+        if (machineId is not null && machine is null)
+        {
+            return;
+        }
+
+        if (machine is not null)
+        {
+            MachineConnectionStatus status = await _remoteStore.RefreshConnectivityAsync(machine).ConfigureAwait(true);
+            if (!status.IsConnected)
+            {
+                _mainWindow?.AppendLog(
+                    $"[remote] {machine.Name}（{machine.DisplayAddress}）不可达：{status.Reason ?? "未知"}，未切换");
+                Dispatcher.BeginInvoke(RefreshMachineSelector);   // 下拉回滚到当前目标
+                return;
+            }
+        }
+
+        _isSwitchingMachine = true;
+        _mainWindow?.SetMachineSwitching(true);
+        try
+        {
+            _remoteStore.SelectTarget(machineId);
+            (string controller, string? secret) = ResolveActiveController();
+            _apiClient?.UpdateCredentials(controller, secret);
+            ClearPresentationForTargetSwitch();
+
+            _coreSettingsLoaded = false;   // 新目标快照待拉（源：lastSyncedEditableSettings = nil）
+            if (machine is null)
+            {
+                _mainWindow?.AppendLog("[remote] 已切回本机");
+                if (_processManager?.IsRunning != true)
+                {
+                    _ = StartCoreAtStartupAsync();   // 本机内核未跑则补拉（源：local 分支的启动恢复）
+                }
+            }
+            else
+            {
+                _mainWindow?.AppendLog($"[remote] 已连接远程 {machine.Name}（{machine.DisplayAddress}）");
+            }
+
+            Dispatcher.BeginInvoke(() =>
+            {
+                RefreshMachineSelector();
+                ApplyRemoteReadonlyState();
+                RefreshPresentationState();
+            });
+        }
+        finally
+        {
+            _isSwitchingMachine = false;
+            _mainWindow?.SetMachineSwitching(false);
+        }
+    }
+
+    /// <summary>切换目标后清空各页数据并重启流（源：cancelPolling + 各 store 清空 + 重连）。</summary>
+    private void ClearPresentationForTargetSwitch()
+    {
+        if (_streams != null)
+        {
+            _streams.CancelAll();
+            StartTrafficStream();
+            StartMemoryStream();
+            StartConnectionsStream();
+            StartLogsStream();
+        }
+
+        _proxyPage?.Groups.Clear();
+        _rulesPage?.Rows.Clear();
+        _rulesPage?.PolicyOptions.Clear();
+        _connectionsPage?.Connections.Clear();
+        _connectionsPage?.StatisticsRows.Clear();
+        _logsPage?.ClearAll();
+    }
+
+    /// <summary>打开机器管理窗（模态；源：RemoteMachineManagerView 面板）。</summary>
+    private void OpenRemoteMachineManager()
+    {
+        if (_remoteStore == null)
+        {
+            return;
+        }
+
+        var window = new RemoteMachineManagerWindow(_remoteStore, () => DefaultController)
+        {
+            Owner = _mainWindow,
+        };
+        window.SwitchTargetRequested += machineId => _ = SwitchMachineTargetAsync(machineId);
+        window.MachineSaved += machine =>
+        {
+            // 新增或更新（编辑既有 id 时走 update；源：save 分支）
+            if (_remoteStore!.Machines.Any(item => item.Id == machine.Id))
+            {
+                _remoteStore.UpdateMachine(machine);
+                _mainWindow?.AppendLog($"[remote] 已更新机器 {machine.Name}");
+            }
+            else
+            {
+                _remoteStore.AddMachine(machine);
+                _mainWindow?.AppendLog($"[remote] 已添加机器 {machine.Name}");
+            }
+        };
+        window.MachineDeleted += id =>
+        {
+            string? name = _remoteStore!.Machines.FirstOrDefault(item => item.Id == id)?.Name;
+            _remoteStore.RemoveMachine(id);
+            _mainWindow?.AppendLog($"[remote] 已删除机器 {name ?? id.ToString()}");
+            Dispatcher.BeginInvoke(RefreshMachineSelector);
+        };
+        window.ShowDialog();
+    }
+
     // ---- TUN（M5-1：源 AppViewModel+Tun.swift + ProxyTabView 的 tunModeQuickToggleRow/tunStackMenu。
     //      权限语义：macOS 对 mihomo 二进制 setuid root；Windows 无 setuid，TUN 需内核进程持
     //      管理员令牌（内核由本应用拉起、令牌继承），故收敛为「应用以管理员身份运行」——
@@ -637,7 +850,9 @@ public partial class App : Application
     {
         AppSettings saved = _settingsStore.Load();
         _tunControl = new TunControlService(_apiClient!);
-        _tunSection = new TunSectionViewModel(() => _processManager?.IsRunning == true);
+        // 源：isTunToggleEnabled = (isRemoteTarget || isRuntimeRunning) && !isCoreActionProcessing && !isTunSyncing
+        _tunSection = new TunSectionViewModel(
+            () => _remoteStore?.IsRemoteTarget == true || _processManager?.IsRunning == true);
         // 启动初值来自持久化快照（源：overlay）；运行态待 API 就绪后校验（restore 链路）
         _tunSection.ApplySnapshot(saved.TunEnabled, saved.TunStack);
         _tunSection.ToggleRequested += enable => _ = OnTunToggleRequestedAsync(enable);
@@ -658,7 +873,8 @@ public partial class App : Application
             return;
         }
 
-        if (enable && !WindowsElevationService.IsCurrentProcessElevated())
+        // 源：if enabled, !isRemoteTarget { ensureTunPermissions }（远程目标免本机提权）
+        if (enable && _remoteStore?.IsRemoteTarget != true && !WindowsElevationService.IsCurrentProcessElevated())
         {
             await PromptElevationForTunAsync(enable: true, requestedStack: null);
             return;
@@ -693,7 +909,7 @@ public partial class App : Application
             return;
         }
 
-        if (!WindowsElevationService.IsCurrentProcessElevated())
+        if (_remoteStore?.IsRemoteTarget != true && !WindowsElevationService.IsCurrentProcessElevated())
         {
             await PromptElevationForTunAsync(enable: true, requestedStack: stack);
             return;
@@ -817,7 +1033,7 @@ public partial class App : Application
     }
 
     /// <summary>启动恢复（源：validateTunPermissionsOnStartup + verifyTunAfterOverlayIfNeeded +
-    /// ensureTunStackOnStartupIfNeeded 的组合）：API 就绪后执行一次。</summary>
+    /// ensureTunStackOnStartupIfNeeded 的组合）：API 就绪后执行一次。远程目标免本机提权判定。</summary>
     private async Task RestoreTunAtStartupAsync()
     {
         AppSettings saved = _settingsStore.Load();
@@ -826,7 +1042,7 @@ public partial class App : Application
             return;
         }
 
-        if (!WindowsElevationService.IsCurrentProcessElevated())
+        if (_remoteStore?.IsRemoteTarget != true && !WindowsElevationService.IsCurrentProcessElevated())
         {
             // 源：权限失败 → 关闭 TUN + 持久化 + warning（Windows：未以管理员运行）
             try
@@ -1033,10 +1249,10 @@ public partial class App : Application
         return (runtimePath, Path.GetDirectoryName(Path.GetFullPath(configPath)));
     }
 
-    /// <summary>运行中应用覆写（源：applyRuleOverridesIfRunning——PUT /configs 推 payload 全文）。</summary>
+    /// <summary>运行中应用覆写（源：applyRuleOverridesIfRunning——PUT /configs 推 payload 全文；远程禁用）。</summary>
     private async Task ApplyRuleOverridesAsync()
     {
-        if (!_ruleOverridePage?.IsEnabled == true)
+        if (!_ruleOverridePage?.IsEnabled == true || _remoteStore?.IsRemoteTarget == true)
         {
             return;
         }
@@ -1301,7 +1517,10 @@ public partial class App : Application
             _apiClient!,
             ProbeViaCoreProxyAsync,
             () => _guardIntervalSeconds,
-            canProbe: () => _processManager?.IsRunning == true && _poller?.Status == ApiHealth.Healthy);
+            // 源：guard isRuntimeRunning, !isRemoteTarget（远程目标不做本机守护探测）
+            canProbe: () => _processManager?.IsRunning == true
+                && _remoteStore?.IsRemoteTarget != true
+                && _poller?.Status == ApiHealth.Healthy);
         // Logged 与 ProbeCompleted 来自后台线程，统一编组到 UI
         _proxyGuard.Logged += (level, message) =>
             Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog($"[guard] {message}"));
@@ -1511,6 +1730,11 @@ public partial class App : Application
 
     private async void OnSubscriptionImportRequested(string urlText)
     {
+        if (_remoteStore?.IsRemoteTarget == true)
+        {
+            return;   // 源：远程目标配置管理只读（UI 已禁用，此处兜底）
+        }
+
         if (!Uri.TryCreate(urlText, UriKind.Absolute, out Uri? url))
         {
             _mainWindow?.AppendLog("[subscription] 地址无效，需要完整的 http(s) 链接");
@@ -1543,6 +1767,11 @@ public partial class App : Application
 
     private async void OnConfigActivateRequested(string fileName)
     {
+        if (_remoteStore?.IsRemoteTarget == true)
+        {
+            return;   // 远程目标配置只读
+        }
+
         try
         {
             _subscriptions!.Select(fileName);
@@ -1558,6 +1787,11 @@ public partial class App : Application
 
     private void OnConfigRemoveRequested(string fileName)
     {
+        if (_remoteStore?.IsRemoteTarget == true)
+        {
+            return;   // 远程目标配置只读
+        }
+
         try
         {
             _subscriptions!.Remove(fileName);
@@ -1599,6 +1833,11 @@ public partial class App : Application
 
     private async Task RefreshSubscriptionCoreAsync(SubscriptionInfo info)
     {
+        if (_remoteStore?.IsRemoteTarget == true)
+        {
+            return;   // 远程目标订阅更新只读
+        }
+
         try
         {
             string version = _poller?.Version is { Length: > 0 } current
@@ -1710,7 +1949,8 @@ public partial class App : Application
             _pendingConfigChangePath = null;
         }
 
-        if (changedPath is null || _processManager?.IsRunning != true)
+        // 源：AppViewModel+ConfigMonitoring 的 guard !isRemoteTarget
+        if (changedPath is null || _processManager?.IsRunning != true || _remoteStore?.IsRemoteTarget == true)
         {
             return;
         }

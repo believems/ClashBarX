@@ -1,0 +1,176 @@
+<Window x:Class="ClashBarX.App.RemoteMachineManagerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{DynamicResource MachineManagerTitle}"
+        Width="470" Height="520"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        xmlns:core="clr-namespace:ClashBarX.App.Core">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <core:InverseBoolToVisibilityConverter x:Key="InvertVis" />
+    </Window.Resources>
+    <Grid Margin="12">
+        <!-- 机器列表（源：RemoteMachineManagerView.machineList——本机行 + 远程行 + 添加） -->
+        <Grid Visibility="{Binding IsEditorVisible, Converter={StaticResource InvertVis}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <TextBlock Grid.Row="0"
+                       Text="{DynamicResource MachineManagerTitle}"
+                       FontSize="14" FontWeight="SemiBold"
+                       Margin="0,0,0,10" />
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <!-- 本机行（源：localMachineRow——desktopcomputer 图标 + 当前目标勾选） -->
+                    <Border BorderBrush="#DDD" BorderThickness="1" CornerRadius="4" Background="#F5F8FB"
+                            Margin="0,0,0,8" Padding="10,8">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right"
+                                    x:Name="LocalRowSwitchButton"
+                                    Content="{DynamicResource MachineSwitch}"
+                                    FontSize="11"
+                                    Padding="8,1"
+                                    Click="OnSwitchToLocalClick" />
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource MachineLocal}" FontWeight="SemiBold" FontSize="12" />
+                                <TextBlock x:Name="LocalControllerText"
+                                           Text="127.0.0.1:9090"
+                                           FontSize="11"
+                                           Foreground="#5E6B78" />
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+                    <!-- 远程机器行（源：RemoteMachineRowView——状态点/名称/地址/编辑/删除） -->
+                    <ItemsControl ItemsSource="{Binding Rows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border BorderBrush="#DDD" BorderThickness="1" CornerRadius="4"
+                                        Background="#FAFAFA"
+                                        Margin="0,0,0,8" Padding="10,8">
+                                    <StackPanel>
+                                        <DockPanel>
+                                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                                <Button Content="{DynamicResource MachineEdit}"
+                                                        FontSize="11"
+                                                        Padding="8,1"
+                                                        Margin="4,0,0,0"
+                                                        Click="OnEditMachineClick" />
+                                                <Button Content="{DynamicResource MachineDelete}"
+                                                        FontSize="11"
+                                                        Padding="8,1"
+                                                        Margin="4,0,0,0"
+                                                        Click="OnDeleteMachineClick" />
+                                                <Button Content="{DynamicResource MachineSwitch}"
+                                                        FontSize="11"
+                                                        Padding="8,1"
+                                                        Margin="4,0,0,0"
+                                                        IsEnabled="{Binding CanSwitch}"
+                                                        Visibility="{Binding IsActive, Converter={StaticResource InvertVis}}"
+                                                        Click="OnSwitchToMachineClick" />
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Ellipse Width="8" Height="8" VerticalAlignment="Center" Margin="0,0,8,0">
+                                                    <Ellipse.Style>
+                                                        <Style TargetType="Ellipse">
+                                                            <Setter Property="Fill" Value="#B0B7C0" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsChecking}" Value="True">
+                                                                    <Setter Property="Fill" Value="#7FA8D9" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsConnected}" Value="True">
+                                                                    <Setter Property="Fill" Value="#34A853" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsFailed}" Value="True">
+                                                                    <Setter Property="Fill" Value="#D93025" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Ellipse.Style>
+                                                </Ellipse>
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Text="✓" Foreground="#34A853" FontWeight="Bold"
+                                                           VerticalAlignment="Center" Margin="6,0,0,0"
+                                                           Visibility="{Binding IsActive, Converter={StaticResource BoolToVis}}" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                        <TextBlock Text="{Binding DisplayAddress}"
+                                                   FontSize="11"
+                                                   Foreground="#5E6B78"
+                                                   Margin="16,2,0,0" />
+                                        <TextBlock Text="{Binding StatusText}"
+                                                   FontSize="11"
+                                                   Foreground="#8A93A0"
+                                                   Margin="16,2,0,0" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+            <Button Grid.Row="2"
+                    Content="{DynamicResource MachineAdd}"
+                    Padding="0,6"
+                    Margin="0,10,0,0"
+                    Click="OnAddMachineClick" />
+        </Grid>
+
+        <!-- 编辑表单（源：RemoteMachineEditorView——名称/主机/端口/密钥/HTTPS/预览/保存） -->
+        <Grid Visibility="{Binding IsEditorVisible, Converter={StaticResource BoolToVis}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <DockPanel Grid.Row="0" Margin="0,0,0,14">
+                <Button DockPanel.Dock="Left"
+                        Content="←"
+                        Padding="8,1"
+                        Click="OnCancelEditClick" />
+                <TextBlock Text="{Binding EditorTitle}"
+                           FontSize="14" FontWeight="SemiBold"
+                           Margin="10,0,0,0"
+                           VerticalAlignment="Center" />
+            </DockPanel>
+            <StackPanel Grid.Row="1">
+                <TextBlock Text="{DynamicResource MachineFieldName}" FontSize="12" Margin="0,0,0,4" />
+                <TextBox Text="{Binding NameText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" Margin="0,0,0,12" />
+                <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="100" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="{DynamicResource MachineFieldHost}" FontSize="12" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding HostText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="{DynamicResource MachineFieldPort}" FontSize="12" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding PortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" />
+                    </StackPanel>
+                </Grid>
+                <TextBlock Text="{DynamicResource MachineFieldSecret}" FontSize="12" Margin="0,0,0,4" />
+                <PasswordBox x:Name="SecretBox" Padding="4,2" Margin="0,0,0,12" PasswordChanged="OnSecretChanged" />
+                <DockPanel>
+                    <CheckBox DockPanel.Dock="Right" IsChecked="{Binding UseHttps}" Content="HTTPS" FontSize="12" />
+                    <TextBlock Text="{DynamicResource MachineFieldHttps}" FontSize="12" VerticalAlignment="Center" />
+                </DockPanel>
+                <TextBlock Text="{Binding ConnectionPreview}"
+                           FontSize="11"
+                           Foreground="#5E6B78"
+                           Margin="0,16,0,0" />
+            </StackPanel>
+            <Button Grid.Row="2"
+                    Content="{DynamicResource MachineSave}"
+                    Padding="0,6"
+                    IsEnabled="{Binding IsFormValid}"
+                    Click="OnSaveMachineClick" />
+        </Grid>
+    </Grid>
+</Window>

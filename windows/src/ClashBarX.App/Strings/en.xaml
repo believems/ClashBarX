@@ -36,4 +36,19 @@
     <sys:String x:Key="ProxyTunMode">TUN Mode</sys:String>
     <sys:String x:Key="ProxyTunToggle">Enable</sys:String>
     <sys:String x:Key="ProxyTunStackHint">TUN stack; switching restarts TUN and requires administrator privileges</sys:String>
+
+    <sys:String x:Key="MachineManagerTitle">Remote Machines</sys:String>
+    <sys:String x:Key="MachineLocal">Local</sys:String>
+    <sys:String x:Key="MachineAdd">Add Machine</sys:String>
+    <sys:String x:Key="MachineEdit">Edit</sys:String>
+    <sys:String x:Key="MachineDelete">Delete</sys:String>
+    <sys:String x:Key="MachineSwitch">Switch</sys:String>
+    <sys:String x:Key="MachineManage">Manage</sys:String>
+    <sys:String x:Key="MachineFieldName">Name</sys:String>
+    <sys:String x:Key="MachineFieldHost">Host</sys:String>
+    <sys:String x:Key="MachineFieldPort">Port</sys:String>
+    <sys:String x:Key="MachineFieldSecret">API Secret</sys:String>
+    <sys:String x:Key="MachineFieldHttps">HTTPS connection</sys:String>
+    <sys:String x:Key="MachineSave">Save</sys:String>
+    <sys:String x:Key="MachineRemoteReadonly">Remote, read-only (local config locked)</sys:String>
 </ResourceDictionary>

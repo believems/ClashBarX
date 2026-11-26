@@ -36,6 +36,12 @@ public partial class MainWindow : Window
     /// <summary>请求复制终端代理命令。</summary>
     public event Action? CopyProxyCommandRequested;
 
+    /// <summary>用户请求切换机器目标（null = 本机；远程需 App 层验证连通性后生效）。</summary>
+    public event Action<Guid?>? MachineTargetSwitchRequested;
+
+    /// <summary>用户请求打开远程机器管理窗。</summary>
+    public event Action? ManageMachinesRequested;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -159,6 +165,93 @@ public partial class MainWindow : Window
     private void OnCoreStopClick(object sender, RoutedEventArgs e) => CoreStopRequested?.Invoke();
 
     private void OnCoreRestartClick(object sender, RoutedEventArgs e) => CoreRestartRequested?.Invoke();
+
+    // ---- 远程机器切换器（源：headerConnectionControl 的胶囊对应物：状态点 + 下拉 + 管理） ----
+
+    private bool _suppressMachineTargetEvents;
+
+    private void OnMachineTargetSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressMachineTargetEvents)
+        {
+            return;
+        }
+
+        if (MachineTargetSelector.SelectedItem is ComboBoxItem item)
+        {
+            // Tag 为装箱 Guid（机器项）或 null（本机项）
+            Guid? machineId = item.Tag is Guid id ? id : null;
+            MachineTargetSwitchRequested?.Invoke(machineId);
+        }
+    }
+
+    private void OnManageMachinesClick(object sender, RoutedEventArgs e) => ManageMachinesRequested?.Invoke();
+
+    /// <summary>
+    /// 程序化重建目标下拉（本机 + 机器项）并选中当前目标（不回环触发切换事件）。
+    /// machineItems 为（id, 名称）对；activeMachineId 为 null 时选本机。
+    /// </summary>
+    public void SetMachineTargets(
+        string localLabel,
+        IReadOnlyList<(Guid Id, string Name)> machineItems,
+        Guid? activeMachineId)
+    {
+        _suppressMachineTargetEvents = true;
+        try
+        {
+            MachineTargetSelector.Items.Clear();
+            var localItem = new ComboBoxItem { Content = localLabel, Tag = (Guid?)null };
+            MachineTargetSelector.Items.Add(localItem);
+            ComboBoxItem? activeItem = localItem;
+            foreach ((Guid id, string name) in machineItems)
+            {
+                var item = new ComboBoxItem { Content = name, Tag = (Guid?)id };
+                MachineTargetSelector.Items.Add(item);
+                if (id == activeMachineId)
+                {
+                    activeItem = item;
+                }
+            }
+
+            MachineTargetSelector.SelectedItem = activeItem;
+        }
+        finally
+        {
+            _suppressMachineTargetEvents = false;
+        }
+    }
+
+    /// <summary>切换器状态点颜色与 tooltip（绿=已连接 / 红=失败 / 蓝=检测中 / 灰=未知或本机）。</summary>
+    public void SetMachineStatusDot(string colorHex, string toolTip)
+    {
+        var brush = new System.Windows.Media.SolidColorBrush(
+            (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(colorHex));
+        brush.Freeze();
+        MachineStatusDot.Fill = brush;
+        MachineStatusDot.ToolTip = toolTip;
+    }
+
+    /// <summary>目标切换中（禁用下拉与管理入口；源：isSwitchingMachine）。</summary>
+    public void SetMachineSwitching(bool switching)
+    {
+        MachineTargetSelector.IsEnabled = !switching;
+        ManageMachinesButton.IsEnabled = !switching;
+    }
+
+    /// <summary>
+    /// 远程目标的只读联动（源：isRemoteTarget 的各 guard——配置管理只读、
+    /// 本机内核动作/守护/规则覆写禁用；订阅区显示「远程只读」提示）。
+    /// </summary>
+    public void SetRemoteReadonly(bool isRemote)
+    {
+        SubscriptionSectionRoot.IsEnabled = !isRemote;
+        GuardSettingsRoot.IsEnabled = !isRemote;
+        OverrideCardRoot.IsEnabled = !isRemote;
+        RemoteReadonlyHint.Visibility = isRemote ? Visibility.Visible : Visibility.Collapsed;
+        StartCoreButton.IsEnabled = !isRemote;
+        StopCoreButton.IsEnabled = !isRemote;
+        RestartCoreButton.IsEnabled = !isRemote;
+    }
 
     private void OnRefreshSubscriptionClick(object sender, RoutedEventArgs e)
     {
