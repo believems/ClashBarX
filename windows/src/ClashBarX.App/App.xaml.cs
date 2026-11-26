@@ -56,7 +56,8 @@ public partial class App : Application
     private DispatcherTimer? _mihomoLogFlushTimer;
     private ProxyGuardService? _proxyGuard;
     private ProxyGuardSettingsViewModel? _guardSettings;
-    private int _guardIntervalSeconds = 300;
+    /// <summary>守护周期秒数（UI 线程写、守护后台循环每轮读——volatile 保证可见性）。</summary>
+    private volatile int _guardIntervalSeconds = 300;
     private bool _cliProxyGuardTrigger;
     private EventWaitHandle? _guardTriggerEvent;
     private StreamCoordinator? _streams;
@@ -67,9 +68,15 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
-        // CLI 触发（源：--proxy-guard——通知运行中实例立即探测；本实例为首个实例时随启动触发）
+        // CLI 触发（源：--proxy-guard——已有实例时通知其立即探测后本进程退出
+        //（ProxyGuardCLI 的 exit(0) 语义）；本实例为首个实例时随启动触发）
         _cliProxyGuardTrigger = Environment.GetCommandLineArgs()
             .Contains(ProxyGuardService.CliTriggerArgument, StringComparer.OrdinalIgnoreCase);
+        if (_cliProxyGuardTrigger && TryTriggerRunningGuardInstance())
+        {
+            Shutdown();   // 已通知运行中实例，不再启动第二份主窗/托盘/内核（避免抢占 9090 控制端口）
+            return;
+        }
 
         _processManager = new MihomoProcessManager();
         _processManager.OnLog += line => Dispatcher.BeginInvoke(() =>
@@ -482,14 +489,10 @@ public partial class App : Application
         };
         _mainWindow!.SetGuardSettings(_guardSettings);
 
-        if (_cliProxyGuardTrigger)
+        if (settings.ProxyGuardEnabled)
         {
-            TryTriggerRunningGuardInstance();
-        }
-
-        if (settings.ProxyGuardEnabled || _cliProxyGuardTrigger)
-        {
-            // 持久化开启意图恢复；CLI 触发时首启先探一次（源：startProxyGuardIfNeeded 的 CLI 分支）
+            // 仅按持久化开关启动（CLI 触发不越过用户开关——源：startProxyGuardIfNeeded 的
+            // guard proxyGuardEnabled 语义）；开启态下 CLI 触发首启先探一次
             _proxyGuard.Start(probeImmediately: _cliProxyGuardTrigger);
         }
 
@@ -554,20 +557,25 @@ public partial class App : Application
         });
     }
 
-    /// <summary>通知运行中的其他实例立即探测（源：DistributedNotificationCenter 触发分支）。</summary>
-    private void TryTriggerRunningGuardInstance()
+    /// <summary>
+    /// 通知运行中的其他实例立即探测（源：DistributedNotificationCenter 触发分支）。
+    /// 返回是否成功通知到既有实例——事件为内核对象，实例退出即销毁，存在即视为活着。
+    /// </summary>
+    private bool TryTriggerRunningGuardInstance()
     {
         if (EventWaitHandle.TryOpenExisting(GuardTriggerEventName, out EventWaitHandle? existing))
         {
             try
             {
-                existing.Set();
+                return existing.Set();
             }
             finally
             {
                 existing.Dispose();
             }
         }
+
+        return false;
     }
 
     /// <summary>监听命名事件：CLI 或其他实例触发时立即探测。</summary>

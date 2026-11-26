@@ -95,6 +95,7 @@ public class ProxyGuardServiceTests
         };
 
         public ProxyGuardService Service = null!;
+        public int IntervalProviderCalls;
 
         public Harness WithDefaults()
         {
@@ -105,7 +106,11 @@ public class ProxyGuardServiceTests
             Service = new ProxyGuardService(
                 Client,
                 ProbeAsync,
-                intervalSecondsProvider: () => IntervalSeconds,
+                intervalSecondsProvider: () =>
+                {
+                    IntervalProviderCalls++;
+                    return IntervalSeconds;
+                },
                 canProbe: () => CanProbe,
                 delay: DelayAsync);
             Service.Logged += (level, message) => Logs.Enqueue((level, message));
@@ -140,7 +145,26 @@ public class ProxyGuardServiceTests
         harness.Service.Start();
         await harness.WaitUntilAsync(() => harness.ProbeCalls >= 2, "两轮探测");
 
+        // 每轮都重读 provider（源：max(30, intervalSeconds) 的每轮动态语义），
+        // 且低于下限的值被 clamp 到 30
+        Assert.True(harness.IntervalProviderCalls >= 2);
         Assert.All(harness.DelaySnapshot(), delay => Assert.Equal(30, delay.TotalSeconds));
+        harness.Service.Dispose();
+    }
+
+    [Fact]
+    public async Task 恢复期间内核API异常不杀死守护循环()
+    {
+        Harness harness = new Harness().WithDefaults();
+        // 三连失败触发恢复；恢复流程拉取 /proxies 时内核 API 抛异常（网络故障期的真实场景）
+        harness.Client.FailKinds.Add(MihomoEndpointKind.Proxies);
+        harness.ProbeScript = [false, false, false];
+
+        harness.Service.Start();
+        await harness.WaitForLogAsync(message => message.Contains("探测流程异常"), "异常已记录");
+
+        // 循环仍存活（未 Faulted），异常被吞后由下一周期继续
+        Assert.True(harness.Service.IsRunning);
         harness.Service.Dispose();
     }
 

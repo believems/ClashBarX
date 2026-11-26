@@ -40,6 +40,8 @@ public sealed class ProxyGuardService : IDisposable
     private readonly Func<TimeSpan, CancellationToken, Task> _delay;
 
     private readonly object _gate = new();
+    /// <summary>探测串行化门（源：Swift 的 MainActor——立即检查与循环探测不并发）。</summary>
+    private readonly SemaphoreSlim _probeGate = new(1, 1);
     private CancellationTokenSource? _loopCancellation;
     private Task? _loopTask;
     private int _consecutiveFailures;
@@ -160,11 +162,28 @@ public sealed class ProxyGuardService : IDisposable
                 return;
             }
 
-            await ProbeCoreAsync(token).ConfigureAwait(false);
+            try
+            {
+                await ProbeCoreAsync(token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception error)
+            {
+                // 兜底：探测内部的恢复流程异常已吞，此处防御性保证循环永不 Faulted
+                Logged?.Invoke("error", $"守护循环异常：{error.Message}");
+            }
         }
     }
 
-    /// <summary>一次探测并推进失败计数（源：proxyGuardProbe——含恢复触发）。</summary>
+    /// <summary>
+    /// 一次探测并推进失败计数（源：proxyGuardProbe——含恢复触发）。
+    /// 经信号量串行（立即检查与循环探测不并发，对齐 Swift 的 MainActor）；
+    /// 全流程吞除非取消异常——恢复流程恰运行在网络故障期，内核 API 超时不能杀死守护循环
+    /// （源：Swift 恢复路径的 catch 容错语义）。
+    /// </summary>
     private async Task<ProxyGuardProbeState> ProbeCoreAsync(CancellationToken token)
     {
         if (!_canProbe())
@@ -172,6 +191,7 @@ public sealed class ProxyGuardService : IDisposable
             return new ProxyGuardProbeState(ProxyGuardProbeOutcome.Failed, ConsecutiveFailures);
         }
 
+        await _probeGate.WaitAsync(token).ConfigureAwait(false);
         IsProbing = true;
         try
         {
@@ -218,9 +238,16 @@ public sealed class ProxyGuardService : IDisposable
 
             return state;
         }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            // 恢复期间内核 API 超时/错误不杀死循环：记录后由下一周期重试
+            Logged?.Invoke("error", $"探测流程异常：{error.Message}");
+            return new ProxyGuardProbeState(ProxyGuardProbeOutcome.Failed, ConsecutiveFailures);
+        }
         finally
         {
             IsProbing = false;
+            _probeGate.Release();
         }
     }
 
@@ -398,5 +425,6 @@ public sealed class ProxyGuardService : IDisposable
     public void Dispose()
     {
         Stop();
+        _probeGate.Dispose();
     }
 }
