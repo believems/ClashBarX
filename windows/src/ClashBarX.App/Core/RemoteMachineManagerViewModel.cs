@@ -70,10 +70,10 @@ public sealed class RemoteMachineRowViewModel : INotifyPropertyChanged
         IsFailed = status.Kind == MachineConnectionKind.Failed;
         StatusText = status.Kind switch
         {
-            MachineConnectionKind.Checking => "检测中…",
-            MachineConnectionKind.Connected => status.Version is { Length: > 0 } ? status.Version : "已连接",
-            MachineConnectionKind.Failed => status.Reason ?? "连接失败",
-            _ => "未知",
+            MachineConnectionKind.Checking => ClashBarX.Core.L10n.CoreL10n.T("machine.status.checking"),
+            MachineConnectionKind.Connected => status.Version is { Length: > 0 } ? status.Version : ClashBarX.Core.L10n.CoreL10n.T("machine.status.connected"),
+            MachineConnectionKind.Failed => status.Reason ?? ClashBarX.Core.L10n.CoreL10n.T("machine.status.failed"),
+            _ => ClashBarX.Core.L10n.CoreL10n.T("machine.status.unknown"),
         };
         Raise(nameof(CanSwitch));
     }
@@ -144,7 +144,7 @@ public sealed class RemoteMachineManagerViewModel : INotifyPropertyChanged
     }
 
     /// <summary>编辑页标题（源：headerTitle——新增/编辑二态）。</summary>
-    public string EditorTitle => EditingMachineId is null ? "添加机器" : "编辑机器";
+    public string EditorTitle => ClashBarX.Core.L10n.CoreL10n.T(EditingMachineId is null ? "machine.editor.add_title" : "machine.editor.edit_title");
 
     public string NameText
     {

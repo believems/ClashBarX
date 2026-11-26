@@ -25,7 +25,7 @@ public sealed class StackOptionViewModel
     /// <summary>显示文案（源：mips 不满足时 "mips (需内核 x.y.z)" 的对应物）。</summary>
     public string DisplayText => IsAvailable
         ? Stack
-        : $"{Stack} · 需内核 {MipsMinimumVersion}+";
+        : $"{Stack} · {ClashBarX.Core.L10n.CoreL10n.T("tun.mips_requires_upgrade", MipsMinimumVersion)}";
 }
 
 /// <summary>

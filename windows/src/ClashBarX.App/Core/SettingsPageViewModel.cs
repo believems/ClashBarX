@@ -223,12 +223,14 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
             ClashBarX.Core.Updates.AppReleaseInfo? update = await CheckUpdateRequested();
             AvailableUpdate = update;
             UpdateCheckFailed = false;
-            UpdateStatusText = update is null ? "已是最新版本" : $"有新版本 {update.DisplayVersion}";
+            UpdateStatusText = update is null
+                ? ClashBarX.Core.L10n.CoreL10n.T("update.latest")
+                : ClashBarX.Core.L10n.CoreL10n.T("update.available", update.DisplayVersion);
         }
         catch (Exception error)
         {
             UpdateCheckFailed = true;
-            UpdateStatusText = $"检查更新失败：{error.Message}";
+            UpdateStatusText = ClashBarX.Core.L10n.CoreL10n.T("update.failed", error.Message);
         }
         finally
         {

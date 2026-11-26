@@ -224,7 +224,7 @@ public partial class App : Application
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                _mainWindow?.AppendLog($"[settings] 核心设置应用失败（{key}）：{error.Message}");
+                _mainWindow?.AppendLog(L("log.settings.patch_failed", key, error.Message));
             }
         };
         _settingsPage.CoreSettings.RestoreCloseConnections(saved.CloseConnectionsOnSwitch);
@@ -236,31 +236,32 @@ public partial class App : Application
         _settingsPage.UpgradeGeoRequested = async () =>
         {
             CoreUpgradeResponse response = await maintenance.UpgradeGeoAsync();
-            string message = $"GEO 数据更新：{response.Status ?? "已提交"}"
-                + (string.IsNullOrWhiteSpace(response.Message) ? string.Empty : $"（{response.Message}）");
+            string message = string.IsNullOrWhiteSpace(response.Message)
+                ? L("log.maintenance.geo_no_message", response.Status ?? L("log.maintenance.submitted"))
+                : L("log.maintenance.geo", response.Status ?? L("log.maintenance.submitted"), response.Message);
             _mainWindow?.AppendLog($"[maintenance] {message}");
             return message;
         };
         _settingsPage.UpgradeCoreRequested = async () =>
         {
             CoreUpgradeResponse response = await maintenance.UpgradeCoreAsync();
-            string message = $"内核升级：{response.Status ?? "已提交"}"
-                + (string.IsNullOrWhiteSpace(response.Message) ? string.Empty : $"（{response.Message}）")
-                + "；Windows 上运行中内核文件可能被锁，失败时请手动替换 core\\mihomo.exe 后重启";
+            string message = string.IsNullOrWhiteSpace(response.Message)
+                ? L("log.maintenance.core_no_message", response.Status ?? L("log.maintenance.submitted"))
+                : L("log.maintenance.core", response.Status ?? L("log.maintenance.submitted"), response.Message);
             _mainWindow?.AppendLog($"[maintenance] {message}");
             return message;
         };
         _settingsPage.FlushFakeIPRequested = async () =>
         {
             await maintenance.FlushFakeIPCacheAsync();
-            const string message = "FakeIP 缓存已清空";
+            string message = L("log.maintenance.flush_fakeip");
             _mainWindow?.AppendLog($"[maintenance] {message}");
             return message;
         };
         _settingsPage.FlushDNSRequested = async () =>
         {
             await maintenance.FlushDNSCacheAsync();
-            const string message = "DNS 缓存已清空";
+            string message = L("log.maintenance.flush_dns");
             _mainWindow?.AppendLog($"[maintenance] {message}");
             return message;
         };
@@ -290,7 +291,7 @@ public partial class App : Application
             }
             catch (Exception error)
             {
-                _mainWindow?.AppendLog($"[about] 打开发布页失败：{error.Message}");
+                _mainWindow?.AppendLog(L("log.about.open_failed", error.Message));
             }
         };
         _ = CheckUpdateAtStartupAsync();
@@ -320,7 +321,7 @@ public partial class App : Application
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            _mainWindow?.AppendLog($"[logs] 日志等级切换失败：{error.Message}");
+            _mainWindow?.AppendLog(L("log.logs.level_failed", error.Message));
         }
     }
 
@@ -331,12 +332,12 @@ public partial class App : Application
         {
             await _apiClient!.RequestNoResponseAsync(
                 MihomoEndpoint.PatchConfigs(new JsonObject { ["mode"] = mode }));
-            _mainWindow?.AppendLog($"[mode] 已切换分流模式：{mode}");
-            _tray?.ShowTransientMessage($"分流模式：{mode}");
+            _mainWindow?.AppendLog(L("log.mode.switched", mode));
+            _tray?.ShowTransientMessage(L("log.tray.mode_changed", mode));
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            _mainWindow?.AppendLog($"[mode] 切换失败：{error.Message}");
+            _mainWindow?.AppendLog(L("log.mode.switch_failed", error.Message));
         }
     }
 
@@ -425,9 +426,7 @@ public partial class App : Application
         }
         catch (MihomoBinaryResolutionException)
         {
-            _mainWindow?.AppendLog(
-                $"[startup] 请将 mihomo.exe 放入 {ClashBarXPaths.CoreDirectory()}，"
-                + $"并导入订阅或在 {ClashBarXPaths.DefaultConfigPath()} 准备运行配置后重启应用。");
+_mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory(), ClashBarXPaths.DefaultConfigPath()));
         }
         catch (Exception error)
         {
@@ -540,16 +539,16 @@ public partial class App : Application
             try
             {
                 _systemProxy.Enable(new SystemProxyTarget(expected.Host, expected.Port, bypass));
-                _mainWindow?.AppendLog($"[system proxy] 绕过列表已保存并重写（{bypass.Count} 条）");
+                _mainWindow?.AppendLog(L("log.system_proxy.bypass_saved_rewrite", bypass.Count));
             }
             catch (Exception error)
             {
-                _mainWindow?.AppendLog($"[system proxy] 绕过列表重写失败：{error.Message}");
+                _mainWindow?.AppendLog(L("log.system_proxy.bypass_rewrite_failed", error.Message));
             }
         }
         else
         {
-            _mainWindow?.AppendLog($"[system proxy] 绕过列表已保存（{bypass.Count} 条，下次开启时生效）");
+            _mainWindow?.AppendLog(L("log.system_proxy.bypass_saved", bypass.Count));
         }
 
         await Task.CompletedTask;
@@ -577,7 +576,7 @@ public partial class App : Application
             int mixedPort = config.MixedPort ?? 0;
             if (mixedPort <= 0)
             {
-                _mainWindow?.AppendLog($"[system proxy] {reason}: 内核未开启混合端口，无法设置代理");
+                _mainWindow?.AppendLog(L("log.system_proxy.no_mixed_port", reason));
                 Dispatcher.BeginInvoke(() =>
                 {
                     _tray?.SetSystemProxyChecked(false);
@@ -593,7 +592,7 @@ public partial class App : Application
             string proxyHost = _remoteStore?.ActiveMachine is { } machine ? machine.Host : "127.0.0.1";
             _systemProxy?.Enable(new SystemProxyTarget(proxyHost, mixedPort, bypass));
             _settingsStore.Save(_settingsStore.Load() with { SystemProxyEnabled = true });
-            _tray?.ShowTransientMessage($"系统代理已开启（{proxyHost}:{mixedPort}）");
+            _tray?.ShowTransientMessage(L("log.system_proxy.enabled", proxyHost, mixedPort));
         }
         catch (Exception error)
         {
@@ -632,7 +631,7 @@ public partial class App : Application
         {
             ShouldReconnect = () => _processManager?.IsRunning == true,
             OnDisconnect = (key, message) =>
-                Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog($"[stream] {key} 断开：{message}")),
+                Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog(L("log.stream.disconnected", key, message))),
         };
         StartTrafficStream();
 
@@ -674,7 +673,7 @@ public partial class App : Application
                 {
                     // 解码侧意外异常必须编组到 UI 线程记录，绝不能在线程池直调 UI 控件
                     //（否则异常会循环触发断线重连，流量摘要永远归零）
-                    Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog($"[traffic] 处理失败：{error.Message}"));
+                    Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog(L("log.traffic.handle_failed", error.Message)));
                 }
             });
     }
@@ -701,7 +700,7 @@ public partial class App : Application
             if (_lastProxyRefreshError != fingerprint)
             {
                 _lastProxyRefreshError = fingerprint;
-                _mainWindow?.AppendLog($"[proxy] 面板刷新失败：{error.Message}");
+                _mainWindow?.AppendLog(L("log.proxy.board_refresh_failed", error.Message));
             }
         }
     }
@@ -723,7 +722,7 @@ public partial class App : Application
             return;
         }
 
-        string localLabel = $"本机 · {DefaultController}";
+        string localLabel = L("machine.local_label", DefaultController);
         _mainWindow.SetMachineTargets(
             localLabel,
             _remoteStore.Machines.Select(machine => (machine.Id, machine.Name)).ToList(),
@@ -744,10 +743,10 @@ public partial class App : Application
             MachineConnectionStatus status = _remoteStore.StatusOf(machine.Id);
             (string color, string text) = status.Kind switch
             {
-                MachineConnectionKind.Checking => ("#7FA8D9", "检测中…"),
-                MachineConnectionKind.Connected => ("#34A853", $"已连接 · {status.Version ?? "OK"}"),
-                MachineConnectionKind.Failed => ("#D93025", $"连接失败：{status.Reason ?? "未知"}"),
-                _ => ("#B0B7C0", "未知"),
+                MachineConnectionKind.Checking => ("#7FA8D9", L("machine.tooltip.checking")),
+                MachineConnectionKind.Connected => ("#34A853", L("machine.tooltip.connected", status.Version ?? "OK")),
+                MachineConnectionKind.Failed => ("#D93025", L("machine.tooltip.failed", status.Reason ?? L("machine.tooltip.unknown"))),
+                _ => ("#B0B7C0", L("machine.tooltip.unknown")),
             };
             _mainWindow.SetMachineStatusDot(color, text);
         }
@@ -756,7 +755,7 @@ public partial class App : Application
             bool healthy = _poller?.Status == ApiHealth.Healthy;
             _mainWindow.SetMachineStatusDot(
                 healthy ? "#34A853" : "#B0B7C0",
-                healthy ? "本机 API 正常" : "本机 API 未就绪");
+                healthy ? L("machine.tooltip.local_healthy") : L("machine.tooltip.local_unhealthy"));
         }
     }
 
@@ -788,8 +787,11 @@ public partial class App : Application
             MachineConnectionStatus status = await _remoteStore.RefreshConnectivityAsync(machine).ConfigureAwait(true);
             if (!status.IsConnected)
             {
-                _mainWindow?.AppendLog(
-                    $"[remote] {machine.Name}（{machine.DisplayAddress}）不可达：{status.Reason ?? "未知"}，未切换");
+                _mainWindow?.AppendLog(L(
+                    "log.machine.unreachable",
+                    machine.Name,
+                    machine.DisplayAddress,
+                    status.Reason ?? L("machine.tooltip.unknown")));
                 Dispatcher.BeginInvoke(RefreshMachineSelector);   // 下拉回滚到当前目标
                 return;
             }
@@ -807,7 +809,7 @@ public partial class App : Application
             _coreSettingsLoaded = false;   // 新目标快照待拉（源：lastSyncedEditableSettings = nil）
             if (machine is null)
             {
-                _mainWindow?.AppendLog("[remote] 已切回本机");
+                _mainWindow?.AppendLog(L("log.remote.switched_local"));
                 if (_processManager?.IsRunning != true)
                 {
                     _ = StartCoreAtStartupAsync();   // 本机内核未跑则补拉（源：local 分支的启动恢复）
@@ -815,7 +817,7 @@ public partial class App : Application
             }
             else
             {
-                _mainWindow?.AppendLog($"[remote] 已连接远程 {machine.Name}（{machine.DisplayAddress}）");
+                _mainWindow?.AppendLog(L("log.remote.switched_remote", machine.Name, machine.DisplayAddress));
             }
 
             Dispatcher.BeginInvoke(() =>
@@ -871,19 +873,19 @@ public partial class App : Application
             if (_remoteStore!.Machines.Any(item => item.Id == machine.Id))
             {
                 _remoteStore.UpdateMachine(machine);
-                _mainWindow?.AppendLog($"[remote] 已更新机器 {machine.Name}");
+                _mainWindow?.AppendLog(L("log.remote.machine_updated", machine.Name));
             }
             else
             {
                 _remoteStore.AddMachine(machine);
-                _mainWindow?.AppendLog($"[remote] 已添加机器 {machine.Name}");
+                _mainWindow?.AppendLog(L("log.remote.machine_added", machine.Name));
             }
         };
         window.MachineDeleted += id =>
         {
             string? name = _remoteStore!.Machines.FirstOrDefault(item => item.Id == id)?.Name;
             _remoteStore.RemoveMachine(id);
-            _mainWindow?.AppendLog($"[remote] 已删除机器 {name ?? id.ToString()}");
+            _mainWindow?.AppendLog(L("log.remote.machine_deleted", name ?? id.ToString()));
             Dispatcher.BeginInvoke(RefreshMachineSelector);
         };
         window.ShowDialog();
@@ -901,7 +903,7 @@ public partial class App : Application
         }
         catch (Exception error)
         {
-            _mainWindow?.AppendLog($"[webui] 打开 WebUI 失败：{error.Message}");
+            _mainWindow?.AppendLog(L("log.webui.open_failed", error.Message));
         }
     }
 
@@ -913,6 +915,10 @@ public partial class App : Application
         _controllerUiUrl = ControllerWebUiUrl.Build(
             controller, secret, configured, snapshot.ExternalUiName);
     }
+
+    /// <summary>L10n 快捷取文案（日志与动态消息统一走 CoreL10n 字典）。</summary>
+    private static string L(string key, params object?[] args) =>
+        ClashBarX.Core.L10n.CoreL10n.T(key, args);
 
     // ---- 应用更新（M5-4：源 AppViewModel+Maintenance.swift 的 currentAppVersionText/
     //      refreshLatestAppRelease + MenuBarCommonViews footer） ----
@@ -972,7 +978,7 @@ public partial class App : Application
             // 源：removeSSIDStrategyBinding
             IReadOnlyList<SsidStrategyRule> next = SsidStrategyRule.Remove(ssid, LoadSsidStrategyRules());
             SaveSsidStrategyRules(next);
-            _mainWindow?.AppendLog($"[ssid] 已解除 {ssid} 的绑定");
+            _mainWindow?.AppendLog(L("log.ssid.unbound", ssid));
             _ = ApplySsidStrategyForCurrentSsidAsync();
         };
         _mainWindow!.SetSsidStrategySection(_ssidStrategy);
@@ -1004,21 +1010,21 @@ public partial class App : Application
 
         if (_ssidStrategy?.IsEnabled != true)
         {
-            LogSsidStrategyOnce("warning", "enable-first", "[ssid] 请先开启 SSID 自动切换");
+            LogSsidStrategyOnce("warning", "enable-first", L("log.ssid.enable_first"));
             return;
         }
 
         string? currentSsid = _ssidMonitor?.PublishCurrentSsid();
         if (string.IsNullOrWhiteSpace(currentSsid))
         {
-            _mainWindow?.AppendLog("[ssid] 当前 Wi-Fi 名称不可用，无法绑定");
+            _mainWindow?.AppendLog(L("log.ssid.ssid_unavailable"));
             return;
         }
 
         string? selectedConfig = _subscriptions?.GetSelectedFileName();
         if (string.IsNullOrWhiteSpace(selectedConfig))
         {
-            _mainWindow?.AppendLog("[ssid] 当前无选中配置，无法绑定");
+            _mainWindow?.AppendLog(L("log.ssid.no_selected_config"));
             return;
         }
 
@@ -1028,13 +1034,13 @@ public partial class App : Application
             // 源：重复绑定 → 解除（toggle 语义）
             IReadOnlyList<SsidStrategyRule> next = SsidStrategyRule.Remove(currentSsid, rules);
             SaveSsidStrategyRules(next);
-            _mainWindow?.AppendLog($"[ssid] 已解除 {currentSsid} 的绑定");
+            _mainWindow?.AppendLog(L("log.ssid.unbound", currentSsid));
             return;
         }
 
         IReadOnlyList<SsidStrategyRule> upserted = SsidStrategyRule.Upsert(currentSsid, selectedConfig, rules);
         SaveSsidStrategyRules(upserted);
-        _mainWindow?.AppendLog($"[ssid] 已绑定 {currentSsid} → {selectedConfig}");
+        _mainWindow?.AppendLog(L("log.ssid.bound", currentSsid, selectedConfig));
         _ = ApplySsidStrategyForCurrentSsidAsync();
     }
 
@@ -1065,18 +1071,18 @@ public partial class App : Application
                 LogSsidStrategyOnce(
                     "warning",
                     $"missing-config:{resolution.ConfigFileName}",
-                    $"[ssid] 绑定的配置 {resolution.ConfigFileName} 不存在，无法自动切换");
+                    L("log.ssid.config_missing", resolution.ConfigFileName));
                 break;
 
             case SsidStrategyResolutionKind.SwitchToConfig:
                 _ssidStrategyLastLogFingerprint = null;
-                string ssidDisplay = string.IsNullOrWhiteSpace(currentSsid) ? "未知" : currentSsid!;
-                _mainWindow?.AppendLog($"[ssid] Wi-Fi 切换为 {ssidDisplay}，自动切换配置 {resolution.ConfigFileName}");
+                string ssidDisplay = string.IsNullOrWhiteSpace(currentSsid) ? L("log.ssid.unknown_wifi") : currentSsid!;
+                _mainWindow?.AppendLog(L("log.ssid.switching", ssidDisplay, resolution.ConfigFileName));
                 _subscriptions!.Select(resolution.ConfigFileName!);
                 RefreshConfigList();
                 await ApplySelectedConfigAsync();
                 // 源：StatusItemBanner（wifi.circle.fill）的 Windows 对应物：tooltip 闪现
-                _tray?.ShowTransientMessage($"SSID 策略：{ssidDisplay} → {resolution.ConfigFileName}");
+                _tray?.ShowTransientMessage(L("log.ssid.banner", ssidDisplay, resolution.ConfigFileName));
                 break;
         }
     }
@@ -1174,8 +1180,8 @@ public partial class App : Application
             && !TunControlService.IsMipsStackSupported(_poller?.Version))
         {
             // 源：banner 警告 + log warning + return（Windows 对应物：tooltip 闪现）
-            string detail = $"mips stack 需要内核 {TunControlService.MipsStackMinimumCoreVersion}+";
-            _mainWindow?.AppendLog($"[tun] {detail}，当前版本不支持");
+            string detail = L("log.tun.mips_requires", TunControlService.MipsStackMinimumCoreVersion);
+            _mainWindow?.AppendLog(L("log.tun.mips_unsupported", detail));
             _tray?.ShowTransientMessage(detail);
             RollbackTunSelection();
             return;
@@ -1206,13 +1212,13 @@ public partial class App : Application
     {
         var choice = System.Windows.MessageBox.Show(
             _mainWindow,
-            "开启 TUN 需要管理员权限。\n\n将以管理员身份重启 ClashBarX（当前配置与状态会自动恢复），是否继续？",
-            "TUN 模式",
+            L("log.tun.elevation_prompt"),
+            L("log.tun.elevation_prompt_title"),
             MessageBoxButton.YesNo,
             MessageBoxImage.Question);
         if (choice != MessageBoxResult.Yes)
         {
-            _mainWindow?.AppendLog("[tun] 已取消管理员授权，TUN 未开启");
+            _mainWindow?.AppendLog(L("log.tun.auth_cancelled"));
             RollbackTunSelection();
             return;
         }
@@ -1228,7 +1234,7 @@ public partial class App : Application
         if (!WindowsElevationService.TryRestartAsAdministrator(out string? failureMessage))
         {
             _settingsStore.Save(_settingsStore.Load() with { TunEnabled = saved.TunEnabled });
-            _mainWindow?.AppendLog($"[tun] 提权重启失败：{failureMessage ?? "未知错误"}");
+            _mainWindow?.AppendLog(L("log.tun.elevation_failed", failureMessage ?? L("log.tun.unknown_error")));
             RollbackTunSelection();
             return;
         }
@@ -1263,19 +1269,19 @@ public partial class App : Application
             if (result.Outcome == TunToggleOutcome.Applied)
             {
                 string message = stack is null
-                    ? $"[tun] TUN 已{(result.State.Enabled ? "开启" : "关闭")}"
-                    : $"[tun] stack 已切换：{result.State.Stack}";
+                    ? L("log.tun.toggled", result.State.Enabled ? L("log.tun.enabled") : L("log.tun.disabled"))
+                    : L("log.tun.stack_changed", result.State.Stack ?? string.Empty);
                 _mainWindow?.AppendLog(message);
             }
             else
             {
                 // 源：runtime_state_mismatch → log error（不抛）
-                _mainWindow?.AppendLog("[tun] 切换失败：内核运行态与期望不一致");
+                _mainWindow?.AppendLog(L("log.tun.state_mismatch"));
             }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            _mainWindow?.AppendLog($"[tun] 切换失败（{reason}）：{error.Message}");
+            _mainWindow?.AppendLog(L("log.tun.toggle_failed", reason, error.Message));
             await RefreshTunFromRuntimeAsync().ConfigureAwait(true);
         }
         finally
@@ -1339,7 +1345,7 @@ public partial class App : Application
             _settingsStore.Save(_settingsStore.Load() with { TunEnabled = false });
             _tunSection?.ApplySnapshot(enabled: false, saved.TunStack);
             _mainWindow?.AppendLog(
-                "[tun] TUN 需要管理员权限，本次启动已自动关闭；以管理员身份运行 ClashBarX 可恢复");
+                L("log.tun.needs_admin"));
             Dispatcher.BeginInvoke(RefreshPresentationState);
             return;
         }
@@ -1353,18 +1359,18 @@ public partial class App : Application
             PersistTunState(result.State);
             if (result.Outcome == TunToggleOutcome.Applied)
             {
-                _mainWindow?.AppendLog("[tun] TUN 已恢复开启");
+                _mainWindow?.AppendLog(L("log.tun.restored"));
                 await TryAlignTunStackAsync().ConfigureAwait(true);
             }
             else
             {
-                _mainWindow?.AppendLog("[tun] 启动恢复失败：内核运行态与期望不一致");
+                _mainWindow?.AppendLog(L("log.tun.restore_mismatch"));
                 await RefreshTunFromRuntimeAsync().ConfigureAwait(true);
             }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            _mainWindow?.AppendLog($"[tun] 启动恢复失败：{error.Message}");
+            _mainWindow?.AppendLog(L("log.tun.restore_failed", error.Message));
             await RefreshTunFromRuntimeAsync().ConfigureAwait(true);
         }
 
@@ -1382,12 +1388,12 @@ public partial class App : Application
                 TunRuntimeState state = await _tunControl.FetchRuntimeStateAsync().ConfigureAwait(true);
                 _tunSection?.ApplySnapshot(state.Enabled, state.Stack);
                 PersistTunState(state);
-                _mainWindow?.AppendLog($"[tun] stack 已对齐：{state.Stack}");
+                _mainWindow?.AppendLog(L("log.tun.aligned", state.Stack ?? string.Empty));
             }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            _mainWindow?.AppendLog($"[tun] 启动 stack 对齐失败：{error.Message}");
+            _mainWindow?.AppendLog(L("log.tun.align_failed", error.Message));
         }
     }
 
@@ -1452,7 +1458,7 @@ public partial class App : Application
         {
             List<ProxyGroupViewModel> groups = _proxyPage.Groups.ToList();
             await Task.WhenAll(groups.Select(group => TestGroupAndApplyAsync(group.Name))).ConfigureAwait(true);
-            _mainWindow?.AppendLog($"[proxy] 全部分组测速完成（{groups.Count} 组）");
+            _mainWindow?.AppendLog(L("log.proxy.test_all_done", groups.Count));
         }
         finally
         {
@@ -1471,7 +1477,7 @@ public partial class App : Application
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            _mainWindow?.AppendLog($"[proxy] {groupName} 测速失败：{error.Message}");
+            _mainWindow?.AppendLog(L("log.proxy.group_test_failed", groupName, error.Message));
         }
     }
 
@@ -1487,13 +1493,13 @@ public partial class App : Application
         try
         {
             IReadOnlyList<string> updated = await _proxyBoard!.UpdateAllProvidersAsync().ConfigureAwait(true);
-            _mainWindow?.AppendLog($"[provider] 已更新全部 provider（{updated.Count} 个）");
+            _mainWindow?.AppendLog(L("log.provider.update_all_done", updated.Count));
             ProxyBoard board = await _proxyBoard.RefreshAsync().ConfigureAwait(true);
             _proxyProviders.ApplyProviders(board.Providers);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            _mainWindow?.AppendLog($"[provider] 更新全部失败：{error.Message}");
+            _mainWindow?.AppendLog(L("log.provider.update_all_failed", error.Message));
         }
         finally
         {
@@ -1513,14 +1519,14 @@ public partial class App : Application
         try
         {
             await _proxyBoard!.UpdateProviderAsync(providerName).ConfigureAwait(true);
-            _mainWindow?.AppendLog($"[provider] 已更新 {providerName}");
+            _mainWindow?.AppendLog(L("log.provider.updated", providerName));
             ProxyBoard board = await _proxyBoard.RefreshAsync().ConfigureAwait(true);
             _proxyProviders.ApplyProviderDetail(
                 providerName, board.Providers.GetValueOrDefault(providerName));
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            _mainWindow?.AppendLog($"[provider] 更新 {providerName} 失败：{error.Message}");
+            _mainWindow?.AppendLog(L("log.provider.update_failed", providerName, error.Message));
         }
         finally
         {
@@ -1534,11 +1540,11 @@ public partial class App : Application
         try
         {
             await _proxyBoard!.HealthcheckProviderAsync(providerName).ConfigureAwait(true);
-            _mainWindow?.AppendLog($"[provider] {providerName} 健康检查已提交");
+            _mainWindow?.AppendLog(L("log.provider.healthcheck_submitted", providerName));
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            _mainWindow?.AppendLog($"[provider] {providerName} 健康检查失败：{error.Message}");
+            _mainWindow?.AppendLog(L("log.provider.healthcheck_failed", providerName, error.Message));
         }
     }
 
@@ -1601,7 +1607,7 @@ public partial class App : Application
         }
         catch (Exception error)
         {
-            _mainWindow?.AppendLog($"[override] 打开目录失败：{error.Message}");
+            _mainWindow?.AppendLog(L("log.override.open_folder_failed", error.Message));
         }
     }
 
@@ -1628,8 +1634,12 @@ public partial class App : Application
         Dispatcher.BeginInvoke(() =>
         {
             _ruleOverridePage?.MarkApplied(Path.GetFileName(configPath), counts);
-            _mainWindow?.AppendLog(
-                $"[override] 运行时配置已生成：{Path.GetFileName(runtimePath)}（前置 {counts.Prepend} · 追加 {counts.Append} · 规则集 {counts.RuleProviders}）");
+            _mainWindow?.AppendLog(L(
+                "log.override.runtime_generated",
+                Path.GetFileName(runtimePath),
+                counts.Prepend,
+                counts.Append,
+                counts.RuleProviders));
         });
         return (runtimePath, Path.GetDirectoryName(Path.GetFullPath(configPath)));
     }
@@ -1667,7 +1677,7 @@ public partial class App : Application
             await Dispatcher.BeginInvoke(() =>
             {
                 _ruleOverridePage?.MarkApplied(Path.GetFileName(configPath), counts);
-                _mainWindow?.AppendLog($"[override] 已应用到运行中的内核（{Path.GetFileName(runtimePath)}）");
+                _mainWindow?.AppendLog(L("log.override.applied_running", Path.GetFileName(runtimePath)));
             });
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -1675,7 +1685,7 @@ public partial class App : Application
             await Dispatcher.BeginInvoke(() =>
             {
                 _ruleOverridePage?.MarkFailed(error.Message);
-                _mainWindow?.AppendLog($"[override] 应用失败：{error.Message}");
+                _mainWindow?.AppendLog(L("log.override.apply_failed", error.Message));
             });
         }
     }
@@ -1703,7 +1713,7 @@ public partial class App : Application
             if (_lastRulesRefreshError != fingerprint)
             {
                 _lastRulesRefreshError = fingerprint;
-                _mainWindow?.AppendLog($"[rules] 面板刷新失败：{error.Message}");
+                _mainWindow?.AppendLog(L("log.rules.board_refresh_failed", error.Message));
             }
         }
     }
@@ -1797,7 +1807,7 @@ public partial class App : Application
                         catch (Exception error) when (error is not OperationCanceledException)
                         {
                             Dispatcher.BeginInvoke(() =>
-                                _mainWindow?.AppendLog($"[connections] 开启进程识别失败：{error.Message}"));
+                                _mainWindow?.AppendLog(L("log.connections.process_matching_failed", error.Message)));
                         }
                     }
 
@@ -1823,7 +1833,7 @@ public partial class App : Application
                 catch (Exception error)
                 {
                     // 解码侧意外异常编组到 UI 线程记录，避免在线程池直调 UI 控件后循环触发重连
-                    Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog($"[connections] 处理失败：{error.Message}"));
+                    Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog(L("log.connections.handle_failed", error.Message)));
                 }
             });
     }
@@ -1877,7 +1887,7 @@ public partial class App : Application
                 catch (Exception error)
                 {
                     // 解码侧意外异常编组到 UI 线程记录，避免在线程池直调 UI 后循环触发重连
-                    Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog($"[logs] 处理失败：{error.Message}"));
+                    Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog(L("log.logs.handle_failed", error.Message)));
                 }
             });
     }
@@ -2125,7 +2135,7 @@ public partial class App : Application
 
         if (!Uri.TryCreate(urlText, UriKind.Absolute, out Uri? url))
         {
-            _mainWindow?.AppendLog("[subscription] 地址无效，需要完整的 http(s) 链接");
+            _mainWindow?.AppendLog(L("log.subscription.invalid_url"));
             return;
         }
 
@@ -2139,13 +2149,13 @@ public partial class App : Application
             SubscriptionInfo info = await _subscriptions!.AddAsync(url, $"clash.meta/{version}");
 
             _subscriptions.Select(info.FileName);
-            _mainWindow?.AppendLog($"[subscription] 已导入并启用 {info.FileName}");
+            _mainWindow?.AppendLog(L("log.subscription.imported", info.FileName));
             RefreshConfigList();
             await ApplySelectedConfigAsync();
         }
         catch (Exception error)
         {
-            _mainWindow?.AppendLog($"[subscription] 导入失败：{error.Message}");
+            _mainWindow?.AppendLog(L("log.subscription.import_failed", error.Message));
         }
         finally
         {
@@ -2163,13 +2173,13 @@ public partial class App : Application
         try
         {
             _subscriptions!.Select(fileName);
-            _mainWindow?.AppendLog($"[config] 已切换 {fileName}");
+            _mainWindow?.AppendLog(L("log.config.switched", fileName));
             RefreshConfigList();
             await ApplySelectedConfigAsync();
         }
         catch (Exception error)
         {
-            _mainWindow?.AppendLog($"[config] 切换失败：{error.Message}");
+            _mainWindow?.AppendLog(L("log.config.switch_failed", error.Message));
         }
     }
 
@@ -2183,7 +2193,7 @@ public partial class App : Application
         try
         {
             _subscriptions!.Remove(fileName);
-            _mainWindow?.AppendLog($"[config] 已删除 {fileName}");
+            _mainWindow?.AppendLog(L("log.config.removed", fileName));
             RefreshConfigList();
             if (_subscriptions.GetSelectedConfigPath() == null)
             {
@@ -2192,7 +2202,7 @@ public partial class App : Application
         }
         catch (Exception error)
         {
-            _mainWindow?.AppendLog($"[config] 删除失败：{error.Message}");
+            _mainWindow?.AppendLog(L("log.config.remove_failed", error.Message));
         }
     }
 
@@ -2204,7 +2214,7 @@ public partial class App : Application
         SubscriptionInfo? info = _subscriptions!.List().FirstOrDefault(item => item.FileName == fileName);
         if (info is null)
         {
-            _mainWindow?.AppendLog($"[subscription] 未找到订阅记录：{fileName}");
+            _mainWindow?.AppendLog(L("log.subscription.not_found", fileName));
             return;
         }
 
@@ -2232,7 +2242,7 @@ public partial class App : Application
                 ? current
                 : DefaultMihomoVersionForUserAgent;
             await _subscriptions!.AddAsync(new Uri(info.Url), $"clash.meta/{version}");
-            _mainWindow?.AppendLog($"[subscription] 已更新 {info.FileName}");
+            _mainWindow?.AppendLog(L("log.subscription.updated", info.FileName));
 
             // 更新的是当前选中配置 → 热重载生效（源：更新后配置即时生效语义）
             if (_subscriptions.GetSelectedFileName() == info.FileName)
@@ -2242,7 +2252,7 @@ public partial class App : Application
         }
         catch (Exception error)
         {
-            _mainWindow?.AppendLog($"[subscription] 更新 {info.FileName} 失败：{error.Message}");
+            _mainWindow?.AppendLog(L("log.subscription.update_failed", info.FileName, error.Message));
         }
     }
 
@@ -2255,7 +2265,7 @@ public partial class App : Application
             int mixedPort = config.MixedPort ?? 0;
             if (mixedPort <= 0)
             {
-                _mainWindow?.AppendLog("[proxy] 内核未开启混合端口，无法生成代理命令");
+                _mainWindow?.AppendLog(L("log.proxy.no_mixed_port_for_command"));
                 return;
             }
 
@@ -2266,18 +2276,18 @@ public partial class App : Application
                 try
                 {
                     Clipboard.SetText(command);
-                    _tray?.ShowTransientMessage("代理命令已复制到剪贴板");
+                    _tray?.ShowTransientMessage(L("log.tray.command_copied"));
                 }
                 catch (System.Runtime.InteropServices.COMException)
                 {
                     // 剪贴板被占用时静默
                 }
             });
-            _mainWindow?.AppendLog("[proxy] 终端代理命令已复制");
+            _mainWindow?.AppendLog(L("log.proxy.command_copied"));
         }
         catch (Exception error)
         {
-            _mainWindow?.AppendLog($"[proxy] 复制代理命令失败：{error.Message}");
+            _mainWindow?.AppendLog(L("log.proxy.copy_failed", error.Message));
         }
     }
 
@@ -2350,7 +2360,7 @@ public partial class App : Application
             return;
         }
 
-        _mainWindow?.AppendLog($"[config] 检测到配置文件变化，热重载：{Path.GetFileName(changedPath)}");
+        _mainWindow?.AppendLog(L("log.config.hot_reloaded", Path.GetFileName(changedPath)));
         await ApplySelectedConfigAsync();
     }
 
@@ -2360,7 +2370,7 @@ public partial class App : Application
     {
         if (_processManager?.IsRunning == true)
         {
-            _mainWindow?.AppendLog("[core] 内核已在运行");
+            _mainWindow?.AppendLog(L("log.core.already_running"));
             return;
         }
 
@@ -2369,15 +2379,15 @@ public partial class App : Application
         {
             (string launchPath, string? workingDirectory) = ResolveCoreLaunchConfig(configPath);
             await _processManager!.StartAsync(launchPath, workingDirectory, DefaultController);
-            _mainWindow?.AppendLog("[core] 内核已手动启动");
+            _mainWindow?.AppendLog(L("log.core.started"));
         }
         catch (MihomoBinaryResolutionException)
         {
-            _mainWindow?.AppendLog($"[core] 启动失败：请将 mihomo.exe 放入 {ClashBarXPaths.CoreDirectory()}");
+            _mainWindow?.AppendLog(L("log.core.binary_missing", ClashBarXPaths.CoreDirectory()));
         }
         catch (Exception error)
         {
-            _mainWindow?.AppendLog($"[core] 启动失败：{error.Message}");
+            _mainWindow?.AppendLog(L("log.core.start_failed", error.Message));
         }
         finally
         {
@@ -2389,18 +2399,18 @@ public partial class App : Application
     {
         if (_processManager?.IsRunning != true)
         {
-            _mainWindow?.AppendLog("[core] 内核未在运行");
+            _mainWindow?.AppendLog(L("log.core.not_running"));
             return;
         }
 
         try
         {
             await _processManager.StopAsync();
-            _mainWindow?.AppendLog("[core] 内核已手动停止");
+            _mainWindow?.AppendLog(L("log.core.stopped"));
         }
         catch (Exception error)
         {
-            _mainWindow?.AppendLog($"[core] 停止失败：{error.Message}");
+            _mainWindow?.AppendLog(L("log.core.stop_failed", error.Message));
         }
         finally
         {
@@ -2415,15 +2425,15 @@ public partial class App : Application
         {
             (string launchPath, string? workingDirectory) = ResolveCoreLaunchConfig(configPath);
             await _processManager!.RestartAsync(launchPath, workingDirectory, DefaultController);
-            _mainWindow?.AppendLog("[core] 内核已手动重启");
+            _mainWindow?.AppendLog(L("log.core.restarted"));
         }
         catch (MihomoBinaryResolutionException)
         {
-            _mainWindow?.AppendLog($"[core] 重启失败：请将 mihomo.exe 放入 {ClashBarXPaths.CoreDirectory()}");
+            _mainWindow?.AppendLog(L("log.core.restart_binary_missing", ClashBarXPaths.CoreDirectory()));
         }
         catch (Exception error)
         {
-            _mainWindow?.AppendLog($"[core] 重启失败：{error.Message}");
+            _mainWindow?.AppendLog(L("log.core.restart_failed", error.Message));
         }
         finally
         {
@@ -2450,13 +2460,13 @@ public partial class App : Application
                     string payload = await File.ReadAllTextAsync(launchPath);
                     await _apiClient!.RequestNoResponseAsync(
                         MihomoEndpoint.PutConfigs(force: false, path: launchPath, payload: payload));
-                    _mainWindow?.AppendLog($"[config] 已热重载覆写配置（{Path.GetFileName(launchPath)}）");
+                    _mainWindow?.AppendLog(L("log.config.hot_reloaded_override", Path.GetFileName(launchPath)));
                 }
                 else
                 {
                     await _apiClient!.RequestNoResponseAsync(
                         MihomoEndpoint.PutConfigs(force: false, path: launchPath, payload: null));
-                    _mainWindow?.AppendLog($"[config] 已热重载 {Path.GetFileName(launchPath)}（连接保持）");
+                    _mainWindow?.AppendLog(L("log.config.hot_reloaded_plain", Path.GetFileName(launchPath)));
                 }
 
                 return;
@@ -2470,7 +2480,7 @@ public partial class App : Application
         }
         catch (Exception error)
         {
-            _mainWindow?.AppendLog($"[core] 重启失败：{error.Message}");
+            _mainWindow?.AppendLog(L("log.core.restart_failed", error.Message));
         }
         finally
         {
@@ -2478,7 +2488,7 @@ public partial class App : Application
         }
     }
 
-    private string _trayCoreStatus = "内核未运行";
+    private string _trayCoreStatus = ClashBarX.Core.L10n.CoreL10n.T("tray.core_status.stopped");
     private string _trayTraffic = string.Empty;
 
     /// <summary>托盘 tooltip 状态化（内核状态 + 实时速率；源：状态栏双行速率语义的 Windows 对应物）。</summary>
@@ -2507,23 +2517,23 @@ public partial class App : Application
 
         if (!coreRunning)
         {
-            _trayCoreStatus = "内核未运行";
+            _trayCoreStatus = L("tray.core_status.stopped");
             _mainWindow.SetCoreStatus(_trayCoreStatus);
         }
         else if (apiHealth == ApiHealth.Healthy)
         {
             string version = _poller?.Version is string v ? $" · {v}" : string.Empty;
-            _trayCoreStatus = $"内核运行中（pid={_processManager!.RunningProcessId}）· API 正常{version}";
+            _trayCoreStatus = L("tray.core_status.running_healthy", _processManager!.RunningProcessId, version);
             _mainWindow.SetCoreStatus(_trayCoreStatus);
         }
         else if (apiHealth == ApiHealth.Degraded)
         {
-            _trayCoreStatus = $"内核运行中（pid={_processManager!.RunningProcessId}）· API 未就绪";
+            _trayCoreStatus = L("tray.core_status.running_degraded", _processManager!.RunningProcessId);
             _mainWindow.SetCoreStatus(_trayCoreStatus);
         }
         else
         {
-            _trayCoreStatus = $"内核运行中（pid={_processManager!.RunningProcessId}）· 等待 API 响应";
+            _trayCoreStatus = L("tray.core_status.running_waiting", _processManager!.RunningProcessId);
             _mainWindow.SetCoreStatus(_trayCoreStatus);
         }
 

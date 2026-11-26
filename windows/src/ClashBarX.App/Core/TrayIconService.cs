@@ -55,10 +55,10 @@ public sealed class TrayIconService : IDisposable
 
     public TrayIconService()
     {
-        var showItem = new MenuItem { Header = "显示主窗(_S)" };
+        var showItem = new MenuItem { Header = ClashBarX.Core.L10n.CoreL10n.T("tray.menu.show_window") };
         showItem.Click += (_, _) => ShowMainWindowRequested?.Invoke();
 
-        _proxyItem = new MenuItem { Header = "系统代理(_P)", IsCheckable = true };
+        _proxyItem = new MenuItem { Header = ClashBarX.Core.L10n.CoreL10n.T("tray.menu.system_proxy"), IsCheckable = true };
         _proxyItem.Click += (_, _) =>
         {
             if (_suppressProxyItemEvents)
@@ -70,15 +70,15 @@ public sealed class TrayIconService : IDisposable
         };
 
         // 分流模式子菜单（不打开主窗即可切换；源：菜单栏 mode 菜单语义）
-        var modeMenu = new MenuItem { Header = "分流模式(_M)" };
-        _modeRuleItem = MakeModeItem("规则", "rule");
-        _modeGlobalItem = MakeModeItem("全局", "global");
-        _modeDirectItem = MakeModeItem("直连", "direct");
+        var modeMenu = new MenuItem { Header = ClashBarX.Core.L10n.CoreL10n.T("tray.menu.mode") };
+        _modeRuleItem = MakeModeItem(ClashBarX.Core.L10n.CoreL10n.T("tray.menu.mode_rule"), "rule");
+        _modeGlobalItem = MakeModeItem(ClashBarX.Core.L10n.CoreL10n.T("tray.menu.mode_global"), "global");
+        _modeDirectItem = MakeModeItem(ClashBarX.Core.L10n.CoreL10n.T("tray.menu.mode_direct"), "direct");
         modeMenu.Items.Add(_modeRuleItem);
         modeMenu.Items.Add(_modeGlobalItem);
         modeMenu.Items.Add(_modeDirectItem);
 
-        var exitItem = new MenuItem { Header = "退出(_X)" };
+        var exitItem = new MenuItem { Header = ClashBarX.Core.L10n.CoreL10n.T("tray.menu.exit") };
         exitItem.Click += (_, _) => ExitRequested?.Invoke();
 
         var menu = new ContextMenu();

@@ -20,10 +20,16 @@ public static class AppearanceManager
         ReplaceDictionary("ClashBarX.Theme", uri);
     }
 
-    public static void ApplyLanguage(AppLanguage language) =>
+    public static void ApplyLanguage(AppLanguage language)
+    {
         ReplaceDictionary(
             "ClashBarX.Strings",
             language == AppLanguage.English ? EnglishStrings : ChineseStrings);
+        // 代码侧动态文案同步切换（CoreL10n 为 VM/服务产出的文案提供字典）
+        ClashBarX.Core.L10n.CoreL10n.Language = language == AppLanguage.English
+            ? ClashBarX.Core.L10n.CoreLanguage.English
+            : ClashBarX.Core.L10n.CoreLanguage.ChineseSimplified;
+    }
 
     /// <summary>系统是否偏好深色（源：NSAppAppearance 跟随系统；读 AppsUseLightTheme）。</summary>
     public static bool SystemPrefersDark()

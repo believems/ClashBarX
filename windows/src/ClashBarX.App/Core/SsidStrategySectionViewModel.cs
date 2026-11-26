@@ -74,7 +74,7 @@ public sealed class SsidStrategySectionViewModel : INotifyPropertyChanged
 
     /// <summary>显示文本（源：ssidStrategyCurrentSSIDText——未连接时占位文案）。</summary>
     public string CurrentSsidText =>
-        string.IsNullOrWhiteSpace(CurrentSsid) ? "未连接 Wi-Fi" : CurrentSsid!;
+        string.IsNullOrWhiteSpace(CurrentSsid) ? ClashBarX.Core.L10n.CoreL10n.T("ssid.current.none") : CurrentSsid!;
 
     /// <summary>程序化同步开关（不触发事件；持久化恢复用）。</summary>
     public void RestoreEnabled(bool enabled)

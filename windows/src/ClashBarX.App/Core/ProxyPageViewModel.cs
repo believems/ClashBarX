@@ -398,17 +398,17 @@ public sealed class ProxyPageViewModel : INotifyPropertyChanged
         var parts = new List<string> { $"↑ {FormatRate(_upRate)}    ↓ {FormatRate(_downRate)}" };
         if (_upTotal is not null || _downTotal is not null)
         {
-            parts.Add($"总量 ↑{FormatBytes(_upTotal)} ↓{FormatBytes(_downTotal)}");
+            parts.Add(ClashBarX.Core.L10n.CoreL10n.T("proxy.traffic.totals", FormatBytes(_upTotal), FormatBytes(_downTotal)));
         }
 
         if (_connectionsCount is { } connections)
         {
-            parts.Add($"连接 {connections}");
+            parts.Add(ClashBarX.Core.L10n.CoreL10n.T("proxy.traffic.connections", connections));
         }
 
         if (_memoryInuse is { } memory)
         {
-            parts.Add($"内存 {FormatBytes(memory)}");
+            parts.Add(ClashBarX.Core.L10n.CoreL10n.T("proxy.traffic.memory", FormatBytes(memory)));
         }
 
         TrafficSummary = string.Join(" · ", parts);
@@ -576,7 +576,7 @@ public sealed class ProxyPageViewModel : INotifyPropertyChanged
         }
         catch (Exception error)
         {
-            _log($"[proxy] 切换 {group.Name} → {node.Name} 失败：{error.Message}");
+            _log(ClashBarX.Core.L10n.CoreL10n.T("log.proxy.switch_failed", group.Name, node.Name, error.Message));
         }
     }
 
@@ -593,11 +593,11 @@ public sealed class ProxyPageViewModel : INotifyPropertyChanged
             IReadOnlyDictionary<string, int> results = await _board
                 .TestGroupAsync(group.Name).ConfigureAwait(true);
             ApplyGroupTestResults(group.Name, results);
-            _log($"[proxy] {group.Name} 测速完成（{results.Count} 节点）");
+            _log(ClashBarX.Core.L10n.CoreL10n.T("log.proxy.group_test_done", group.Name, results.Count));
         }
         catch (Exception error)
         {
-            _log($"[proxy] {group.Name} 测速失败：{error.Message}");
+            _log(ClashBarX.Core.L10n.CoreL10n.T("log.proxy.group_test_failed", group.Name, error.Message));
         }
         finally
         {
@@ -620,7 +620,7 @@ public sealed class ProxyPageViewModel : INotifyPropertyChanged
         }
         catch (Exception error)
         {
-            _log($"[proxy] {node.Name} 测速失败：{error.Message}");
+            _log(ClashBarX.Core.L10n.CoreL10n.T("log.proxy.node_test_failed", node.Name, error.Message));
         }
         finally
         {
@@ -657,7 +657,7 @@ public sealed class ProxyPageViewModel : INotifyPropertyChanged
         }
 
         int last = samples[^1];
-        return last > 0 ? $"{last} ms" : "超时";
+        return last > 0 ? $"{last} ms" : ClashBarX.Core.L10n.CoreL10n.T("proxy.delay.timeout");
     }
 
     private static string FormatRate(long bytesPerSecond) => bytesPerSecond switch

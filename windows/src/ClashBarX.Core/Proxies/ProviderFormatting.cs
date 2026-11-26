@@ -1,5 +1,7 @@
 using System.Globalization;
 
+using ClashBarX.Core.L10n;
+
 namespace ClashBarX.Core.Proxies;
 
 /// <summary>
@@ -14,58 +16,50 @@ public static class ProviderFormatting
     /// <summary>相对时间（分钟/小时/天；解析失败或空为「未知」）。</summary>
     public static string RelativeTime(string? updatedAt, DateTimeOffset now)
     {
-        if (string.IsNullOrWhiteSpace(updatedAt))
+        if (string.IsNullOrWhiteSpace(updatedAt) || !TryParseIso8601(updatedAt.Trim(), out DateTimeOffset date))
         {
-            return "未知";
-        }
-
-        if (!TryParseIso8601(updatedAt.Trim(), out DateTimeOffset date))
-        {
-            return "未知";
+            return CoreL10n.T("provider.expiry.unknown");
         }
 
         double interval = Math.Max(0, (now - date).TotalSeconds);
         int minutes = (int)(interval / 60);
         if (minutes < 60)
         {
-            return $"{minutes} 分钟前";
+            return CoreL10n.T("provider.relative.minutes", minutes);
         }
 
         int hours = (int)(interval / 3600);
         if (hours < 24)
         {
-            return $"{hours} 小时前";
+            return CoreL10n.T("provider.relative.hours", hours);
         }
 
-        return $"{(int)(interval / 86400)} 天前";
+        return CoreL10n.T("provider.relative.days", (int)(interval / 86400));
     }
 
     /// <summary>到期天数短文案（0 = 长期；过期/今天/剩余 N 天）。</summary>
     public static string DaysUntilExpiryShort(long? unixSeconds, DateTimeOffset now)
     {
-        if (unixSeconds is null)
+        if (unixSeconds is null or < 0)
         {
-            return "未知";
+            return CoreL10n.T("provider.expiry.unknown");
         }
 
         if (unixSeconds == 0)
         {
-            return "长期有效";
-        }
-
-        if (unixSeconds < 0)
-        {
-            return "未知";
+            return CoreL10n.T("provider.expiry.long_term");
         }
 
         double seconds = unixSeconds.Value - now.ToUnixTimeSeconds();
         if (seconds < 0)
         {
-            return "已过期";
+            return CoreL10n.T("provider.expiry.expired");
         }
 
         int days = (int)Math.Floor(seconds / 86400);
-        return days <= 0 ? "今天到期" : $"{days} 天后到期";
+        return days <= 0
+            ? CoreL10n.T("provider.expiry.today")
+            : CoreL10n.T("provider.expiry.days", days);
     }
 
     /// <summary>到期是否临近（源：expiresSoon——有效且余量 < 15 天）。</summary>
