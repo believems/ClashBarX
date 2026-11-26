@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:ClashBarX.App"
         mc:Ignorable="d"
-        Title="ClashBarX" Height="520" Width="720"
+        Title="ClashBarX" Height="560" Width="760"
         WindowStartupLocation="CenterScreen">
     <DockPanel Margin="12">
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal">
@@ -20,45 +20,156 @@
                           VerticalAlignment="Center" />
         </StackPanel>
 
-        <!-- 订阅管理（M2-3）：URL 导入 + 配置列表切换/删除 -->
-        <GroupBox DockPanel.Dock="Top" Header="订阅" Margin="0,8,0,0" Padding="8">
-            <DockPanel>
-                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
-                    <Button x:Name="ImportButton"
-                            DockPanel.Dock="Right"
-                            Content="导入"
-                            Padding="10,2"
-                            MinWidth="60"
-                            Click="OnImportClick" />
-                    <TextBox x:Name="SubscriptionUrlBox"
-                             VerticalContentAlignment="Center"
-                             Padding="4,2" />
+        <TabControl x:Name="MainTabs" Margin="0,8,0,0">
+            <!-- 代理（M2-4）：流量摘要 + 分组卡（节点行内联展开） -->
+            <TabItem Header="代理">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top"
+                               Text="{Binding TrafficSummary}"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               Margin="4,6,4,6" />
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="ProxyGroupsList" ItemsSource="{Binding Groups}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Expander Margin="2,4,2,0"
+                                              Padding="4,2"
+                                              BorderBrush="#DDD"
+                                              BorderThickness="1"
+                                              IsExpanded="False">
+                                        <Expander.Header>
+                                            <DockPanel Margin="0,2">
+                                                <Button DockPanel.Dock="Right"
+                                                        Content="测速"
+                                                        Padding="8,1"
+                                                        Margin="6,0,0,0"
+                                                        FontSize="11"
+                                                        Command="{Binding TestGroupCommand}"
+                                                        CommandParameter="{Binding}" />
+                                                <TextBlock DockPanel.Dock="Right"
+                                                           Text="{Binding DelayText}"
+                                                           Foreground="#5E6B78"
+                                                           FontSize="11"
+                                                           Margin="8,0,0,0"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock DockPanel.Dock="Right"
+                                                           Text="{Binding CurrentNode}"
+                                                           Foreground="#5E6B78"
+                                                           FontSize="11"
+                                                           Margin="10,0,0,0"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           MaxWidth="220"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Text="{Binding Name}"
+                                                           FontWeight="SemiBold"
+                                                           VerticalAlignment="Center" />
+                                            </DockPanel>
+                                        </Expander.Header>
+                                        <!-- 节点行：类型徽章 + 名称 + 延迟 + 单节点测速 -->
+                                        <ItemsControl ItemsSource="{Binding Nodes}" Margin="6,2">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <DockPanel Margin="0,1">
+                                                        <Button DockPanel.Dock="Right"
+                                                                Content="⚡"
+                                                                Padding="4,0"
+                                                                Margin="6,0,0,0"
+                                                                FontSize="11"
+                                                                ToolTip="测速"
+                                                                Command="{Binding DataContext.TestNodeCommand, RelativeSource={RelativeSource AncestorType=Expander}}"
+                                                                CommandParameter="{Binding}" />
+                                                        <TextBlock DockPanel.Dock="Right"
+                                                                   Text="{Binding DelayText}"
+                                                                   Foreground="#5E6B78"
+                                                                   FontSize="11"
+                                                                   MinWidth="52"
+                                                                   TextAlignment="Right"
+                                                                   Margin="8,0,0,0"
+                                                                   VerticalAlignment="Center" />
+                                                        <TextBlock DockPanel.Dock="Left"
+                                                                   Text="{Binding NodeType}"
+                                                                   Foreground="#8A93A0"
+                                                                   FontSize="10"
+                                                                   MinWidth="72"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   VerticalAlignment="Center" />
+                                                        <TextBlock Text="{Binding Name}"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   VerticalAlignment="Center"
+                                                                   Cursor="Hand"
+                                                                   Background="Transparent"
+                                                                   Padding="2,1">
+                                                            <TextBlock.InputBindings>
+                                                                <MouseBinding MouseAction="LeftClick"
+                                                                              Command="{Binding DataContext.SwitchNodeCommand, RelativeSource={RelativeSource AncestorType=Expander}}"
+                                                                              CommandParameter="{Binding}" />
+                                                            </TextBlock.InputBindings>
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                            <Setter Property="FontWeight" Value="Bold" />
+                                                                            <Setter Property="Foreground" Value="#0B6BCB" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </DockPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Expander>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
                 </DockPanel>
-                <ListBox x:Name="ConfigFilesBox"
-                         MinHeight="72"
-                         MaxHeight="150"
-                         SelectionMode="Single" />
-                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0">
-                    <Button Content="启用"
-                            Padding="10,2"
-                            MinWidth="60"
-                            Margin="0,0,8,0"
-                            Click="OnEnableClick" />
-                    <Button Content="删除"
-                            Padding="10,2"
-                            MinWidth="60"
-                            Click="OnRemoveClick" />
-                </StackPanel>
-            </DockPanel>
-        </GroupBox>
+            </TabItem>
 
-        <TextBox x:Name="LogTextBox"
-                 IsReadOnly="True"
-                 VerticalScrollBarVisibility="Auto"
-                 TextWrapping="NoWrap"
-                 FontFamily="Consolas, Microsoft YaHei UI"
-                 FontSize="12"
-                 Margin="0,10,0,0"
-                 Background="#FAFAFA" />
+            <!-- 订阅（M2-3）：URL 导入 + 配置列表切换/删除 -->
+            <TabItem Header="订阅">
+                <DockPanel Margin="4,8,4,4">
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                        <Button x:Name="ImportButton"
+                                DockPanel.Dock="Right"
+                                Content="导入"
+                                Padding="10,2"
+                                MinWidth="60"
+                                Click="OnImportClick" />
+                        <TextBox x:Name="SubscriptionUrlBox"
+                                 VerticalContentAlignment="Center"
+                                 Padding="4,2" />
+                    </DockPanel>
+                    <ListBox x:Name="ConfigFilesBox"
+                             MinHeight="72"
+                             MaxHeight="200" />
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0">
+                        <Button Content="启用"
+                                Padding="10,2"
+                                MinWidth="60"
+                                Margin="0,0,8,0"
+                                Click="OnEnableClick" />
+                        <Button Content="删除"
+                                Padding="10,2"
+                                MinWidth="60"
+                                Click="OnRemoveClick" />
+                    </StackPanel>
+                </DockPanel>
+            </TabItem>
+
+            <!-- 日志 -->
+            <TabItem Header="日志">
+                <TextBox x:Name="LogTextBox"
+                         IsReadOnly="True"
+                         VerticalScrollBarVisibility="Auto"
+                         TextWrapping="NoWrap"
+                         FontFamily="Consolas, Microsoft YaHei UI"
+                         FontSize="12"
+                         Margin="0,8,0,0"
+                         Background="#FAFAFA" />
+            </TabItem>
+        </TabControl>
     </DockPanel>
 </Window>

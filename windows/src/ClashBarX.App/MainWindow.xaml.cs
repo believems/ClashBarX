@@ -74,6 +74,9 @@ public partial class MainWindow : Window
         ImportButton.Content = busy ? "导入中…" : "导入";
     }
 
+    /// <summary>当前是否停在「代理」tab（驱动代理页的刷新节奏）。</summary>
+    public bool IsProxyTabSelected => MainTabs.SelectedIndex == 0;
+
     /// <summary>追加一行运行日志并滚动到底。调用方负责 UI 线程编组。</summary>
     public void AppendLog(string line)
     {

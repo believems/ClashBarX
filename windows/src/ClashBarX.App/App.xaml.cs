@@ -1,9 +1,13 @@
 using System.IO;
+using System.Text.Json;
 using System.Windows;
 using ClashBarX.App.Core;
+using ClashBarX.Core.Json;
 using ClashBarX.Core.Mihomo;
 using ClashBarX.Core.Models;
+using ClashBarX.Core.Proxies;
 using ClashBarX.Core.Runtime;
+using ClashBarX.Core.Streams;
 using ClashBarX.Core.Subscriptions;
 using ClashBarX.Core.SystemProxy;
 
@@ -35,6 +39,11 @@ public partial class App : Application
     private RegistryWatcher? _proxyWatcher;
     private TrayIconService? _tray;
     private MainWindow? _mainWindow;
+    private ProxyPageViewModel? _proxyPage;
+    private ProxyBoardService? _proxyBoard;
+    private StreamCoordinator? _streams;
+    private System.Threading.Timer? _proxyRefreshTimer;
+    private string? _lastProxyRefreshError;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -66,11 +75,14 @@ public partial class App : Application
         _ = StartCoreAtStartupAsync();
         StartApiPolling();
         SetupSystemProxy();
+        SetupProxyPage();
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
         // 兜底：正常退出路径也会先在此终结内核，避免任何路径漏杀
+        _proxyRefreshTimer?.Dispose();
+        _streams?.Dispose();
         _proxyWatcher?.Dispose();
         _poller?.Dispose();
         _apiClient?.Dispose();
@@ -204,6 +216,90 @@ public partial class App : Application
         catch (Exception error)
         {
             _mainWindow?.AppendLog($"[system proxy] {reason}: {error.Message}");
+        }
+    }
+
+    // ---- 代理页（M2-4：信息架构源 ProxyTabView 的分组卡） ----
+
+    private void SetupProxyPage()
+    {
+        _proxyBoard = new ProxyBoardService(_apiClient!);
+        _proxyPage = new ProxyPageViewModel(
+            _proxyBoard,
+            message => Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog(message)),
+            () => _processManager?.IsRunning == true);
+        _mainWindow!.DataContext = _proxyPage;
+
+        // traffic WS 流（M1 的 StreamCoordinator：重连去抖复用）
+        _streams = new StreamCoordinator
+        {
+            ShouldReconnect = () => _processManager?.IsRunning == true,
+            OnDisconnect = (key, message) =>
+                Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog($"[stream] {key} 断开：{message}")),
+        };
+        StartTrafficStream();
+
+        // 代理 tab 前台时的分组刷新（源：medium 频率 4s 随 tab 激活）
+        _proxyRefreshTimer = new System.Threading.Timer(
+            _ => Dispatcher.BeginInvoke(() => _ = RefreshProxyBoardAsync()),
+            null,
+            TimeSpan.FromSeconds(2),
+            TimeSpan.FromSeconds(4));
+    }
+
+    private void StartTrafficStream()
+    {
+        _streams!.Start(
+            "traffic",
+            () => _apiClient!.CreateWebSocketConnection(MihomoEndpoint.Traffic()),
+            async payload =>
+            {
+                try
+                {
+                    TrafficSnapshot? snapshot = JsonSerializer.Deserialize<TrafficSnapshot>(
+                        payload.Span, JsonSharedOptions.Json);
+                    if (snapshot != null)
+                    {
+                        await Dispatcher.BeginInvoke(() =>
+                            _proxyPage?.UpdateTraffic(snapshot.Up, snapshot.Down));
+                    }
+                }
+                catch (JsonException)
+                {
+                    // 噪声/半包 payload 丢弃（normalize 已滤常见噪声）
+                }
+                catch (Exception error)
+                {
+                    // 解码侧意外异常必须编组到 UI 线程记录，绝不能在线程池直调 UI 控件
+                    //（否则异常会循环触发断线重连，流量摘要永远归零）
+                    Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog($"[traffic] 处理失败：{error.Message}"));
+                }
+            });
+    }
+
+    private async Task RefreshProxyBoardAsync()
+    {
+        if (_mainWindow is not { IsVisible: true, IsProxyTabSelected: true }
+            || _processManager?.IsRunning != true)
+        {
+            return;
+        }
+
+        try
+        {
+            ProxyBoard board = await _proxyBoard!.RefreshAsync();
+            _proxyPage?.ApplyBoard(board);
+            _lastProxyRefreshError = null;   // 成功即清除指纹，下次失败可再记录
+        }
+        catch (Exception error)
+        {
+            // 连续失败按指纹去重记录（避免每 4 秒刷屏）
+            string fingerprint = error.GetType().FullName + ":" + error.Message;
+            if (_lastProxyRefreshError != fingerprint)
+            {
+                _lastProxyRefreshError = fingerprint;
+                _mainWindow?.AppendLog($"[proxy] 面板刷新失败：{error.Message}");
+            }
         }
     }
 
