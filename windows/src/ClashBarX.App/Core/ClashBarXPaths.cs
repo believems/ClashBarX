@@ -22,10 +22,6 @@ public static class ClashBarXPaths
     /// <summary>默认运行配置文件位置（M2 订阅导入前的手工配置入口）。</summary>
     public static string DefaultConfigPath(string? overrideBase = null) =>
         Path.Combine(AppDataRoot(overrideBase), "config.yaml");
-
-    /// <summary>程序化托盘图标的缓存文件位置（首次运行生成）。</summary>
-    public static string TrayIconCachePath(string? overrideBase = null) =>
-        Path.Combine(AppDataRoot(overrideBase), "tray.ico");
 }
 
 /// <summary>内核二进制缺失（源：CoreService.swift 的 MihomoBinaryResolutionError）。</summary>

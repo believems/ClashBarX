@@ -28,6 +28,11 @@ public sealed class StubHttpMessageHandler : HttpMessageHandler
 
     public List<RecordedHttpRequest> Requests { get; } = new();
 
+    /// <summary>脚本耗尽后无限重复最后一步（多次请求场景，如重复导入）。</summary>
+    public bool RepeatLastStep { get; set; }
+
+    private ScriptStep? _lastStep;
+
     public static StubHttpMessageHandler RespondJson(string json, HttpStatusCode statusCode = HttpStatusCode.OK)
     {
         return new StubHttpMessageHandler(new ScriptStep(Response: Json(json, statusCode)));
@@ -93,10 +98,20 @@ public sealed class StubHttpMessageHandler : HttpMessageHandler
         {
             if (_steps.Count == 0)
             {
-                throw new InvalidOperationException("测试脚本已耗尽，收到多余的请求");
+                if (RepeatLastStep && _lastStep != null)
+                {
+                    step = _lastStep;
+                }
+                else
+                {
+                    throw new InvalidOperationException("测试脚本已耗尽，收到多余的请求");
+                }
             }
-
-            step = _steps.Dequeue();
+            else
+            {
+                step = _steps.Dequeue();
+                _lastStep = step;
+            }
         }
 
         if (step.Error != null)

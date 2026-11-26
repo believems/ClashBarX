@@ -9,6 +9,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- 托盘图标（与 macOS 菜单栏同源资产，由 scripts/generate-app-icon.ps1 生成） -->
+    <Resource Include="Assets\tray.ico" />
+    <Resource Include="Assets\tray-run.ico" />
+    <Resource Include="Assets\tray-sleep.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="ClashBarX.App.Tests" />
   </ItemGroup>
 
@@ -20,6 +27,8 @@
     <UseWPF>true</UseWPF>
     <!-- JobObjectGuard 的 LibraryImport 源生成器需要（生成器内部使用 unsafe） -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- exe 文件图标（由 scripts/generate-app-icon.ps1 生成，与托盘图标同源设计） -->
+    <ApplicationIcon>app.ico</ApplicationIcon>
   </PropertyGroup>
 
 </Project>

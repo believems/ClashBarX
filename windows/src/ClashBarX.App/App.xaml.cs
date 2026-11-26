@@ -1,20 +1,49 @@
+using System.IO;
+using System.Text.Json;
 using System.Windows;
 using ClashBarX.App.Core;
+using ClashBarX.Core.Json;
+using ClashBarX.Core.Mihomo;
+using ClashBarX.Core.Models;
+using ClashBarX.Core.Proxies;
+using ClashBarX.Core.Runtime;
+using ClashBarX.Core.Streams;
+using ClashBarX.Core.Subscriptions;
+using ClashBarX.Core.SystemProxy;
 
 namespace ClashBarX.App;
 
 /// <summary>
-/// 应用入口与生命周期：托盘常驻、mihomo sidecar 启停、主窗显示控制。
-/// M1 骨架的启动序列：托盘就绪 → 探测内核与配置 → 存在则拉起 sidecar（no-core 时记录引导提示）。
+/// 应用入口与生命周期：托盘常驻、mihomo sidecar 启停、API 就绪轮询、系统代理开关与订阅管理。
+/// 启动序列：托盘就绪 → 探测内核与配置（优先订阅选中配置）→ 拉起 sidecar → 轮询 /version
+/// → 按持久化设置恢复系统代理开启意图。
 /// </summary>
 public partial class App : Application
 {
-    /// <summary>MVP 默认控制器地址（M2 接入「从配置读取 external-controller」后移除）。</summary>
+    /// <summary>MVP 默认控制器地址（后续接入「从配置读取 external-controller」后移除）。</summary>
     private const string DefaultController = "127.0.0.1:9090";
 
+    /// <summary>订阅下载 UA 的缺省内核版本（源：defaultMihomoVersionForUserAgent）。</summary>
+    private const string DefaultMihomoVersionForUserAgent = "v1.19.27";
+
+    private static readonly TimeSpan ForegroundPollInterval = TimeSpan.FromSeconds(4);
+    private static readonly TimeSpan BackgroundPollInterval = TimeSpan.FromSeconds(12);
+
+    private readonly AppSettingsStore _settingsStore = new();
+    private SubscriptionService? _subscriptions;
+
     private MihomoProcessManager? _processManager;
+    private MihomoApiClient? _apiClient;
+    private ApiStatusPoller? _poller;
+    private SystemProxyService? _systemProxy;
+    private RegistryWatcher? _proxyWatcher;
     private TrayIconService? _tray;
     private MainWindow? _mainWindow;
+    private ProxyPageViewModel? _proxyPage;
+    private ProxyBoardService? _proxyBoard;
+    private StreamCoordinator? _streams;
+    private System.Threading.Timer? _proxyRefreshTimer;
+    private string? _lastProxyRefreshError;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -22,21 +51,49 @@ public partial class App : Application
 
         _processManager = new MihomoProcessManager();
         _processManager.OnLog += line => Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog(line));
-        _processManager.OnTermination += code =>
-            Dispatcher.BeginInvoke(() =>
-                _mainWindow?.SetCoreStatus($"内核已意外退出（exit={code}）"));
+        _processManager.OnTermination += _ => Dispatcher.BeginInvoke(RefreshPresentationState);
+
+        _subscriptions = new SubscriptionService(
+            Path.Combine(ClashBarXPaths.AppDataRoot(), "configs"),
+            Path.Combine(ClashBarXPaths.AppDataRoot(), "subscriptions.json"));
 
         _mainWindow = new MainWindow();
+        _mainWindow.SystemProxyToggled += OnSystemProxyToggled;
+        _mainWindow.SubscriptionImportRequested += OnSubscriptionImportRequested;
+        _mainWindow.ConfigActivateRequested += OnConfigActivateRequested;
+        _mainWindow.ConfigRemoveRequested += OnConfigRemoveRequested;
+
         _tray = new TrayIconService();
         _tray.ShowMainWindowRequested += ShowMainWindow;
         _tray.ExitRequested += ExitFromTray;
+        _tray.SystemProxyToggled += OnSystemProxyToggled;
+
+        // 启动即显示主窗（可见反馈）；关闭主窗 = 隐藏到托盘，退出走托盘菜单
+        _mainWindow.Show();
+        RefreshConfigList();
 
         _ = StartCoreAtStartupAsync();
+        StartApiPolling();
+        SetupSystemProxy();
+        SetupProxyPage();
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
         // 兜底：正常退出路径也会先在此终结内核，避免任何路径漏杀
+        _proxyRefreshTimer?.Dispose();
+        _streams?.Dispose();
+        _proxyWatcher?.Dispose();
+        _poller?.Dispose();
+        _apiClient?.Dispose();
+
+        // 内核随退出终结，系统代理必须一并关闭——否则注册表指向死端口、用户断网
+        if (_systemProxy?.ExpectedTarget != null)
+        {
+            _systemProxy.Disable();
+        }
+
+        _systemProxy?.Dispose();
         _tray?.Dispose();
         _processManager?.StopImmediately();
         _processManager?.Dispose();
@@ -48,25 +105,342 @@ public partial class App : Application
         MihomoProcessManager manager = _processManager!;
         try
         {
+            // 优先订阅选中配置；否则根目录手工 config.yaml
+            string configPath = _subscriptions?.GetSelectedConfigPath() ?? ClashBarXPaths.DefaultConfigPath();
             CoreLifecycleStatus status = await manager.StartAsync(
-                ClashBarXPaths.DefaultConfigPath(),
+                configPath,
                 workingDirectory: null,
                 DefaultController);
-            _mainWindow?.SetCoreStatus(status == CoreLifecycleStatus.Running
-                ? $"内核运行中（pid={manager.RunningProcessId}）"
-                : status.ToString());
+            _ = status;
         }
         catch (MihomoBinaryResolutionException)
         {
-            _mainWindow?.SetCoreStatus("未找到内核（no-core）");
             _mainWindow?.AppendLog(
                 $"[startup] 请将 mihomo.exe 放入 {ClashBarXPaths.CoreDirectory()}，"
-                + $"并在 {ClashBarXPaths.DefaultConfigPath()} 准备运行配置后重启应用。");
+                + $"并导入订阅或在 {ClashBarXPaths.DefaultConfigPath()} 准备运行配置后重启应用。");
         }
         catch (Exception error)
         {
-            _mainWindow?.SetCoreStatus("内核启动失败");
             _mainWindow?.AppendLog($"[startup] {error.Message}");
+        }
+        finally
+        {
+            Dispatcher.BeginInvoke(RefreshPresentationState);
+        }
+    }
+
+    /// <summary>
+    /// API 就绪轮询（源：AppViewModel+Polling.swift）：前台 4s / 后台 12s，
+    /// healthy/degraded 状态与错误指纹去重日志由 Core 的 ApiStatusPoller 承担。
+    /// </summary>
+    private void StartApiPolling()
+    {
+        _apiClient = new MihomoApiClient(DefaultController);
+        _poller = new ApiStatusPoller(
+            _apiClient,
+            intervalProvider: () => _mainWindow is { IsVisible: true } ? ForegroundPollInterval : BackgroundPollInterval);
+        _poller.StatusChanged += _ => Dispatcher.BeginInvoke(RefreshPresentationState);
+        _poller.VersionChanged += _ => Dispatcher.BeginInvoke(RefreshPresentationState);
+        _poller.ErrorLogged += message => Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog($"[api] {message}"));
+        _poller.Start();
+    }
+
+    // ---- 系统代理（源：AppViewModel+SystemProxy.swift 的意图/守护语义） ----
+
+    private void SetupSystemProxy()
+    {
+        var controller = new WindowsSystemProxyController();
+        _systemProxy = new SystemProxyService(controller);
+        _systemProxy.Logged += message => Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog(message));
+        _systemProxy.EnabledChanged += enabled => Dispatcher.BeginInvoke(() =>
+        {
+            _mainWindow?.SetSystemProxyChecked(enabled);
+            _tray?.SetSystemProxyChecked(enabled);
+        });
+
+        _proxyWatcher = new RegistryWatcher(
+            WindowsSystemProxyController.InternetSettingsRegistryPath,
+            () => Dispatcher.BeginInvoke(() => _systemProxy?.NotifyRegistryChanged()))
+        {
+            Logged = message => Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog(message)),
+        };
+        _proxyWatcher.Start();
+
+        // 初始观测同步（外部工具可能已开/关代理）
+        SystemProxySnapshot snapshot = _systemProxy.RefreshState();
+        _mainWindow?.SetSystemProxyChecked(snapshot.Enabled);
+        _tray?.SetSystemProxyChecked(snapshot.Enabled);
+
+        // 启动恢复开启意图（源：startup repair 语义）：等待 API 就绪后拉取混合端口
+        if (_settingsStore.Load().SystemProxyEnabled)
+        {
+            _ = EnableSystemProxyFromCoreConfigAsync(reason: "startup restore");
+        }
+    }
+
+    private void OnSystemProxyToggled(bool enable)
+    {
+        if (enable)
+        {
+            _ = EnableSystemProxyFromCoreConfigAsync(reason: "user toggle");
+        }
+        else
+        {
+            _systemProxy?.Disable();
+            _settingsStore.Save(new AppSettings(SystemProxyEnabled: false));
+        }
+    }
+
+    /// <summary>开启系统代理：从 GET /configs 取混合端口后写入期望目标。</summary>
+    private async Task EnableSystemProxyFromCoreConfigAsync(string reason)
+    {
+        try
+        {
+            ConfigSnapshot config = await _apiClient!.RequestAsync<ConfigSnapshot>(MihomoEndpoint.GetConfigs());
+            int mixedPort = config.MixedPort ?? 0;
+            if (mixedPort <= 0)
+            {
+                _mainWindow?.AppendLog($"[system proxy] {reason}: 内核未开启混合端口，无法设置代理");
+                Dispatcher.BeginInvoke(() =>
+                {
+                    _mainWindow?.SetSystemProxyChecked(false);
+                    _tray?.SetSystemProxyChecked(false);
+                });
+                _settingsStore.Save(new AppSettings(SystemProxyEnabled: false));
+                return;
+            }
+
+            _systemProxy?.Enable(new SystemProxyTarget("127.0.0.1", mixedPort, SystemProxyDefaults.DefaultBypassList));
+            _settingsStore.Save(new AppSettings(SystemProxyEnabled: true));
+        }
+        catch (Exception error)
+        {
+            _mainWindow?.AppendLog($"[system proxy] {reason}: {error.Message}");
+        }
+    }
+
+    // ---- 代理页（M2-4：信息架构源 ProxyTabView 的分组卡） ----
+
+    private void SetupProxyPage()
+    {
+        _proxyBoard = new ProxyBoardService(_apiClient!);
+        _proxyPage = new ProxyPageViewModel(
+            _proxyBoard,
+            message => Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog(message)),
+            () => _processManager?.IsRunning == true);
+        _mainWindow!.DataContext = _proxyPage;
+
+        // traffic WS 流（M1 的 StreamCoordinator：重连去抖复用）
+        _streams = new StreamCoordinator
+        {
+            ShouldReconnect = () => _processManager?.IsRunning == true,
+            OnDisconnect = (key, message) =>
+                Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog($"[stream] {key} 断开：{message}")),
+        };
+        StartTrafficStream();
+
+        // 代理 tab 前台时的分组刷新（源：medium 频率 4s 随 tab 激活）
+        _proxyRefreshTimer = new System.Threading.Timer(
+            _ => Dispatcher.BeginInvoke(() => _ = RefreshProxyBoardAsync()),
+            null,
+            TimeSpan.FromSeconds(2),
+            TimeSpan.FromSeconds(4));
+    }
+
+    private void StartTrafficStream()
+    {
+        _streams!.Start(
+            "traffic",
+            () => _apiClient!.CreateWebSocketConnection(MihomoEndpoint.Traffic()),
+            async payload =>
+            {
+                try
+                {
+                    TrafficSnapshot? snapshot = JsonSerializer.Deserialize<TrafficSnapshot>(
+                        payload.Span, JsonSharedOptions.Json);
+                    if (snapshot != null)
+                    {
+                        await Dispatcher.BeginInvoke(() =>
+                            _proxyPage?.UpdateTraffic(snapshot.Up, snapshot.Down));
+                    }
+                }
+                catch (JsonException)
+                {
+                    // 噪声/半包 payload 丢弃（normalize 已滤常见噪声）
+                }
+                catch (Exception error)
+                {
+                    // 解码侧意外异常必须编组到 UI 线程记录，绝不能在线程池直调 UI 控件
+                    //（否则异常会循环触发断线重连，流量摘要永远归零）
+                    Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog($"[traffic] 处理失败：{error.Message}"));
+                }
+            });
+    }
+
+    private async Task RefreshProxyBoardAsync()
+    {
+        if (_mainWindow is not { IsVisible: true, IsProxyTabSelected: true }
+            || _processManager?.IsRunning != true)
+        {
+            return;
+        }
+
+        try
+        {
+            ProxyBoard board = await _proxyBoard!.RefreshAsync();
+            _proxyPage?.ApplyBoard(board);
+            _lastProxyRefreshError = null;   // 成功即清除指纹，下次失败可再记录
+        }
+        catch (Exception error)
+        {
+            // 连续失败按指纹去重记录（避免每 4 秒刷屏）
+            string fingerprint = error.GetType().FullName + ":" + error.Message;
+            if (_lastProxyRefreshError != fingerprint)
+            {
+                _lastProxyRefreshError = fingerprint;
+                _mainWindow?.AppendLog($"[proxy] 面板刷新失败：{error.Message}");
+            }
+        }
+    }
+
+    // ---- 订阅管理（M2-3） ----
+
+    private void RefreshConfigList()
+    {
+        if (_subscriptions == null || _mainWindow == null)
+        {
+            return;
+        }
+
+        IReadOnlyList<string> files = _subscriptions.ListConfigFiles();
+        string? selected = _subscriptions.GetSelectedFileName();
+        _mainWindow.SetConfigFiles(files, selected);
+    }
+
+    private async void OnSubscriptionImportRequested(string urlText)
+    {
+        if (!Uri.TryCreate(urlText, UriKind.Absolute, out Uri? url))
+        {
+            _mainWindow?.AppendLog("[subscription] 地址无效，需要完整的 http(s) 链接");
+            return;
+        }
+
+        _mainWindow?.SetImportBusy(true);
+        try
+        {
+            // UA 携带 clash.meta/当前内核版本（源：remoteSubscriptionUserAgent）
+            string version = _poller?.Version is string current && current.Length > 0
+                ? current
+                : DefaultMihomoVersionForUserAgent;
+            SubscriptionInfo info = await _subscriptions!.AddAsync(url, $"clash.meta/{version}");
+
+            _subscriptions.Select(info.FileName);
+            _mainWindow?.AppendLog($"[subscription] 已导入并启用 {info.FileName}");
+            RefreshConfigList();
+            await RestartCoreWithSelectedAsync();
+        }
+        catch (Exception error)
+        {
+            _mainWindow?.AppendLog($"[subscription] 导入失败：{error.Message}");
+        }
+        finally
+        {
+            _mainWindow?.SetImportBusy(false);
+        }
+    }
+
+    private async void OnConfigActivateRequested(string fileName)
+    {
+        try
+        {
+            _subscriptions!.Select(fileName);
+            _mainWindow?.AppendLog($"[config] 已切换 {fileName}");
+            RefreshConfigList();
+            await RestartCoreWithSelectedAsync();
+        }
+        catch (Exception error)
+        {
+            _mainWindow?.AppendLog($"[config] 切换失败：{error.Message}");
+        }
+    }
+
+    private void OnConfigRemoveRequested(string fileName)
+    {
+        try
+        {
+            _subscriptions!.Remove(fileName);
+            _mainWindow?.AppendLog($"[config] 已删除 {fileName}");
+            RefreshConfigList();
+            if (_subscriptions.GetSelectedConfigPath() == null)
+            {
+                _ = RestartCoreWithSelectedAsync();   // 删除的是当前配置 → 回默认配置重启
+            }
+        }
+        catch (Exception error)
+        {
+            _mainWindow?.AppendLog($"[config] 删除失败：{error.Message}");
+        }
+    }
+
+    /// <summary>以订阅选中配置（或默认配置）重启内核。</summary>
+    private async Task RestartCoreWithSelectedAsync()
+    {
+        MihomoProcessManager? manager = _processManager;
+        if (manager == null)
+        {
+            return;
+        }
+
+        string configPath = _subscriptions?.GetSelectedConfigPath() ?? ClashBarXPaths.DefaultConfigPath();
+        try
+        {
+            await manager.RestartAsync(configPath, workingDirectory: null, DefaultController);
+        }
+        catch (MihomoBinaryResolutionException)
+        {
+            // 无内核时保持 no-core 引导提示，不重复刷
+        }
+        catch (Exception error)
+        {
+            _mainWindow?.AppendLog($"[core] 重启失败：{error.Message}");
+        }
+        finally
+        {
+            Dispatcher.BeginInvoke(RefreshPresentationState);
+        }
+    }
+
+    /// <summary>托盘状态图标与主窗状态行的统一刷新（源：macOS 菜单栏 run/sleep 状态语义）。</summary>
+    private void RefreshPresentationState()
+    {
+        bool coreRunning = _processManager?.IsRunning == true;
+        ApiHealth apiHealth = _poller?.Status ?? ApiHealth.Unknown;
+
+        _tray?.SetKind(coreRunning
+            ? apiHealth == ApiHealth.Healthy ? TrayIconKind.Running : TrayIconKind.Logo
+            : TrayIconKind.Sleeping);
+
+        if (_mainWindow == null)
+        {
+            return;
+        }
+
+        if (!coreRunning)
+        {
+            _mainWindow.SetCoreStatus("内核未运行");
+        }
+        else if (apiHealth == ApiHealth.Healthy)
+        {
+            string version = _poller?.Version is string v ? $" · {v}" : string.Empty;
+            _mainWindow.SetCoreStatus($"内核运行中（pid={_processManager!.RunningProcessId}）· API 正常{version}");
+        }
+        else if (apiHealth == ApiHealth.Degraded)
+        {
+            _mainWindow.SetCoreStatus($"内核运行中（pid={_processManager!.RunningProcessId}）· API 未就绪");
+        }
+        else
+        {
+            _mainWindow.SetCoreStatus($"内核运行中（pid={_processManager!.RunningProcessId}）· 等待 API 响应");
         }
     }
 
