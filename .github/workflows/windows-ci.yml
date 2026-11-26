@@ -2,7 +2,9 @@ name: Windows CI
 
 on:
   push:
-    branches: [integration, main, alpha]
+    # 只盯 integration：一次推送常同时推进三分支，多分支匹配会触发三份重复
+    # CI；main 的验证归发布流程管。
+    branches: [integration]
     paths: ['windows/**', '.github/workflows/windows-ci.yml']
   workflow_dispatch:
 
