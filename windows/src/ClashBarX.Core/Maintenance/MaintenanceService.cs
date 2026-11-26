@@ -24,4 +24,12 @@ public sealed class MaintenanceService
     /// <summary>内核自升级（mihomo /upgrade）。</summary>
     public Task<CoreUpgradeResponse> UpgradeCoreAsync(CancellationToken cancellationToken = default) =>
         _client.RequestAsync<CoreUpgradeResponse>(MihomoEndpoint.UpgradeCore(), cancellationToken);
+
+    /// <summary>清 FakeIP 缓存（源：flushFakeIPCache）。</summary>
+    public Task FlushFakeIPCacheAsync(CancellationToken cancellationToken = default) =>
+        _client.RequestNoResponseAsync(MihomoEndpoint.FlushFakeIpCache(), cancellationToken);
+
+    /// <summary>清 DNS 缓存（源：flushDNSCache）。</summary>
+    public Task FlushDNSCacheAsync(CancellationToken cancellationToken = default) =>
+        _client.RequestNoResponseAsync(MihomoEndpoint.FlushDnsCache(), cancellationToken);
 }

@@ -36,11 +36,18 @@ public sealed class TrayIconService : IDisposable
     /// <summary>用户切换系统代理开关（托盘菜单，参数为新状态）。</summary>
     public event Action<bool>? SystemProxyToggled;
 
+    /// <summary>用户切换分流模式（托盘菜单子项，参数为 rule/global/direct）。</summary>
+    public event Action<string>? ModeChanged;
+
     /// <summary>当前托盘图标形态。</summary>
     public TrayIconKind CurrentKind => _kind;
 
     private readonly MenuItem _proxyItem;
+    private readonly MenuItem _modeRuleItem;
+    private readonly MenuItem _modeGlobalItem;
+    private readonly MenuItem _modeDirectItem;
     private bool _suppressProxyItemEvents;
+    private bool _suppressModeItemEvents;
 
     public TrayIconService()
     {
@@ -58,12 +65,22 @@ public sealed class TrayIconService : IDisposable
             SystemProxyToggled?.Invoke(_proxyItem.IsChecked);
         };
 
+        // 分流模式子菜单（不打开主窗即可切换；源：菜单栏 mode 菜单语义）
+        var modeMenu = new MenuItem { Header = "分流模式(_M)" };
+        _modeRuleItem = MakeModeItem("规则", "rule");
+        _modeGlobalItem = MakeModeItem("全局", "global");
+        _modeDirectItem = MakeModeItem("直连", "direct");
+        modeMenu.Items.Add(_modeRuleItem);
+        modeMenu.Items.Add(_modeGlobalItem);
+        modeMenu.Items.Add(_modeDirectItem);
+
         var exitItem = new MenuItem { Header = "退出(_X)" };
         exitItem.Click += (_, _) => ExitRequested?.Invoke();
 
         var menu = new ContextMenu();
         menu.Items.Add(showItem);
         menu.Items.Add(_proxyItem);
+        menu.Items.Add(modeMenu);
         menu.Items.Add(new Separator());
         menu.Items.Add(exitItem);
 
@@ -84,6 +101,31 @@ public sealed class TrayIconService : IDisposable
         //（源：H.NotifyIcon README 的 Windowless 用法）；不开节能模式——代理客户端需要正常调度
         _taskbarIcon.ForceCreate(enablesEfficiencyMode: false);
     }
+
+    /// <summary>状态化提示文本（源：状态栏语义——tooltip 随内核状态与实时速率更新）。</summary>
+    public void SetToolTip(string text)
+    {
+        _lastStatusToolTip = text;
+        _taskbarIcon.ToolTipText = text;
+    }
+
+    /// <summary>
+    /// 轻量即时反馈（源：macOS banner 的 Windows 对应物）：tooltip 闪现消息 3 秒后
+    /// 恢复状态 tooltip（H.NotifyIcon 2.4.1 无气泡 API，tooltip 闪现为最接近的通道）。
+    /// </summary>
+    public void ShowTransientMessage(string message)
+    {
+        _taskbarIcon.ToolTipText = $"ClashBarX · {message}";
+        _tooltipResetTimer?.Dispose();
+        _tooltipResetTimer = new System.Threading.Timer(
+            _ => SetToolTip(_lastStatusToolTip),
+            null,
+            TimeSpan.FromSeconds(3),
+            Timeout.InfiniteTimeSpan);
+    }
+
+    private System.Threading.Timer? _tooltipResetTimer;
+    private string _lastStatusToolTip = "ClashBarX";
 
     /// <summary>切换托盘状态图标（内核运行中 / 已停止），与 macOS 菜单栏状态语义对齐。</summary>
     public void SetKind(TrayIconKind kind)
@@ -114,6 +156,37 @@ public sealed class TrayIconService : IDisposable
         {
             _suppressProxyItemEvents = false;
         }
+    }
+
+    /// <summary>程序化同步分流模式勾选态（不回环触发事件）。</summary>
+    public void SetModeChecked(string mode)
+    {
+        _suppressModeItemEvents = true;
+        try
+        {
+            _modeRuleItem.IsChecked = mode == "rule";
+            _modeGlobalItem.IsChecked = mode == "global";
+            _modeDirectItem.IsChecked = mode == "direct";
+        }
+        finally
+        {
+            _suppressModeItemEvents = false;
+        }
+    }
+
+    private MenuItem MakeModeItem(string header, string mode)
+    {
+        var item = new MenuItem { Header = header, IsCheckable = true };
+        item.Click += (_, _) =>
+        {
+            if (_suppressModeItemEvents)
+            {
+                return;
+            }
+
+            ModeChanged?.Invoke(mode);
+        };
+        return item;
     }
 
     public void Dispose()

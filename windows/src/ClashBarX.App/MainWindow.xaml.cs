@@ -21,6 +21,21 @@ public partial class MainWindow : Window
     /// <summary>请求删除列表中选中的配置（参数为文件名）。</summary>
     public event Action<string>? ConfigRemoveRequested;
 
+    /// <summary>手动内核生命周期请求（源：菜单栏头部启动/停止/重启动作）。</summary>
+    public event Action? CoreStartRequested;
+
+    public event Action? CoreStopRequested;
+
+    public event Action? CoreRestartRequested;
+
+    /// <summary>请求更新选中订阅 / 全部订阅（参数为文件名；全部时为空串）。</summary>
+    public event Action<string>? SubscriptionRefreshRequested;
+
+    public event Action? SubscriptionRefreshAllRequested;
+
+    /// <summary>请求复制终端代理命令。</summary>
+    public event Action? CopyProxyCommandRequested;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -134,6 +149,42 @@ public partial class MainWindow : Window
 
     private string? SelectedFileName =>
         (ConfigFilesBox.SelectedItem as ListBoxItem)?.Tag as string;
+
+    private void OnCoreStartClick(object sender, RoutedEventArgs e) => CoreStartRequested?.Invoke();
+
+    private void OnCoreStopClick(object sender, RoutedEventArgs e) => CoreStopRequested?.Invoke();
+
+    private void OnCoreRestartClick(object sender, RoutedEventArgs e) => CoreRestartRequested?.Invoke();
+
+    private void OnRefreshSubscriptionClick(object sender, RoutedEventArgs e)
+    {
+        if (SelectedFileName is { } name)
+        {
+            SubscriptionRefreshRequested?.Invoke(name);
+        }
+    }
+
+    private void OnRefreshAllSubscriptionsClick(object sender, RoutedEventArgs e) =>
+        SubscriptionRefreshAllRequested?.Invoke();
+
+    private void OnCopyProxyCommandClick(object sender, RoutedEventArgs e) =>
+        CopyProxyCommandRequested?.Invoke();
+
+    /// <summary>打开内核目录（源：维护区「打开内核目录」）。</summary>
+    private void OnOpenCoreDirectoryClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            string directory = ClashBarXPaths.CoreDirectory();
+            System.IO.Directory.CreateDirectory(directory);
+            System.Diagnostics.Process.Start(
+                new System.Diagnostics.ProcessStartInfo("explorer.exe", directory) { UseShellExecute = true });
+        }
+        catch (System.Exception)
+        {
+            // explorer 启动失败不影响主流程
+        }
+    }
 
     private void OnImportClick(object sender, RoutedEventArgs e)
     {

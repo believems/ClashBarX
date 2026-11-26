@@ -264,11 +264,66 @@ public sealed class ProxyPageViewModel : INotifyPropertyChanged
 
     public ICommand TestGroupCommand { get; }
 
-    /// <summary>流量摘要（traffic WS 流喂数据；源：Swift 顶部速率摘要）。</summary>
-    public void UpdateTraffic(long upBytesPerSecond, long downBytesPerSecond)
+    private long _upRate;
+    private long _downRate;
+    private long? _upTotal;
+    private long? _downTotal;
+    private int? _connectionsCount;
+    private long? _memoryInuse;
+
+    /// <summary>流量摘要（traffic WS 流喂速率与总量；源：Swift 顶部概览——速率+总量+连接数+内存）。</summary>
+    public void UpdateTraffic(long upBytesPerSecond, long downBytesPerSecond, long? upTotal = null, long? downTotal = null)
     {
-        TrafficSummary = $"↑ {FormatRate(upBytesPerSecond)}    ↓ {FormatRate(downBytesPerSecond)}";
+        _upRate = upBytesPerSecond;
+        _downRate = downBytesPerSecond;
+        _upTotal = upTotal ?? _upTotal;
+        _downTotal = downTotal ?? _downTotal;
+        RebuildTrafficSummary();
     }
+
+    /// <summary>连接数（connections WS 流的 totalCount）。</summary>
+    public void UpdateConnectionsCount(int totalCount)
+    {
+        _connectionsCount = totalCount;
+        RebuildTrafficSummary();
+    }
+
+    /// <summary>内存占用（memory WS 流的 inuse）。</summary>
+    public void UpdateMemory(long inuseBytes)
+    {
+        _memoryInuse = inuseBytes;
+        RebuildTrafficSummary();
+    }
+
+    private void RebuildTrafficSummary()
+    {
+        var parts = new List<string> { $"↑ {FormatRate(_upRate)}    ↓ {FormatRate(_downRate)}" };
+        if (_upTotal is not null || _downTotal is not null)
+        {
+            parts.Add($"总量 ↑{FormatBytes(_upTotal)} ↓{FormatBytes(_downTotal)}");
+        }
+
+        if (_connectionsCount is { } connections)
+        {
+            parts.Add($"连接 {connections}");
+        }
+
+        if (_memoryInuse is { } memory)
+        {
+            parts.Add($"内存 {FormatBytes(memory)}");
+        }
+
+        TrafficSummary = string.Join(" · ", parts);
+    }
+
+    private static string FormatBytes(long? bytes) => bytes switch
+    {
+        null => "0B",
+        >= 1024L * 1024 * 1024 => $"{bytes / (1024.0 * 1024 * 1024):F1}GB",
+        >= 1024L * 1024 => $"{bytes / (1024.0 * 1024):F1}MB",
+        >= 1024 => $"{bytes / 1024.0:F1}KB",
+        _ => $"{bytes}B",
+    };
 
     /// <summary>刷新分组卡（Core 已按 GLOBAL 序排序）。</summary>
     public void ApplyBoard(ProxyBoard board)

@@ -35,6 +35,7 @@ public sealed class LogsPageViewModel : INotifyPropertyChanged
     private readonly List<AppLogEntry> _entries = new();
     private readonly List<AppLogEntry> _pendingMihomoLogs = new();
     private readonly HashSet<string> _selectedLevels = new();
+    private readonly HashSet<AppLogSource> _selectedSources = new();
     private bool _isPanelVisible = true;
     private string _searchText = string.Empty;
     private bool _isInfoSelected;
@@ -108,6 +109,45 @@ public sealed class LogsPageViewModel : INotifyPropertyChanged
             {
                 UpdateLevelFilter("error", value);
             }
+        }
+    }
+
+    /// <summary>来源过滤两态 chip（源：logsSourceFilterButtons——空集 = 全部）。</summary>
+    public bool IsClashBarSourceSelected
+    {
+        get => _selectedSources.Contains(AppLogSource.ClashBar);
+        set
+        {
+            if (value)
+            {
+                _selectedSources.Add(AppLogSource.ClashBar);
+            }
+            else
+            {
+                _selectedSources.Remove(AppLogSource.ClashBar);
+            }
+
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsClashBarSourceSelected)));
+            RebuildVisibleLogs();
+        }
+    }
+
+    public bool IsMihomoSourceSelected
+    {
+        get => _selectedSources.Contains(AppLogSource.Mihomo);
+        set
+        {
+            if (value)
+            {
+                _selectedSources.Add(AppLogSource.Mihomo);
+            }
+            else
+            {
+                _selectedSources.Remove(AppLogSource.Mihomo);
+            }
+
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsMihomoSourceSelected)));
+            RebuildVisibleLogs();
         }
     }
 
@@ -260,6 +300,11 @@ public sealed class LogsPageViewModel : INotifyPropertyChanged
         foreach (AppLogEntry entry in _entries)
         {
             if (_selectedLevels.Count > 0 && !_selectedLevels.Contains(entry.Level))
+            {
+                continue;
+            }
+
+            if (_selectedSources.Count > 0 && !_selectedSources.Contains(entry.Source))
             {
                 continue;
             }

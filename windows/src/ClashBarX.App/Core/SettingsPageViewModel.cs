@@ -115,6 +115,10 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
 
     public Func<Task<string>>? UpgradeCoreRequested { get; set; }
 
+    public Func<Task<string>>? FlushFakeIPRequested { get; set; }
+
+    public Func<Task<string>>? FlushDNSRequested { get; set; }
+
     private bool _isMaintaining;
     private string? _maintenanceStatusText;
     private string _maintenanceStatusLevel = "info";
@@ -150,10 +154,16 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
 
     public System.Windows.Input.ICommand UpgradeCoreCommand { get; }
 
+    public System.Windows.Input.ICommand FlushFakeIPCommand { get; }
+
+    public System.Windows.Input.ICommand FlushDNSCommand { get; }
+
     public SettingsPageViewModel()
     {
         UpgradeGeoCommand = new RelayCommand(_ => RunMaintenanceAsync(UpgradeGeoRequested));
         UpgradeCoreCommand = new RelayCommand(_ => RunMaintenanceAsync(UpgradeCoreRequested));
+        FlushFakeIPCommand = new RelayCommand(_ => RunMaintenanceAsync(FlushFakeIPRequested));
+        FlushDNSCommand = new RelayCommand(_ => RunMaintenanceAsync(FlushDNSRequested));
     }
 
     /// <summary>执行维护动作并反馈结果（进行中禁用按钮；源：维护区交互）。</summary>

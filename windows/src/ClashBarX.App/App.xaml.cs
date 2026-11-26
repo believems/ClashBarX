@@ -60,6 +60,11 @@ public partial class App : Application
     private RuleOverrideViewModel? _ruleOverridePage;
     private SettingsPageViewModel? _settingsPage;
     private bool _coreSettingsLoaded;
+    private FileSystemWatcher? _configWatcher;
+    private FileSystemWatcher? _configRootWatcher;
+    private readonly object _configDebounceGate = new();
+    private System.Threading.Timer? _configDebounceTimer;
+    private string? _pendingConfigChangePath;
 
     /// <summary>连接页 UI 可见性快照（UI 线程维护，供 WS 后台线程读取——直接读 WPF 属性会跨线程异常）。</summary>
     private volatile bool _connectionsUiVisible;
@@ -116,11 +121,25 @@ public partial class App : Application
         _mainWindow.SubscriptionImportRequested += OnSubscriptionImportRequested;
         _mainWindow.ConfigActivateRequested += OnConfigActivateRequested;
         _mainWindow.ConfigRemoveRequested += OnConfigRemoveRequested;
+        _mainWindow.CoreStartRequested += () => _ = StartCoreManualAsync();
+        _mainWindow.CoreStopRequested += () => _ = StopCoreManualAsync();
+        _mainWindow.CoreRestartRequested += () => _ = RestartCoreManualAsync();
+        _mainWindow.SubscriptionRefreshRequested += OnSubscriptionRefreshRequested;
+        _mainWindow.SubscriptionRefreshAllRequested += OnSubscriptionRefreshAllRequested;
+        _mainWindow.CopyProxyCommandRequested += OnCopyProxyCommandRequested;
 
         _tray = new TrayIconService();
         _tray.ShowMainWindowRequested += ShowMainWindow;
         _tray.ExitRequested += ExitFromTray;
         _tray.SystemProxyToggled += OnSystemProxyToggled;
+        // 托盘分流模式子菜单：经代理页 VM 走统一 PATCH 链路（UI radio 同步）
+        _tray.ModeChanged += mode => Dispatcher.BeginInvoke(() =>
+        {
+            if (_proxyPage != null)
+            {
+                _proxyPage.Mode = mode;
+            }
+        });
 
         // 启动即显示主窗（可见反馈）；关闭主窗 = 隐藏到托盘，退出走托盘菜单
         _mainWindow.Show();
@@ -135,6 +154,7 @@ public partial class App : Application
         SetupLogsPage();
         SetupProxyGuard();
         SetupSettingsPage();
+        SetupConfigMonitoring();
     }
 
     // ---- 设置页（M4-3：外观/语言/自启/流量概览；源 AppViewModel+Settings.swift） ----
@@ -194,6 +214,20 @@ public partial class App : Application
             _mainWindow?.AppendLog($"[maintenance] {message}");
             return message;
         };
+        _settingsPage.FlushFakeIPRequested = async () =>
+        {
+            await maintenance.FlushFakeIPCacheAsync();
+            const string message = "FakeIP 缓存已清空";
+            _mainWindow?.AppendLog($"[maintenance] {message}");
+            return message;
+        };
+        _settingsPage.FlushDNSRequested = async () =>
+        {
+            await maintenance.FlushDNSCacheAsync();
+            const string message = "DNS 缓存已清空";
+            _mainWindow?.AppendLog($"[maintenance] {message}");
+            return message;
+        };
         _settingsPage.AppearanceChanged += mode =>
         {
             AppearanceManager.ApplyTheme(mode);
@@ -242,6 +276,7 @@ public partial class App : Application
             await _apiClient!.RequestNoResponseAsync(
                 MihomoEndpoint.PatchConfigs(new JsonObject { ["mode"] = mode }));
             _mainWindow?.AppendLog($"[mode] 已切换分流模式：{mode}");
+            _tray?.ShowTransientMessage($"分流模式：{mode}");
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -267,6 +302,7 @@ public partial class App : Application
                     snapshot.AllowLan, snapshot.Ipv6, snapshot.TcpConcurrent, snapshot.LogLevel,
                     snapshot.MixedPort, snapshot.Port, snapshot.SocksPort, snapshot.RedirPort, snapshot.TproxyPort);
                 _proxyPage?.ApplyMode(snapshot.Mode ?? "rule");
+                _tray?.SetModeChecked(snapshot.Mode ?? "rule");
                 _logsPage?.SyncLogLevel(snapshot.LogLevel ?? "info");
             });
         }
@@ -282,6 +318,9 @@ public partial class App : Application
         // 兜底：正常退出路径也会先在此终结内核，避免任何路径漏杀
         _proxyRefreshTimer?.Dispose();
         _rulesRefreshTimer?.Dispose();
+        _configWatcher?.Dispose();
+        _configRootWatcher?.Dispose();
+        _configDebounceTimer?.Dispose();
         _mihomoLogFlushTimer?.Stop();
         _proxyGuard?.Dispose();
         _guardTriggerEvent?.Dispose();
@@ -477,6 +516,7 @@ public partial class App : Application
                 _settingsStore.Load().SystemProxyBypassList ?? SystemProxyDefaults.DefaultBypassList;
             _systemProxy?.Enable(new SystemProxyTarget("127.0.0.1", mixedPort, bypass));
             _settingsStore.Save(_settingsStore.Load() with { SystemProxyEnabled = true });
+            _tray?.ShowTransientMessage($"系统代理已开启（127.0.0.1:{mixedPort}）");
         }
         catch (Exception error)
         {
@@ -493,7 +533,11 @@ public partial class App : Application
             _proxyBoard,
             message => Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog(message)),
             () => _processManager?.IsRunning == true);
-        _proxyPage.ModeChanged += mode => _ = PatchModeAsync(mode);
+        _proxyPage.ModeChanged += mode =>
+        {
+            _tray?.SetModeChecked(mode);   // 托盘子菜单勾选同步（抑制回环）
+            _ = PatchModeAsync(mode);
+        };
         _mainWindow!.DataContext = _proxyPage;
 
         // traffic WS 流（M1 的 StreamCoordinator：重连去抖复用）
@@ -527,7 +571,12 @@ public partial class App : Application
                     if (snapshot != null)
                     {
                         await Dispatcher.BeginInvoke(() =>
-                            _proxyPage?.UpdateTraffic(snapshot.Up, snapshot.Down));
+                        {
+                            _proxyPage?.UpdateTraffic(
+                                snapshot.Up, snapshot.Down, snapshot.UpTotal, snapshot.DownTotal);
+                            _trayTraffic = _proxyPage?.TrafficSummary ?? string.Empty;
+                            UpdateTrayToolTip();
+                        });
                     }
                 }
                 catch (JsonException)
@@ -761,6 +810,31 @@ public partial class App : Application
         };
         RefreshConnectionsVisibility();
         StartConnectionsStream();
+        StartMemoryStream();
+    }
+
+    /// <summary>memory WS 流（概览内存占用；源：Swift startMemoryStream）。</summary>
+    private void StartMemoryStream()
+    {
+        _streams!.Start(
+            "memory",
+            () => _apiClient!.CreateWebSocketConnection(MihomoEndpoint.Memory()),
+            async payload =>
+            {
+                try
+                {
+                    MemorySnapshot? snapshot = JsonSerializer.Deserialize<MemorySnapshot>(
+                        payload.Span, JsonSharedOptions.Json);
+                    if (snapshot != null)
+                    {
+                        await Dispatcher.BeginInvoke(() => _proxyPage?.UpdateMemory(snapshot.Inuse));
+                    }
+                }
+                catch (JsonException)
+                {
+                    // 噪声 payload 丢弃
+                }
+            });
     }
 
     /// <summary>日志页内存上限档位（仅 UI 线程：窗口可见且非最小化才用 5000 档）。</summary>
@@ -812,7 +886,11 @@ public partial class App : Application
                         payload,
                         includeConnections: connectionsVisible,
                         statisticsDimension: statisticsVisible ? _connectionsStatisticsDimension : null);
-                    await Dispatcher.BeginInvoke(() => _connectionsPage?.IngestSnapshot(update));
+                    await Dispatcher.BeginInvoke(() =>
+                    {
+                        _connectionsPage?.IngestSnapshot(update);
+                        _proxyPage?.UpdateConnectionsCount(update.TotalCount);   // 概览连接数
+                    });
                 }
                 catch (JsonException)
                 {
@@ -1173,6 +1251,235 @@ public partial class App : Application
         }
     }
 
+    // ---- 订阅更新 / 复制代理命令 / 配置监控（M4-3d 功能核对补齐） ----
+
+    /// <summary>更新单个远程订阅（源：订阅行刷新——重下载覆盖；选中配置则热重载）。</summary>
+    private async void OnSubscriptionRefreshRequested(string fileName)
+    {
+        SubscriptionInfo? info = _subscriptions!.List().FirstOrDefault(item => item.FileName == fileName);
+        if (info is null)
+        {
+            _mainWindow?.AppendLog($"[subscription] 未找到订阅记录：{fileName}");
+            return;
+        }
+
+        await RefreshSubscriptionCoreAsync(info);
+    }
+
+    private async void OnSubscriptionRefreshAllRequested()
+    {
+        foreach (SubscriptionInfo info in _subscriptions!.List().ToList())
+        {
+            await RefreshSubscriptionCoreAsync(info);
+        }
+    }
+
+    private async Task RefreshSubscriptionCoreAsync(SubscriptionInfo info)
+    {
+        try
+        {
+            string version = _poller?.Version is { Length: > 0 } current
+                ? current
+                : DefaultMihomoVersionForUserAgent;
+            await _subscriptions!.AddAsync(new Uri(info.Url), $"clash.meta/{version}");
+            _mainWindow?.AppendLog($"[subscription] 已更新 {info.FileName}");
+
+            // 更新的是当前选中配置 → 热重载生效（源：更新后配置即时生效语义）
+            if (_subscriptions.GetSelectedFileName() == info.FileName)
+            {
+                await ApplySelectedConfigAsync();
+            }
+        }
+        catch (Exception error)
+        {
+            _mainWindow?.AppendLog($"[subscription] 更新 {info.FileName} 失败：{error.Message}");
+        }
+    }
+
+    /// <summary>复制终端代理命令（源：copyLocalProxyCommand——export http/https/all_proxy）。</summary>
+    private async void OnCopyProxyCommandRequested()
+    {
+        try
+        {
+            ConfigSnapshot config = await _apiClient!.RequestAsync<ConfigSnapshot>(MihomoEndpoint.GetConfigs());
+            int mixedPort = config.MixedPort ?? 0;
+            if (mixedPort <= 0)
+            {
+                _mainWindow?.AppendLog("[proxy] 内核未开启混合端口，无法生成代理命令");
+                return;
+            }
+
+            string endpoint = $"http://127.0.0.1:{mixedPort}";
+            string command = $"export http_proxy={endpoint} https_proxy={endpoint} all_proxy={endpoint}";
+            await Dispatcher.BeginInvoke(() =>
+            {
+                try
+                {
+                    Clipboard.SetText(command);
+                    _tray?.ShowTransientMessage("代理命令已复制到剪贴板");
+                }
+                catch (System.Runtime.InteropServices.COMException)
+                {
+                    // 剪贴板被占用时静默
+                }
+            });
+            _mainWindow?.AppendLog("[proxy] 终端代理命令已复制");
+        }
+        catch (Exception error)
+        {
+            _mainWindow?.AppendLog($"[proxy] 复制代理命令失败：{error.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 配置目录监控（源：AppViewModel+ConfigMonitoring——目录变化 350ms 防抖后，
+    /// 若涉及当前选中配置且内核在跑则热重载）。
+    /// </summary>
+    private void SetupConfigMonitoring()
+    {
+        string configsDirectory = Path.Combine(ClashBarXPaths.AppDataRoot(), "configs");
+        Directory.CreateDirectory(configsDirectory);
+        var watcher = new FileSystemWatcher(configsDirectory)
+        {
+            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size,
+            IncludeSubdirectories = false,
+            EnableRaisingEvents = true,
+        };
+        watcher.Changed += OnConfigFileTouched;
+        watcher.Created += OnConfigFileTouched;
+        _configWatcher = watcher;
+
+        // 根目录手工 config.yaml 同样监控
+        string rootConfig = ClashBarXPaths.DefaultConfigPath();
+        if (File.Exists(rootConfig))
+        {
+            var rootWatcher = new FileSystemWatcher(Path.GetDirectoryName(rootConfig)!)
+            {
+                Filter = Path.GetFileName(rootConfig),
+                NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size,
+                EnableRaisingEvents = true,
+            };
+            rootWatcher.Changed += OnConfigFileTouched;
+            _configRootWatcher = rootWatcher;
+        }
+    }
+
+    private void OnConfigFileTouched(object sender, FileSystemEventArgs e)
+    {
+        lock (_configDebounceGate)
+        {
+            _pendingConfigChangePath = e.FullPath;
+            _configDebounceTimer?.Dispose();
+            _configDebounceTimer = new System.Threading.Timer(
+                _ => Dispatcher.BeginInvoke(() => _ = ApplyPendingConfigChangeAsync()),
+                null,
+                TimeSpan.FromMilliseconds(350),
+                Timeout.InfiniteTimeSpan);
+        }
+    }
+
+    private async Task ApplyPendingConfigChangeAsync()
+    {
+        string? changedPath;
+        lock (_configDebounceGate)
+        {
+            changedPath = _pendingConfigChangePath;
+            _pendingConfigChangePath = null;
+        }
+
+        if (changedPath is null || _processManager?.IsRunning != true)
+        {
+            return;
+        }
+
+        string selectedPath = _subscriptions?.GetSelectedConfigPath() ?? ClashBarXPaths.DefaultConfigPath();
+        // 仅当前生效配置的变化触发重载（源：监控只关心选中配置）
+        if (!string.Equals(Path.GetFullPath(changedPath), Path.GetFullPath(selectedPath), StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _mainWindow?.AppendLog($"[config] 检测到配置文件变化，热重载：{Path.GetFileName(changedPath)}");
+        await ApplySelectedConfigAsync();
+    }
+
+    // ---- 手动内核生命周期（源：MenuBarHeaderView 的启动/停止/重启动作） ----
+
+    private async Task StartCoreManualAsync()
+    {
+        if (_processManager?.IsRunning == true)
+        {
+            _mainWindow?.AppendLog("[core] 内核已在运行");
+            return;
+        }
+
+        string configPath = _subscriptions?.GetSelectedConfigPath() ?? ClashBarXPaths.DefaultConfigPath();
+        try
+        {
+            (string launchPath, string? workingDirectory) = ResolveCoreLaunchConfig(configPath);
+            await _processManager!.StartAsync(launchPath, workingDirectory, DefaultController);
+            _mainWindow?.AppendLog("[core] 内核已手动启动");
+        }
+        catch (MihomoBinaryResolutionException)
+        {
+            _mainWindow?.AppendLog($"[core] 启动失败：请将 mihomo.exe 放入 {ClashBarXPaths.CoreDirectory()}");
+        }
+        catch (Exception error)
+        {
+            _mainWindow?.AppendLog($"[core] 启动失败：{error.Message}");
+        }
+        finally
+        {
+            Dispatcher.BeginInvoke(RefreshPresentationState);
+        }
+    }
+
+    private async Task StopCoreManualAsync()
+    {
+        if (_processManager?.IsRunning != true)
+        {
+            _mainWindow?.AppendLog("[core] 内核未在运行");
+            return;
+        }
+
+        try
+        {
+            await _processManager.StopAsync();
+            _mainWindow?.AppendLog("[core] 内核已手动停止");
+        }
+        catch (Exception error)
+        {
+            _mainWindow?.AppendLog($"[core] 停止失败：{error.Message}");
+        }
+        finally
+        {
+            Dispatcher.BeginInvoke(RefreshPresentationState);
+        }
+    }
+
+    private async Task RestartCoreManualAsync()
+    {
+        string configPath = _subscriptions?.GetSelectedConfigPath() ?? ClashBarXPaths.DefaultConfigPath();
+        try
+        {
+            (string launchPath, string? workingDirectory) = ResolveCoreLaunchConfig(configPath);
+            await _processManager!.RestartAsync(launchPath, workingDirectory, DefaultController);
+            _mainWindow?.AppendLog("[core] 内核已手动重启");
+        }
+        catch (MihomoBinaryResolutionException)
+        {
+            _mainWindow?.AppendLog($"[core] 重启失败：请将 mihomo.exe 放入 {ClashBarXPaths.CoreDirectory()}");
+        }
+        catch (Exception error)
+        {
+            _mainWindow?.AppendLog($"[core] 重启失败：{error.Message}");
+        }
+        finally
+        {
+            Dispatcher.BeginInvoke(RefreshPresentationState);
+        }
+    }
+
     /// <summary>
     /// 应用订阅选中配置（或默认配置）：内核运行中优先 PUT /configs 热重载
     /// （源：submitCoreLaunchConfig——覆写时推 payload 全文、否则推 path；连接不断、
@@ -1220,6 +1527,15 @@ public partial class App : Application
         }
     }
 
+    private string _trayCoreStatus = "内核未运行";
+    private string _trayTraffic = string.Empty;
+
+    /// <summary>托盘 tooltip 状态化（内核状态 + 实时速率；源：状态栏双行速率语义的 Windows 对应物）。</summary>
+    private void UpdateTrayToolTip() =>
+        _tray?.SetToolTip(_trayTraffic.Length > 0
+            ? $"ClashBarX · {_trayCoreStatus} · {_trayTraffic}"
+            : $"ClashBarX · {_trayCoreStatus}");
+
     /// <summary>托盘状态图标与主窗状态行的统一刷新（源：macOS 菜单栏 run/sleep 状态语义）。</summary>
     private void RefreshPresentationState()
     {
@@ -1237,21 +1553,27 @@ public partial class App : Application
 
         if (!coreRunning)
         {
-            _mainWindow.SetCoreStatus("内核未运行");
+            _trayCoreStatus = "内核未运行";
+            _mainWindow.SetCoreStatus(_trayCoreStatus);
         }
         else if (apiHealth == ApiHealth.Healthy)
         {
             string version = _poller?.Version is string v ? $" · {v}" : string.Empty;
-            _mainWindow.SetCoreStatus($"内核运行中（pid={_processManager!.RunningProcessId}）· API 正常{version}");
+            _trayCoreStatus = $"内核运行中（pid={_processManager!.RunningProcessId}）· API 正常{version}";
+            _mainWindow.SetCoreStatus(_trayCoreStatus);
         }
         else if (apiHealth == ApiHealth.Degraded)
         {
-            _mainWindow.SetCoreStatus($"内核运行中（pid={_processManager!.RunningProcessId}）· API 未就绪");
+            _trayCoreStatus = $"内核运行中（pid={_processManager!.RunningProcessId}）· API 未就绪";
+            _mainWindow.SetCoreStatus(_trayCoreStatus);
         }
         else
         {
-            _mainWindow.SetCoreStatus($"内核运行中（pid={_processManager!.RunningProcessId}）· 等待 API 响应");
+            _trayCoreStatus = $"内核运行中（pid={_processManager!.RunningProcessId}）· 等待 API 响应";
+            _mainWindow.SetCoreStatus(_trayCoreStatus);
         }
+
+        UpdateTrayToolTip();
     }
 
     private void ShowMainWindow()
