@@ -93,6 +93,14 @@ public partial class App : Application
             return;
         }
 
+        // 卸载器温和关闭（源：UninstallRun 的 --exit——通知运行实例退出后自身退出）
+        if (Environment.GetCommandLineArgs().Contains(ExitArgument, StringComparer.OrdinalIgnoreCase))
+        {
+            TryNotifyExitToRunningInstance();
+            Shutdown();
+            return;
+        }
+
         _processManager = new MihomoProcessManager();
         _processManager.OnLog += line => Dispatcher.BeginInvoke(() =>
             _logsPage?.QueueMihomoLog(MihomoLogDecoder.NormalizeLevel(line), line));
@@ -772,6 +780,10 @@ public partial class App : Application
     /// <summary>守护触发的跨进程命名事件名（对应 macOS 的 com.clashbarx.proxyguard.trigger）。</summary>
     private const string GuardTriggerEventName = "ClashBarX.ProxyGuard.Trigger";
 
+    /// <summary>卸载器通知退出的 CLI 参数与命名事件（源：UninstallRun 的 --exit）。</summary>
+    private const string ExitArgument = "--exit";
+    private const string ExitEventName = "ClashBarX.Exit";
+
     private void SetupProxyGuard()
     {
         AppSettings settings = _settingsStore.Load();
@@ -806,6 +818,51 @@ public partial class App : Application
         }
 
         StartGuardTriggerListener();
+        StartExitListener();
+    }
+
+    /// <summary>通知运行中的实例退出（--exit CLI；无实例时静默）。</summary>
+    private static void TryNotifyExitToRunningInstance()
+    {
+        if (EventWaitHandle.TryOpenExisting(ExitEventName, out EventWaitHandle? existing))
+        {
+            try
+            {
+                existing.Set();
+            }
+            finally
+            {
+                existing.Dispose();
+            }
+        }
+    }
+
+    /// <summary>监听卸载器的退出通知事件。</summary>
+    private void StartExitListener()
+    {
+        var exitEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ExitEventName);
+        _ = Task.Run(() =>
+        {
+            while (true)
+            {
+                bool signaled;
+                try
+                {
+                    signaled = exitEvent.WaitOne();
+                }
+                catch (ObjectDisposedException)
+                {
+                    return;
+                }
+
+                if (!signaled)
+                {
+                    return;
+                }
+
+                Dispatcher.BeginInvoke(Shutdown);
+            }
+        });
     }
 
     /// <summary>探测：经内核混合端口对 204 URL 发 HEAD（源：probeConnectivity 的 127.0.0.1:{mixedPort} 口径）。</summary>
