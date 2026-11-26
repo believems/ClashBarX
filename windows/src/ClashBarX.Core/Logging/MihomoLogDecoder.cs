@@ -23,10 +23,12 @@ public static class MihomoLogDecoder
         try
         {
             LogLine? line = JsonSerializer.Deserialize<LogLine>(payload, Json);
-            if (line is { Payload: { Length: > 0 } })
+            // payload trim 后非空才收（源：trimmingCharacters(in: .whitespacesAndNewlines)）
+            if (line is { Payload: { } payloadText }
+                && payloadText.Trim().Length > 0)
             {
                 level = NormalizeLevel(line.Type);
-                message = line.Payload;
+                message = payloadText.Trim();
                 return true;
             }
         }

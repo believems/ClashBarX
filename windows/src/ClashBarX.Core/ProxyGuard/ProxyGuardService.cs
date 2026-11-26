@@ -197,13 +197,16 @@ public sealed class ProxyGuardService : IDisposable
         {
             bool reachable = await _probeAsync(token).ConfigureAwait(false);
             int failures;
+            string? logLevel = null;
+            string? logMessage = null;
             lock (_gate)
             {
                 if (reachable)
                 {
                     if (_consecutiveFailures > 0)
                     {
-                        Logged?.Invoke("info", "网络连通已恢复");
+                        logLevel = "info";
+                        logMessage = "网络连通已恢复";
                     }
 
                     _consecutiveFailures = 0;
@@ -211,10 +214,17 @@ public sealed class ProxyGuardService : IDisposable
                 else
                 {
                     _consecutiveFailures++;
-                    Logged?.Invoke("warning", $"探测失败（连续第 {_consecutiveFailures} 次，阈值 {FailureThreshold}）");
+                    logLevel = "warning";
+                    logMessage = $"探测失败（连续第 {_consecutiveFailures} 次，阈值 {FailureThreshold}）";
                 }
 
                 failures = _consecutiveFailures;
+            }
+
+            // 日志回调在锁外触发（订阅方可能_dispatcher 编组，锁内触发外部回调是反模式）
+            if (logMessage is not null)
+            {
+                Logged?.Invoke(logLevel!, logMessage);
             }
 
             var state = new ProxyGuardProbeState(
@@ -323,9 +333,9 @@ public sealed class ProxyGuardService : IDisposable
             .RequestAsync<ProxyGroupsResponse>(MihomoEndpoint.Proxies(), token)
             .ConfigureAwait(false);
 
+        // 仅按 type 过滤（源：Swift 的 type.contains("selector")——不预筛成员，空组交给测速容错）
         IEnumerable<ProxyGroup> selectorGroups = response.Proxies.Values
-            .Where(proxy => proxy.All.Count > 0
-                && (proxy.Type ?? string.Empty).ToLowerInvariant().Contains("selector"));
+            .Where(proxy => (proxy.Type ?? string.Empty).ToLowerInvariant().Contains("selector"));
 
         foreach (ProxyGroup group in selectorGroups)
         {

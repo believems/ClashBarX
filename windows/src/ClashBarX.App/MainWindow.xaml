@@ -133,9 +133,13 @@
 
             <!-- 连接（M3-1/M3-4）：列表（host/规则/链路/上下行速率）+ 三维度流量统计 -->
             <TabItem Header="连接">
-                <DockPanel x:Name="ConnectionsRoot" Margin="4,8,4,4">
+                <Grid x:Name="ConnectionsRoot" Margin="4,8,4,4">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
                     <!-- 视图切换：连接 / 统计（源：connectionsStore.showsStatistics segmented） -->
-                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,4">
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,4">
                         <RadioButton GroupName="ConnectionView"
                                      Content="连接"
                                      IsChecked="True"
@@ -162,7 +166,7 @@
                                    TextTrimming="CharacterEllipsis"
                                    Visibility="{Binding ShowsStatistics, Converter={StaticResource BoolToVis}}" />
                     </StackPanel>
-                    <DockPanel Visibility="{Binding ShowsList, Converter={StaticResource BoolToVis}}">
+                    <DockPanel Grid.Row="1" Visibility="{Binding ShowsList, Converter={StaticResource BoolToVis}}">
                     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
                         <Button DockPanel.Dock="Right"
                                 Content="关闭全部"
@@ -260,7 +264,7 @@
                     </ScrollViewer>
                     </DockPanel>
                     <!-- 统计视图（源：TrafficStatisticsView——名称/合计/上下行） -->
-                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
                                   Visibility="{Binding ShowsStatistics, Converter={StaticResource BoolToVis}}">
                         <ItemsControl ItemsSource="{Binding StatisticsRows}">
                             <ItemsControl.ItemTemplate>
@@ -301,7 +305,7 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </ScrollViewer>
-                </DockPanel>
+                </Grid>
             </TabItem>
 
             <!-- 订阅（M2-3）：URL 导入 + 配置列表切换/删除 -->

@@ -52,6 +52,10 @@ public partial class App : Application
 
     /// <summary>连接页 UI 可见性快照（UI 线程维护，供 WS 后台线程读取——直接读 WPF 属性会跨线程异常）。</summary>
     private volatile bool _connectionsUiVisible;
+
+    /// <summary>连接页统计视图态快照（UI 线程维护：VM 属性变化经 PropertyChanged 联动刷新）。</summary>
+    private volatile bool _connectionsShowsStatistics;
+    private TrafficStatisticsDimension _connectionsStatisticsDimension = TrafficStatisticsDimension.Node;
     private LogsPageViewModel? _logsPage;
     private DispatcherTimer? _mihomoLogFlushTimer;
     private ProxyGuardService? _proxyGuard;
@@ -350,16 +354,36 @@ public partial class App : Application
             message => Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog(message)));
         _mainWindow!.SetConnectionsPage(_connectionsPage);
 
-        // UI 可见性在 UI 线程上缓存成快照（WS 回调线程直接读 WPF 属性会抛跨线程异常）
+        // UI 可见性在 UI 线程上缓存成快照（WS 回调线程直接读 WPF 属性会抛跨线程异常）；
+        // 统计视图态（VM 普通属性）同样纳入快照，避免 WS 线程与 UI 线程的帧间错配
         _mainWindow.TabSelectionChanged += (_, _) => RefreshConnectionsVisibility();
         _mainWindow.IsVisibleChanged += (_, _) => RefreshConnectionsVisibility();
+        _mainWindow.StateChanged += (_, _) => RefreshConnectionsVisibility();
+        _connectionsPage.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(ConnectionsPageViewModel.ShowsStatistics)
+                or nameof(ConnectionsPageViewModel.StatisticsDimension))
+            {
+                RefreshConnectionsVisibility();
+            }
+        };
         RefreshConnectionsVisibility();
         StartConnectionsStream();
     }
 
-    /// <summary>连接页可见性快照（仅 UI 线程调用：tab 选中 + 窗口可见）。</summary>
-    private void RefreshConnectionsVisibility() =>
-        _connectionsUiVisible = _mainWindow is { IsVisible: true, IsConnectionsTabSelected: true };
+    /// <summary>日志页内存上限档位（仅 UI 线程：窗口可见且非最小化才用 5000 档）。</summary>
+    private void UpdateLogsPanelVisibility() =>
+        _logsPage?.SetPanelVisible(
+            _mainWindow is { IsVisible: true, WindowState: not WindowState.Minimized });
+
+    /// <summary>连接页可见性与统计视图态快照（仅 UI 线程调用：tab 选中 + 窗口可见且非最小化）。</summary>
+    private void RefreshConnectionsVisibility()
+    {
+        _connectionsUiVisible = _mainWindow
+            is { IsVisible: true, WindowState: not WindowState.Minimized, IsConnectionsTabSelected: true };
+        _connectionsShowsStatistics = _connectionsPage?.ShowsStatistics == true;
+        _connectionsStatisticsDimension = _connectionsPage?.StatisticsDimension ?? TrafficStatisticsDimension.Node;
+    }
 
     private void StartConnectionsStream()
     {
@@ -389,13 +413,13 @@ public partial class App : Application
 
                     // 可见性感知：列表仅在连接页可见且非统计视图时输出；统计视图喂当前维度
                     //（源：applyConnectionsUpdate 的 includeConnections/statisticsDimension 口径）。
-                    // 窗口/tab 可见性用 UI 线程维护的快照（volatile bool），VM 属性为普通 CLR 属性可跨线程读
-                    bool statisticsVisible = _connectionsUiVisible && _connectionsPage?.ShowsStatistics == true;
-                    bool connectionsVisible = _connectionsUiVisible && _connectionsPage?.ShowsList != false;
+                    // 窗口/tab/统计态全部读 UI 线程维护的快照
+                    bool statisticsVisible = _connectionsUiVisible && _connectionsShowsStatistics;
+                    bool connectionsVisible = _connectionsUiVisible && !_connectionsShowsStatistics;
                     ConnectionStatisticsUpdate update = _connectionStatistics!.Process(
                         payload,
                         includeConnections: connectionsVisible,
-                        statisticsDimension: statisticsVisible ? _connectionsPage?.StatisticsDimension : null);
+                        statisticsDimension: statisticsVisible ? _connectionsStatisticsDimension : null);
                     await Dispatcher.BeginInvoke(() => _connectionsPage?.IngestSnapshot(update));
                 }
                 catch (JsonException)
@@ -428,8 +452,11 @@ public partial class App : Application
         _mihomoLogFlushTimer.Tick += (_, _) => _logsPage.FlushPendingMihomoLogs();
         _mihomoLogFlushTimer.Start();
 
-        // 面板可见性：隐藏时收紧内存上限到 20（源：hiddenPanelMaxInMemoryLogEntries）
-        _mainWindow.IsVisibleChanged += (_, _) => _logsPage.SetPanelVisible(_mainWindow.IsVisible);
+        // 面板可见性：隐藏或最小化时收紧内存上限到 20（源：hiddenPanelMaxInMemoryLogEntries；
+        // 最小化时 IsVisible 不变，需联动 StateChanged——对齐 Swift 面板关闭即停的语义）
+        _mainWindow.IsVisibleChanged += (_, _) => UpdateLogsPanelVisibility();
+        _mainWindow.StateChanged += (_, _) => UpdateLogsPanelVisibility();
+        UpdateLogsPanelVisibility();
 
         StartLogsStream();
     }

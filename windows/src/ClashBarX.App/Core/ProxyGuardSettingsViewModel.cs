@@ -53,18 +53,28 @@ public sealed class ProxyGuardSettingsViewModel : INotifyPropertyChanged
         }
     }
 
-    /// <summary>周期输入框文本：显示值 clamp 下限，回写仅当合法（源：proxyGuardIntervalText）。</summary>
+    /// <summary>
+    /// 周期输入框文本：合法（30…86400 整数）才接受并上抛；非法输入被拒绝且回弹显示
+    /// （重新通知绑定读回生效值，源：Swift Binding get 重求值的还原语义）。
+    /// </summary>
     public string IntervalText
     {
         get => _intervalText;
         set
         {
-            SetProperty(ref _intervalText, value);
             if (int.TryParse(value.Trim(), out int seconds)
                 && seconds is >= MinimumIntervalSeconds and <= MaximumIntervalSeconds)
             {
-                IntervalChanged?.Invoke(seconds);
+                if (SetProperty(ref _intervalText, seconds.ToString()))
+                {
+                    IntervalChanged?.Invoke(seconds);
+                }
+
+                return;
             }
+
+            // 非法：丢弃输入并回弹（通知绑定重新读取当前生效值）
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IntervalText)));
         }
     }
 

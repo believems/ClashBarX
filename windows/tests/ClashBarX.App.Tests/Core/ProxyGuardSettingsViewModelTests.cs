@@ -59,7 +59,6 @@ public class ProxyGuardSettingsViewModelTests
     }
 
     [Theory]
-    [InlineData("300", 300)]
     [InlineData("45", 45)]
     [InlineData("86400", 86400)]
     public void 合法周期回写并上抛(string text, int expected)
@@ -69,6 +68,18 @@ public class ProxyGuardSettingsViewModelTests
         harness.ViewModel.IntervalText = text;
 
         Assert.Equal(new[] { expected }, harness.Intervals);
+        Assert.Equal(expected.ToString(), harness.ViewModel.IntervalText);
+    }
+
+    [Fact]
+    public void 相同周期重复输入不重复上抛()
+    {
+        var harness = new Harness();   // 初始 300
+
+        harness.ViewModel.IntervalText = "300";   // 与当前值相同：幂等，不上抛
+
+        Assert.Empty(harness.Intervals);
+        Assert.Equal("300", harness.ViewModel.IntervalText);
     }
 
     [Theory]
@@ -77,13 +88,14 @@ public class ProxyGuardSettingsViewModelTests
     [InlineData("abc")]
     [InlineData("")]
     [InlineData("30.5")]
-    public void 非法周期静默忽略(string text)
+    public void 非法周期静默忽略并回弹(string text)
     {
         var harness = new Harness();
 
         harness.ViewModel.IntervalText = text;
 
         Assert.Empty(harness.Intervals);   // 源：解析失败静默忽略
+        Assert.Equal("300", harness.ViewModel.IntervalText);   // 回弹到当前生效值（源：Binding get 重求值）
     }
 
     [Fact]
