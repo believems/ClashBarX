@@ -208,7 +208,7 @@
                                                     </StackPanel>
                                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12" />
-                                                        <TextBlock Text="{Binding NodeCount, StringFormat={}{0} 节点}"
+                                                        <TextBlock><Run Text="{Binding NodeCount, Mode=OneWay}" /><Run Text="{DynamicResource ProvidersNodeCount}" /></TextBlock>
                                                                    FontSize="11"
                                                                    Foreground="#5E6B78"
                                                                    Margin="8,0,0,0"
@@ -297,6 +297,11 @@
                                               FontSize="11"
                                               Padding="6,1"
                                               Content="{DynamicResource GroupsShowHidden}" />
+                                <ToggleButton IsChecked="{Binding HideUnavailableProxyNodes}"
+                                              FontSize="11"
+                                              Padding="6,1"
+                                              Margin="6,0,0,0"
+                                              Content="{DynamicResource GroupsHideUnavailable}" />
                             </StackPanel>
                         </DockPanel>
                         <ItemsControl x:Name="ProxyGroupsList" ItemsSource="{Binding Groups}">
@@ -306,7 +311,7 @@
                                               Padding="4,2"
                                               BorderBrush="#DDD"
                                               BorderThickness="1"
-                                              IsExpanded="False">
+                                              IsExpanded="{Binding IsExpanded}">
                                         <Expander.Header>
                                             <DockPanel Margin="0,2">
                                                 <Button DockPanel.Dock="Right"
@@ -518,7 +523,7 @@
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="↑" FontSize="12" VerticalAlignment="Center" />
                                         <TextBlock Text="{DynamicResource OverridePrependHint}" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center" />
-                                        <TextBlock Text="{Binding Counts.Prepend, StringFormat={}{0} 条}" Foreground="#5E6B78" FontSize="11" Margin="10,0,0,0" VerticalAlignment="Center" />
+                                        <TextBlock Foreground="#5E6B78" FontSize="11" Margin="10,0,0,0" VerticalAlignment="Center"><Run Text="{Binding Counts.Prepend, Mode=OneWay}" /><Run Text="{DynamicResource OverrideCountEntries}" /></TextBlock>
                                     </StackPanel>
                                 </Button>
                                 <Button Command="{Binding ToggleFileCommand}"
@@ -530,7 +535,7 @@
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="↓" FontSize="12" VerticalAlignment="Center" />
                                         <TextBlock Text="{DynamicResource OverrideAppendHint}" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center" />
-                                        <TextBlock Text="{Binding Counts.Append, StringFormat={}{0} 条}" Foreground="#5E6B78" FontSize="11" Margin="10,0,0,0" VerticalAlignment="Center" />
+                                        <TextBlock Foreground="#5E6B78" FontSize="11" Margin="10,0,0,0" VerticalAlignment="Center"><Run Text="{Binding Counts.Append, Mode=OneWay}" /><Run Text="{DynamicResource OverrideCountEntries}" /></TextBlock>
                                     </StackPanel>
                                 </Button>
                                 <Button Command="{Binding ToggleFileCommand}"
@@ -542,7 +547,7 @@
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="≡" FontSize="12" VerticalAlignment="Center" />
                                         <TextBlock Text="{DynamicResource OverrideRuleSetsHint}" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center" />
-                                        <TextBlock Text="{Binding Counts.RuleProviders, StringFormat={}{0} 个}" Foreground="#5E6B78" FontSize="11" Margin="10,0,0,0" VerticalAlignment="Center" />
+                                        <TextBlock Foreground="#5E6B78" FontSize="11" Margin="10,0,0,0" VerticalAlignment="Center"><Run Text="{Binding Counts.RuleProviders, Mode=OneWay}" /><Run Text="{DynamicResource OverrideCountSets}" /></TextBlock>
                                     </StackPanel>
                                 </Button>
                                 <!-- 编辑器（展开时显示，固定高 180；源：PlainTextEditor editorHeight） -->
@@ -608,10 +613,10 @@
                                             Command="{Binding ApplyNowCommand}">
                                         <Button.Style>
                                             <Style TargetType="Button">
-                                                <Setter Property="Content" Value="立即应用" />
+                                                <Setter Property="Content" Value="{DynamicResource OverrideApplyNow}" />
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding IsApplying}" Value="True">
-                                                        <Setter Property="Content" Value="应用中…" />
+                                                        <Setter Property="Content" Value="{DynamicResource CommonProcessing}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -644,7 +649,7 @@
                                                        VerticalAlignment="Center" />
                                             <TextBlock VerticalAlignment="Center">
                                                 <Run Text="{Binding Policy, Mode=OneWay}" FontWeight="SemiBold" />
-                                                <Run Text="{Binding Count, Mode=OneWay, StringFormat=· {0} 条}" Foreground="#5E6B78" />
+                                                <Run Text="· " Foreground="#5E6B78" /><Run Text="{Binding Count, Mode=OneWay}" Foreground="#5E6B78" /><Run Text="{DynamicResource OverrideCountEntries}" Foreground="#5E6B78" />
                                             </TextBlock>
                                         </DockPanel>
                                     </Button>
@@ -1068,10 +1073,10 @@
                                             Command="{Binding CheckNowCommand}">
                                         <Button.Style>
                                             <Style TargetType="Button">
-                                                <Setter Property="Content" Value="立即检查" />
+                                                <Setter Property="Content" Value="{DynamicResource GuardCheckNow}" />
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding IsProbing}" Value="True">
-                                                        <Setter Property="Content" Value="检查中…" />
+                                                        <Setter Property="Content" Value="{DynamicResource CommonChecking}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -1372,10 +1377,10 @@
                                     Command="{Binding UpgradeGeoCommand}">
                                 <Button.Style>
                                     <Style TargetType="Button">
-                                        <Setter Property="Content" Value="更新 GEO 数据" />
+                                        <Setter Property="Content" Value="{DynamicResource MaintenanceUpdateGeo}" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsMaintaining}" Value="True">
-                                                <Setter Property="Content" Value="执行中…" />
+                                                <Setter Property="Content" Value="{DynamicResource CommonProcessing}" />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -1388,10 +1393,10 @@
                                     Command="{Binding UpgradeCoreCommand}">
                                 <Button.Style>
                                     <Style TargetType="Button">
-                                        <Setter Property="Content" Value="升级内核" />
+                                        <Setter Property="Content" Value="{DynamicResource MaintenanceUpgradeCore}" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsMaintaining}" Value="True">
-                                                <Setter Property="Content" Value="执行中…" />
+                                                <Setter Property="Content" Value="{DynamicResource CommonProcessing}" />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -1436,11 +1441,17 @@
                                    FontSize="12"
                                    Margin="0,14,0,6" />
                         <StackPanel Orientation="Horizontal">
-                            <Button Content="{Binding CurrentVersionText, StringFormat=版本 {0}}"
-                                    FontSize="11"
+                            <Button FontSize="11"
                                     Padding="8,2"
                                     Click="OnOpenReleasePageClick"
-                                    ToolTip="{DynamicResource AboutVersionTooltip}" />
+                                    ToolTip="{DynamicResource AboutVersionTooltip}">
+                                <Button.Content>
+                                    <TextBlock>
+                                        <Run Text="{DynamicResource AboutVersionPrefix}" />
+                                        <Run Text="{Binding CurrentVersionText, Mode=OneWay}" />
+                                    </TextBlock>
+                                </Button.Content>
+                            </Button>
                             <!-- 有新版本：醒目链接（源：footer 的下载徽章） -->
                             <Button Visibility="{Binding HasAvailableUpdate, Converter={StaticResource BoolToVis}}"
                                     Click="OnOpenReleasePageClick"

@@ -117,7 +117,13 @@ public class ProxyGroupViewOptionsTests
 
         harness.ViewModel.SortNodesByLatency = true;
 
+        // 源：hideUnavailableProxyNodes 默认 false——排序模式下不可用节点垫尾可见
         ProxyGroupViewModel group = harness.ViewModel.Groups.Single();
+        Assert.Equal(new[] { "fast", "middle", "slow", "timeout", "untested" }, group.Nodes.Select(node => node.Name));
+
+        // 开启「隐藏不可用节点」才过滤（源：sortedNodes 的 guard hideUnavailable）
+        harness.ViewModel.HideUnavailableProxyNodes = true;
+        group = harness.ViewModel.Groups.Single();
         Assert.Equal(new[] { "fast", "middle", "slow" }, group.Nodes.Select(node => node.Name));
     }
 

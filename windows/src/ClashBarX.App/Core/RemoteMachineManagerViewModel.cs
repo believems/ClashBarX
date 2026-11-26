@@ -139,12 +139,16 @@ public sealed class RemoteMachineManagerViewModel : INotifyPropertyChanged
             if (SetProperty(ref _editingMachineId, value))
             {
                 Raise(nameof(EditorTitle));
+                Raise(nameof(IsEditingExisting));
             }
         }
     }
 
     /// <summary>编辑页标题（源：headerTitle——新增/编辑二态）。</summary>
     public string EditorTitle => ClashBarX.Core.L10n.CoreL10n.T(EditingMachineId is null ? "machine.editor.add_title" : "machine.editor.edit_title");
+
+    /// <summary>正在编辑既有机器（密码框显示「留空保持不变」提示）。</summary>
+    public bool IsEditingExisting => EditingMachineId is not null;
 
     public string NameText
     {

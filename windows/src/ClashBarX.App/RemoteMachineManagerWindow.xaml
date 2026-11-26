@@ -156,7 +156,12 @@
                     </StackPanel>
                 </Grid>
                 <TextBlock Text="{DynamicResource MachineFieldSecret}" FontSize="12" Margin="0,0,0,4" />
-                <PasswordBox x:Name="SecretBox" Padding="4,2" Margin="0,0,0,12" PasswordChanged="OnSecretChanged" />
+                <PasswordBox x:Name="SecretBox" Padding="4,2" Margin="0,0,0,2" PasswordChanged="OnSecretChanged" />
+                <TextBlock Text="{DynamicResource MachineSecretKeepHint}"
+                           FontSize="11"
+                           Foreground="#8A93A0"
+                           Margin="0,0,0,12"
+                           Visibility="{Binding IsEditingExisting, Converter={StaticResource BoolToVis}}" />
                 <DockPanel>
                     <CheckBox DockPanel.Dock="Right" IsChecked="{Binding UseHttps}" Content="HTTPS" FontSize="12" />
                     <TextBlock Text="{DynamicResource MachineFieldHttps}" FontSize="12" VerticalAlignment="Center" />

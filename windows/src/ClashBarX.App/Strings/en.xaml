@@ -122,4 +122,16 @@
     <sys:String x:Key="SettingsAbout">About</sys:String>
     <sys:String x:Key="MachineTooltipUnknown">Unknown</sys:String>
     <sys:String x:Key="ConnectionsCloseOne">Close connection</sys:String>
+    <sys:String x:Key="GroupsHideUnavailable">Hide unavailable</sys:String>
+    <sys:String x:Key="ProvidersNodeCount"> nodes</sys:String>
+    <sys:String x:Key="OverrideCountEntries"> entries</sys:String>
+    <sys:String x:Key="OverrideCountSets"> sets</sys:String>
+    <sys:String x:Key="OverrideApplyNow">Apply Now</sys:String>
+    <sys:String x:Key="CommonProcessing">Processing…</sys:String>
+    <sys:String x:Key="GuardCheckNow">Check Now</sys:String>
+    <sys:String x:Key="CommonChecking">Checking…</sys:String>
+    <sys:String x:Key="MaintenanceUpdateGeo">Update GEO data</sys:String>
+    <sys:String x:Key="MaintenanceUpgradeCore">Upgrade core</sys:String>
+    <sys:String x:Key="AboutVersionPrefix">Version </sys:String>
+    <sys:String x:Key="MachineSecretKeepHint">Leave empty to keep the current secret</sys:String>
 </ResourceDictionary>

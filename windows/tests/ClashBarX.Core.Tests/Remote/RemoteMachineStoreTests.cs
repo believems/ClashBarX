@@ -25,6 +25,14 @@ public class RemoteMachineStoreTests : IDisposable
         }
     }
 
+    /// <summary>挂起直到 gate 释放才返回响应（模拟慢请求）。</summary>
+    private static async Task<HttpResponseMessage> BlockThenRespondAsync(
+        TaskCompletionSource gate, string json)
+    {
+        await gate.Task;
+        return StubHttpMessageHandler.Json(json);
+    }
+
     private static RemoteMachine Machine(
         string name = "demo",
         string host = "192.168.1.10",
@@ -205,6 +213,59 @@ public class RemoteMachineStoreTests : IDisposable
 
         Assert.Equal(MachineConnectionKind.Failed, status.Kind);
         Assert.Equal("Connection refused", status.Reason);
+    }
+
+    [Fact]
+    public async Task Probe_StaleGenerationResultDoesNotOverwriteNewerState()
+    {
+        // 源：startProbe 的 generation 防竞态——旧代回包（慢请求）不得覆盖新一轮结果
+        var slowGate = new TaskCompletionSource();
+        int calls = 0;
+        var handler = new StubHttpMessageHandler(new StubHttpMessageHandler.ScriptStep(
+            Handler: (_, _) => Interlocked.Increment(ref calls) == 1
+                ? BlockThenRespondAsync(slowGate, """{"version":"stale"}""")
+                : Task.FromResult(StubHttpMessageHandler.Json("""{"version":"latest"}"""))))
+        {
+            RepeatLastStep = true,
+        };
+        using RemoteMachineStore store = CreateStore(handler);
+        RemoteMachine machine = Machine(name: "race");
+        store.AddMachine(machine);
+
+        Task<MachineConnectionStatus> first = store.RefreshConnectivityAsync(machine);
+        await Task.Delay(50);   // 让第一代先发出并挂起
+        Task<MachineConnectionStatus> second = store.RefreshConnectivityAsync(machine);   // 第二代（取消第一代）
+        MachineConnectionStatus secondStatus = await second;
+        Assert.Equal(MachineConnectionKind.Connected, secondStatus.Kind);
+        Assert.Equal("latest", secondStatus.Version);
+
+        slowGate.SetResult();   // 放行第一代：其慢响应（stale）不得覆盖第二代结果
+        MachineConnectionStatus firstStatus = await first;
+        Assert.Equal(MachineConnectionKind.Unknown, firstStatus.Kind);   // 被取消的探测按源语义回 unknown
+
+        MachineConnectionStatus stored = store.StatusOf(machine.Id);
+        Assert.Equal(MachineConnectionKind.Connected, stored.Kind);
+        Assert.Equal("latest", stored.Version);   // 旧代结果被丢弃，仍是第二代结果
+    }
+
+    [Fact]
+    public async Task Probe_RemovedMachineResultIsDiscarded()
+    {
+        // 源：机器被删除后回包丢弃（_machines.contains 守卫）
+        var gate = new TaskCompletionSource();
+        var handler = new StubHttpMessageHandler(new StubHttpMessageHandler.ScriptStep(
+            Handler: (_, _) => BlockThenRespondAsync(gate, """{"version":"late"}""")));
+        using RemoteMachineStore store = CreateStore(handler);
+        RemoteMachine machine = Machine(name: "doomed");
+        store.AddMachine(machine);
+
+        Task<MachineConnectionStatus> probe = store.RefreshConnectivityAsync(machine);
+        await Task.Delay(50);
+        store.RemoveMachine(machine.Id);   // 探测中删除
+        gate.SetResult();
+        MachineConnectionStatus status = await probe;
+
+        Assert.Equal(MachineConnectionKind.Unknown, status.Kind);   // 删除后的回包不落状态
     }
 
     [Fact]

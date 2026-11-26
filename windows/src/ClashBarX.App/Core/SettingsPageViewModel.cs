@@ -102,9 +102,9 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
 
     public IReadOnlyList<EnumOption<AppAppearanceMode>> AppearanceOptions { get; } = new[]
     {
-        new EnumOption<AppAppearanceMode>("跟随系统", AppAppearanceMode.System),
-        new EnumOption<AppAppearanceMode>("浅色", AppAppearanceMode.Light),
-        new EnumOption<AppAppearanceMode>("深色", AppAppearanceMode.Dark),
+        new EnumOption<AppAppearanceMode>(ClashBarX.Core.L10n.CoreL10n.T("settings.appearance.system"), AppAppearanceMode.System),
+        new EnumOption<AppAppearanceMode>(ClashBarX.Core.L10n.CoreL10n.T("settings.appearance.light"), AppAppearanceMode.Light),
+        new EnumOption<AppAppearanceMode>(ClashBarX.Core.L10n.CoreL10n.T("settings.appearance.dark"), AppAppearanceMode.Dark),
     };
 
     /// <summary>核心设置子模型（allow-lan/ipv6/tcp-concurrent/日志等级/端口；经 PATCH /configs）。</summary>
@@ -205,7 +205,7 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
         if (update is not null)
         {
             AvailableUpdate = update;
-            UpdateStatusText = $"有新版本 {update.DisplayVersion}";
+            UpdateStatusText = ClashBarX.Core.L10n.CoreL10n.T("update.available", update.DisplayVersion);
             UpdateCheckFailed = false;
         }
     }
@@ -299,11 +299,11 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
         {
             string message = await action();
             MaintenanceStatusText = message;
-            MaintenanceStatusLevel = message.StartsWith("失败", StringComparison.Ordinal) ? "error" : "ok";
+            MaintenanceStatusLevel = message.StartsWith(ClashBarX.Core.L10n.CoreL10n.T("maintenance.failed").Split(':')[0], StringComparison.Ordinal) ? "error" : "ok";
         }
         catch (Exception error)
         {
-            MaintenanceStatusText = $"失败：{error.Message}";
+            MaintenanceStatusText = ClashBarX.Core.L10n.CoreL10n.T("maintenance.failed", error.Message);
             MaintenanceStatusLevel = "error";
         }
         finally

@@ -63,9 +63,10 @@ public sealed class WlanSsidMonitor : IDisposable
         PublishCurrentSsid();
     }
 
-    /// <summary>停止监听（注销通知、关闭句柄）。</summary>
+    /// <summary>停止监听（注销通知、关闭句柄）。timer 摘除在锁内、Dispose 在锁外（防回调互等死锁）。</summary>
     public void Stop()
     {
+        System.Threading.Timer? staleTimer;
         lock (_gate)
         {
             if (!_registered)
@@ -74,12 +75,14 @@ public sealed class WlanSsidMonitor : IDisposable
             }
 
             _registered = false;
-            _debounceTimer?.Dispose();
+            staleTimer = _debounceTimer;
             _debounceTimer = null;
             WlanRegisterNotification(_clientHandle, 0, true, _notificationCallback, IntPtr.Zero, IntPtr.Zero, out _);
             WlanCloseHandle(_clientHandle, IntPtr.Zero);
             _clientHandle = IntPtr.Zero;
         }
+
+        staleTimer?.Dispose();
     }
 
     /// <summary>立即查询当前 SSID（trim 非空；不可读返回 null；源：currentSSID 的多接口遍历）。</summary>
@@ -155,7 +158,10 @@ public sealed class WlanSsidMonitor : IDisposable
 
     private void OnWlanNotification(ref WlanNotificationData data, IntPtr context)
     {
-        // 任何 WLAN 通知后防抖重查（连接完成瞬间状态可能未就绪）
+        // 任何 WLAN 通知后防抖重查（连接完成瞬间状态可能未就绪）。
+        // 旧 timer 在锁外 Dispose：Dispose 会等待执行中的回调，而回调（PublishCurrentSsid）
+        // 要取 _gate——锁内 Dispose 会与之互等死锁（评审 P1）。
+        System.Threading.Timer? staleTimer;
         lock (_gate)
         {
             if (!_registered)
@@ -163,13 +169,15 @@ public sealed class WlanSsidMonitor : IDisposable
                 return;
             }
 
-            _debounceTimer?.Dispose();
+            staleTimer = _debounceTimer;
             _debounceTimer = new System.Threading.Timer(
                 _ => PublishCurrentSsid(),
                 null,
                 NotificationDebounce,
                 Timeout.InfiniteTimeSpan);
         }
+
+        staleTimer?.Dispose();
     }
 
     private bool TryOpenHandle()
@@ -189,8 +197,10 @@ public sealed class WlanSsidMonitor : IDisposable
         return true;
     }
 
-    /// <summary>查单接口的当前 SSID（wlan_intf_opcode_current_connection → DOT11_SSID）。</summary>
-    private unsafe bool QueryInterfaceSsid(Guid interfaceGuid, out string? ssid)
+    /// <summary>查单接口的当前 SSID（wlan_intf_opcode_current_connection → DOT11_SSID）。
+    /// 布局由结构体定义保证（strProfileName 为 WCHAR[256] 占 512 字节——
+    /// dot11Ssid 的偏移是 4+4+512=520，评审 P0：手写偏移曾误按 256 字节计算）。</summary>
+    private bool QueryInterfaceSsid(Guid interfaceGuid, out string? ssid)
     {
         ssid = null;
         IntPtr data = IntPtr.Zero;
@@ -204,22 +214,19 @@ public sealed class WlanSsidMonitor : IDisposable
                 out int dataSize,
                 out data,
                 IntPtr.Zero);
-            if (result != 0 || dataSize < 300)
+            if (result != 0 || dataSize < Marshal.SizeOf<WlanConnectionAttributes>())
             {
                 return false;
             }
 
-            // WLAN_CONNECTION_ATTRIBUTES：isState(4) + connectionMode(4) + strProfileName[256]
-            // → dot11Ssid（uSSIDLength(4) + ucSSID[32]）
-            const int SsidLengthOffset = 264;
-            int ssidLength = Marshal.ReadInt32(data, SsidLengthOffset);
+            WlanConnectionAttributes attributes = Marshal.PtrToStructure<WlanConnectionAttributes>(data);
+            int ssidLength = attributes.Dot11Ssid.SsidLength;
             if (ssidLength <= 0 || ssidLength > 32)
             {
                 return false;
             }
 
-            byte* bytes = (byte*)(data + SsidLengthOffset + sizeof(int));
-            ssid = System.Text.Encoding.UTF8.GetString(bytes, ssidLength);
+            ssid = System.Text.Encoding.UTF8.GetString(attributes.Dot11Ssid.Ssid, 0, ssidLength);
             return !string.IsNullOrWhiteSpace(ssid);
         }
         finally
@@ -237,6 +244,30 @@ public sealed class WlanSsidMonitor : IDisposable
     }
 
     // ---- wlanapi.dll 互操作（P/Invoke 一律隔离在 App 层） ----
+
+    /// <summary>WLAN_CONNECTION_ATTRIBUTES 前缀（只声明到 dot11Ssid；尾部字段不读）。</summary>
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct WlanConnectionAttributes
+    {
+        public int IsState;
+
+        public int WlanConnectionMode;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]   // WLAN_MAX_NAME_LENGTH（WCHAR → 512 字节）
+        public string StrProfileName;
+
+        public Dot11Ssid Dot11Ssid;
+    }
+
+    /// <summary>DOT11_SSID（uSSIDLength + ucSSID[32]）。</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Dot11Ssid
+    {
+        public int SsidLength;
+
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 32)]
+        public byte[] Ssid;
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct WlanInterfaceInfoListHeader

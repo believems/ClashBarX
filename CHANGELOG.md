@@ -9,6 +9,34 @@
 
 暂无内容。
 
+## win-v1.0.0
+
+> 2026-11-26 · ClashBarX Windows 首个正式版（WPF + .NET 8，tag `win-v1.0.0`）：
+> 以 macOS 版 v1.0.0 功能面为对齐基线逐模块移植（M1–M5），Windows 范式对应物
+> （托盘 tooltip 闪现替代 banner、管理员运行替代 setuid、WLAN API 替代 CoreWLAN）。
+> v1.1.0 起双平台同 tag 发版。
+
+**✨ 新增功能**
+
+- **TUN 模式整块**：代理页快捷开关 + system/gvisor/mixed/mips stack 选择（mips 需内核 ≥ 1.19.31）、PATCH 后运行态校验、mips 门槛警告与托盘 TUN 图标态；开启需管理员权限——经 UAC 提权重启应用（意图落盘自动恢复），拒绝如实回滚；启动时开关校验、stack 对齐与降级关闭（对应 macOS validate/verify/align 三连）。
+- **远程机器管理**：机器增删改（name/host/port/secret/HTTPS）+ 独立 JSON 持久化 + 5s 周期连通探测（401/超时/拒绝归因）；主窗头部目标切换器（切前连通验证）；远程目标下订阅 / 守护 / 规则覆写 / SSID 策略与本机内核动作整体只读（「远程只读」提示条），系统代理指向远程内核端口。
+- **SSID 策略自动切配置**：WLAN API 监听 Wi-Fi 变化（P/Invoke 隔离在 App 层），绑定管理（SSID → 配置，同绑定再点即解绑）；命中自动热重载目标配置（PUT /configs），配置缺失按指纹去重告警。
+- **应用更新检查**：GitHub Releases latest API（启动自动查 + 设置页手动查），非 draft / 非 prerelease 且版本更新才提示；设置页「关于」区版本行打开发布页、有新版本时醒目链接。
+- **代理 Provider 卡片**：可折叠订阅源区——更新全部（单个失败不阻断）、每行节点数 / 相对更新时间 / 到期天数（不足 15 天警示色）/ 流量配额条（≥75% 黄、≥90% 红）、单 provider 刷新与 healthcheck。
+- **分组卡四视图**：按延迟排序（不可用节点过滤）、延迟历史信号条（5 槽右对齐、高度随延迟、颜色分好坏）、显示 hidden 分组（非 global 模式隐藏 GLOBAL）、一键测全部分组（并发）；分组行图标直载。
+- **WebUI 入口**：已配置 external-ui 时打开 `{controller}/ui`；未配置打开 metacubexd setup 引导页（带 controller 连接参数）。
+- **界面双语**：VM 动态文案 / 全部日志 / 托盘菜单 / XAML 静态文案统一接入中英字典，设置页切换即时生效。
+- 代理 / 规则 / 连接 / 日志 / 网络 / 设置六 tab 全功能（M1–M4 落地）：分组卡切换与测速、规则列表与规则覆写、连接三维度统计、mihomo 日志管线、系统代理与绕过列表、自动代理守护、订阅管理、外观与核心设置。
+
+**🚀 优化改进**
+
+- 绿色便携版 zip（自包含解压即用，数据在 `%APPDATA%\ClashBarX`）与 Inno Setup 安装器双产物；CI（GitHub Actions）双 job 单测 + `win-v` tag 触发发版流水线。
+- mihomo sidecar 启停（Job 兜底防孤儿进程）、API 状态轮询（前台 4s / 后台 12s）、WebSocket 四流重连去抖。
+
+**🐞 修复问题**
+
+- 已知限制：内核自升级在 Windows 有运行中文件锁限制（失败反馈含手动替换指引）；托盘通知以 tooltip 闪现替代 macOS banner（H.NotifyIcon 2.4.1 无气泡 API）。
+
 ## v1.0.0
 
 > 2026-11-25 · 首个正式版：以上游 Sitoi/ClashBar 为基座，整合 mh567 / kingcanfish / Gongsc / flowke

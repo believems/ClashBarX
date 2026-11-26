@@ -150,7 +150,7 @@ public sealed class ProxyBoardService
         ProxyGroup? group = board.Groups.FirstOrDefault(item => item.Name == groupName);
         if (group is null)
         {
-            throw new InvalidOperationException($"代理组不存在：{groupName}");
+            throw new InvalidOperationException($"proxy group not found: {groupName}");
         }
 
         (string url, int timeout) = ResolveHealthcheckParameters(group);
@@ -185,7 +185,7 @@ public sealed class ProxyBoardService
         ProxyGroup? group = board.Groups.FirstOrDefault(item => item.Name == groupName);
         if (group is null)
         {
-            throw new InvalidOperationException($"代理组不存在：{groupName}");
+            throw new InvalidOperationException($"proxy group not found: {groupName}");
         }
 
         (string url, int timeout) = ResolveHealthcheckParameters(group);

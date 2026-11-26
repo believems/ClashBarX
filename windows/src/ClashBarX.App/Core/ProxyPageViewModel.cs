@@ -45,6 +45,15 @@ public sealed class ProxyGroupViewModel : INotifyPropertyChanged
     /// <summary>分组图标 URL（源：proxyGroupIconURL；null 不显示）。</summary>
     public string? GroupIcon { get; }
 
+    /// <summary>展开态（面板周期重建时从旧行保留；评审 P2：4s 刷新曾收起用户展开的分组）。</summary>
+    public bool IsExpanded
+    {
+        get => _isExpanded;
+        set => SetProperty(ref _isExpanded, value);
+    }
+
+    private bool _isExpanded;
+
     public ObservableCollection<ProxyNodeViewModel> Nodes { get; }
 
     /// <summary>节点切换命令（由页面模型注入，绑定用）。</summary>
@@ -242,6 +251,24 @@ public sealed class ProxyPageViewModel : INotifyPropertyChanged
             }
         }
     }
+
+    /// <summary>
+    /// 隐藏不可用节点（源：hideUnavailableProxyNodes，@AppStorage 默认 false——
+    /// 排序模式下超时/未测节点默认垫尾可见，开启才过滤；评审 P1：曾无条件过滤）。
+    /// </summary>
+    public bool HideUnavailableProxyNodes
+    {
+        get => _hideUnavailableProxyNodes;
+        set
+        {
+            if (SetProperty(ref _hideUnavailableProxyNodes, value))
+            {
+                ReapplyBoard();
+            }
+        }
+    }
+
+    private bool _hideUnavailableProxyNodes;
 
     /// <summary>测全部分组进行中（源：isTestingAllGroupLatencies）。</summary>
     public bool IsTestingAllGroupLatencies
@@ -442,6 +469,8 @@ public sealed class ProxyPageViewModel : INotifyPropertyChanged
             return;
         }
 
+        var expandedByGroup = Groups.ToDictionary(item => item.Name, item => item.IsExpanded);
+        var testingGroups = Groups.Where(item => item.IsTesting).Select(item => item.Name).ToHashSet();
         Groups.Clear();
         foreach (ProxyGroup group in board.Groups.Where(ShouldShowGroup))
         {
@@ -461,6 +490,8 @@ public sealed class ProxyPageViewModel : INotifyPropertyChanged
             {
                 CurrentNode = group.Now ?? "—",
                 DelayText = FormatDelay(group.DelayHistory.Count > 0 ? group.DelayHistory : null),
+                IsExpanded = expandedByGroup.GetValueOrDefault(group.Name),
+                IsTesting = testingGroups.Contains(group.Name),
             };
             Groups.Add(groupViewModel);
         }
@@ -489,10 +520,16 @@ public sealed class ProxyPageViewModel : INotifyPropertyChanged
             ? samples[^1]
             : null;
 
-        return unique
-            .OrderBy(name => LatencyOf(name) ?? int.MaxValue)   // 未测垫尾（可用按延迟升序）
+        var ordered = unique
+            .OrderBy(RankOfNode)   // 未测/超时（0）垫尾，可用按延迟升序
             .ThenBy(name => name, StringComparer.Ordinal)
-            .Where(name => LatencyOf(name) is > 0);
+            .ToList();
+        return HideUnavailableProxyNodes
+            ? ordered.Where(name => LatencyOf(name) is > 0)     // 源：hideUnavailable 开启才过滤
+            : ordered;
+
+        // 超时（0）与未测同视为不可用：垫尾（源：compareLatency 的不可用垫后语义）
+        int RankOfNode(string name) => LatencyOf(name) is > 0 ? LatencyOf(name)!.Value : int.MaxValue;
     }
 
     /// <summary>信号条（源：LatencySignalBars——5 槽右对齐、未测矮桩、高度与颜色按分级）。</summary>

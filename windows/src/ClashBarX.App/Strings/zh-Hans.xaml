@@ -122,4 +122,16 @@
     <sys:String x:Key="SettingsAbout">关于</sys:String>
     <sys:String x:Key="MachineTooltipUnknown">未知</sys:String>
     <sys:String x:Key="ConnectionsCloseOne">关闭连接</sys:String>
+    <sys:String x:Key="GroupsHideUnavailable">隐藏不可用节点</sys:String>
+    <sys:String x:Key="ProvidersNodeCount"> 节点</sys:String>
+    <sys:String x:Key="OverrideCountEntries"> 条</sys:String>
+    <sys:String x:Key="OverrideCountSets"> 个</sys:String>
+    <sys:String x:Key="OverrideApplyNow">立即应用</sys:String>
+    <sys:String x:Key="CommonProcessing">执行中…</sys:String>
+    <sys:String x:Key="GuardCheckNow">立即检查</sys:String>
+    <sys:String x:Key="CommonChecking">检查中…</sys:String>
+    <sys:String x:Key="MaintenanceUpdateGeo">更新 GEO 数据</sys:String>
+    <sys:String x:Key="MaintenanceUpgradeCore">升级内核</sys:String>
+    <sys:String x:Key="AboutVersionPrefix">版本 </sys:String>
+    <sys:String x:Key="MachineSecretKeepHint">留空保持原密钥不变</sys:String>
 </ResourceDictionary>

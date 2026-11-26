@@ -274,6 +274,7 @@ public partial class App : Application
         {
             AppearanceManager.ApplyLanguage(languageChanged);
             SaveCurrentSettings();
+            RefreshPresentationState();   // 托盘 tooltip 与状态行随语言即时更新（评审 P2）
         };
 
         // 关于与更新检查（源：refreshLatestAppRelease + availableAppUpdate + footer 链接）
@@ -1233,7 +1234,8 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
 
         if (!WindowsElevationService.TryRestartAsAdministrator(out string? failureMessage))
         {
-            _settingsStore.Save(_settingsStore.Load() with { TunEnabled = saved.TunEnabled });
+            // 提权失败回滚开关与 stack 意图（评审 P1：TunStack 未回滚会静默改写偏好）
+            _settingsStore.Save(_settingsStore.Load() with { TunEnabled = saved.TunEnabled, TunStack = saved.TunStack });
             _mainWindow?.AppendLog(L("log.tun.elevation_failed", failureMessage ?? L("log.tun.unknown_error")));
             RollbackTunSelection();
             return;

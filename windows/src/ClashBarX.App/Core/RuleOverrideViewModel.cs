@@ -153,7 +153,7 @@ public sealed class RuleOverrideViewModel : INotifyPropertyChanged
     public bool HasStatus => StatusText is { Length: > 0 };
 
     /// <summary>关闭时的说明行（源：未启用 hint）。</summary>
-    public string DisabledHint => "开启后把 overrides/ 下的三份文件拼进运行时配置，原配置不会被修改";
+    public string DisabledHint => ClashBarX.Core.L10n.CoreL10n.T("override.disabled_hint");
 
     public RuleOverrideCounts Counts
     {
@@ -207,16 +207,16 @@ public sealed class RuleOverrideViewModel : INotifyPropertyChanged
     /// <summary>文件区行的展示数据。</summary>
     public (string Title, string Glyph, string CountText) FileSection(RuleOverrideFile file) => file switch
     {
-        RuleOverrideFile.Prepend => ("前置规则（插在订阅 rules 最前）", "↑", $"{Counts.Prepend} 条"),
-        RuleOverrideFile.Append => ("追加规则（插在 MATCH/FINAL 之前）", "↓", $"{Counts.Append} 条"),
-        RuleOverrideFile.RuleProviders => ("规则集（同名以覆写为准）", "≡", $"{Counts.RuleProviders} 个"),
+        RuleOverrideFile.Prepend => (ClashBarX.Core.L10n.CoreL10n.T("override.file.prepend"), "↑", ClashBarX.Core.L10n.CoreL10n.T("override.count_entries", Counts.Prepend)),
+        RuleOverrideFile.Append => (ClashBarX.Core.L10n.CoreL10n.T("override.file.append"), "↓", ClashBarX.Core.L10n.CoreL10n.T("override.count_entries", Counts.Append)),
+        RuleOverrideFile.RuleProviders => (ClashBarX.Core.L10n.CoreL10n.T("override.file.rule_providers"), "≡", ClashBarX.Core.L10n.CoreL10n.T("override.count_sets", Counts.RuleProviders)),
         _ => (string.Empty, string.Empty, string.Empty),
     };
 
     /// <summary>已应用到配置（源：markRuleOverrideApplied——含三计数日志）。</summary>
     public void MarkApplied(string configName, RuleOverrideCounts counts)
     {
-        StatusText = $"已应用到 {configName}（前置 {counts.Prepend} · 追加 {counts.Append} · 规则集 {counts.RuleProviders}）";
+        StatusText = ClashBarX.Core.L10n.CoreL10n.T("override.status.applied", configName, counts.Prepend, counts.Append, counts.RuleProviders);
         StatusLevel = "ok";
         RefreshCounts();
     }
@@ -224,21 +224,21 @@ public sealed class RuleOverrideViewModel : INotifyPropertyChanged
     /// <summary>应用失败（源：markRuleOverrideFailed）。</summary>
     public void MarkFailed(string message)
     {
-        StatusText = $"应用失败：{message}";
+        StatusText = ClashBarX.Core.L10n.CoreL10n.T("override.status.apply_failed", message);
         StatusLevel = "error";
     }
 
     /// <summary>开着但三文件无有效内容（源：empty 状态）。</summary>
     public void MarkEmpty()
     {
-        StatusText = "未配置覆写规则";
+        StatusText = ClashBarX.Core.L10n.CoreL10n.T("override.status.empty");
         StatusLevel = "info";
     }
 
     /// <summary>待下次启动或重载生效（源：pending 状态）。</summary>
     public void MarkPending()
     {
-        StatusText = "下次启动或重载配置时生效";
+        StatusText = ClashBarX.Core.L10n.CoreL10n.T("override.status.pending");
         StatusLevel = "info";
     }
 
@@ -279,13 +279,13 @@ public sealed class RuleOverrideViewModel : INotifyPropertyChanged
             _savedTexts[file] = CurrentDraft;
             RefreshCounts();
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsDirty)));
-            _log($"[override] 已保存 {file.FileName()}");
+            _log($"[override] {ClashBarX.Core.L10n.CoreL10n.T("log.override.saved", file.FileName())}");
             await _applyNow();   // 保存后触发应用（源：saveRuleOverrideDraft 的 apply 联动）
         }
         catch (Exception error)
         {
             MarkFailed(error.Message);
-            _log($"[override] 保存失败：{error.Message}");
+            _log($"[override] {ClashBarX.Core.L10n.CoreL10n.T("log.override.save_failed", error.Message)}");
         }
     }
 
@@ -315,7 +315,7 @@ public sealed class RuleOverrideViewModel : INotifyPropertyChanged
         }
         catch (Exception error)
         {
-            _log($"[override] 计数刷新失败：{error.Message}");
+            _log($"[override] {ClashBarX.Core.L10n.CoreL10n.T("log.override.count_refresh_failed", error.Message)}");
         }
 
         CountsChanged?.Invoke();
@@ -329,7 +329,7 @@ public sealed class RuleOverrideViewModel : INotifyPropertyChanged
         }
         catch (Exception error)
         {
-            _log($"[override] 读取 {file.FileName()} 失败：{error.Message}");
+            _log($"[override] {ClashBarX.Core.L10n.CoreL10n.T("log.override.read_failed", file.FileName(), error.Message)}");
             return string.Empty;
         }
     }

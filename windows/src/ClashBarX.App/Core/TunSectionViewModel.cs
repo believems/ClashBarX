@@ -128,14 +128,21 @@ public sealed class TunSectionViewModel : INotifyPropertyChanged
     /// <summary>程序化回填运行态（不触发 Toggle/StackSelected 事件；源：fetchRuntimeConfigSnapshot 同步链）。</summary>
     public void ApplySnapshot(bool enabled, string? stack)
     {
+        bool enabledChanged = _isTunEnabled != enabled;
+        string? nextStack = string.IsNullOrWhiteSpace(stack) ? _selectedStack : stack.Trim();
+        bool stackChanged = !string.Equals(_selectedStack, nextStack, StringComparison.Ordinal);
         _isTunEnabled = enabled;
-        if (!string.IsNullOrWhiteSpace(stack))
+        _selectedStack = nextStack;
+
+        if (enabledChanged)
         {
-            _selectedStack = stack.Trim();
+            Raise(nameof(IsTunEnabled));
         }
 
-        Raise(nameof(IsTunEnabled));
-        Raise(nameof(SelectedStack));
+        if (stackChanged)
+        {
+            Raise(nameof(SelectedStack));
+        }
     }
 
     /// <summary>标记同步中（PATCH 期间防重入；完成后回 false）。</summary>
