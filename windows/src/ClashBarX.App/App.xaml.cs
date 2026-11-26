@@ -55,6 +55,7 @@ public partial class App : Application
     private MainWindow? _mainWindow;
     private ProxyPageViewModel? _proxyPage;
     private ProxyBoardService? _proxyBoard;
+    private ProxyProvidersSectionViewModel? _proxyProviders;
     private TunControlService? _tunControl;
     private TunSectionViewModel? _tunSection;
     private RemoteMachineStore? _remoteStore;
@@ -610,6 +611,13 @@ public partial class App : Application
         };
         _mainWindow!.DataContext = _proxyPage;
 
+        // Provider 区（M5-5：源 proxyProvidersSection——更新全部/单刷/healthcheck）
+        _proxyProviders = new ProxyProvidersSectionViewModel();
+        _proxyProviders.UpdateAllRequested += () => _ = UpdateAllProvidersAsync();
+        _proxyProviders.UpdateProviderRequested += name => _ = UpdateProviderAsync(name);
+        _proxyProviders.HealthcheckProviderRequested += name => _ = HealthcheckProviderAsync(name);
+        _mainWindow.SetProxyProvidersSection(_proxyProviders);
+
         // traffic WS 流（M1 的 StreamCoordinator：重连去抖复用）
         _streams = new StreamCoordinator
         {
@@ -674,6 +682,7 @@ public partial class App : Application
         {
             ProxyBoard board = await _proxyBoard!.RefreshAsync();
             _proxyPage?.ApplyBoard(board);
+            _proxyProviders?.ApplyProviders(board.Providers);
             _lastProxyRefreshError = null;   // 成功即清除指纹，下次失败可再记录
         }
         catch (Exception error)
@@ -1392,6 +1401,73 @@ public partial class App : Application
 
     private static string NormalizeTunStack(string? stack) =>
         string.IsNullOrWhiteSpace(stack) ? TunControlService.DefaultStack : stack.Trim();
+
+    /// <summary>更新全部 provider（源：refreshAllProxyProviders——顶部按钮、进行中态、完成后回填）。</summary>
+    private async Task UpdateAllProvidersAsync()
+    {
+        if (_proxyProviders is null || _proxyProviders.IsRefreshingAll)
+        {
+            return;
+        }
+
+        _proxyProviders.SetRefreshingAll(true);
+        try
+        {
+            IReadOnlyList<string> updated = await _proxyBoard!.UpdateAllProvidersAsync().ConfigureAwait(true);
+            _mainWindow?.AppendLog($"[provider] 已更新全部 provider（{updated.Count} 个）");
+            ProxyBoard board = await _proxyBoard.RefreshAsync().ConfigureAwait(true);
+            _proxyProviders.ApplyProviders(board.Providers);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            _mainWindow?.AppendLog($"[provider] 更新全部失败：{error.Message}");
+        }
+        finally
+        {
+            _proxyProviders.SetRefreshingAll(false);
+        }
+    }
+
+    /// <summary>更新单个 provider（源：updateProxyProvider——行级刷新、更新中态）。</summary>
+    private async Task UpdateProviderAsync(string providerName)
+    {
+        if (_proxyProviders is null)
+        {
+            return;
+        }
+
+        _proxyProviders.SetProviderUpdating(providerName, true);
+        try
+        {
+            await _proxyBoard!.UpdateProviderAsync(providerName).ConfigureAwait(true);
+            _mainWindow?.AppendLog($"[provider] 已更新 {providerName}");
+            ProxyBoard board = await _proxyBoard.RefreshAsync().ConfigureAwait(true);
+            _proxyProviders.ApplyProviderDetail(
+                providerName, board.Providers.GetValueOrDefault(providerName));
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            _mainWindow?.AppendLog($"[provider] 更新 {providerName} 失败：{error.Message}");
+        }
+        finally
+        {
+            _proxyProviders?.SetProviderUpdating(providerName, false);
+        }
+    }
+
+    /// <summary>provider healthcheck（源：providerActionButton(.healthcheck)）。</summary>
+    private async Task HealthcheckProviderAsync(string providerName)
+    {
+        try
+        {
+            await _proxyBoard!.HealthcheckProviderAsync(providerName).ConfigureAwait(true);
+            _mainWindow?.AppendLog($"[provider] {providerName} 健康检查已提交");
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            _mainWindow?.AppendLog($"[provider] {providerName} 健康检查失败：{error.Message}");
+        }
+    }
 
     // ---- 规则页（M4-1：信息架构源 RulesTabView/RulesViewModel；源数据流 refreshProvidersAndRules） ----
 

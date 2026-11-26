@@ -111,6 +111,10 @@ public partial class MainWindow : Window
     public void SetSsidStrategySection(SsidStrategySectionViewModel viewModel) =>
         SsidStrategyRoot.DataContext = viewModel;
 
+    /// <summary>注入代理页 Provider 区模型。调用方负责 UI 线程编组。</summary>
+    public void SetProxyProvidersSection(ProxyProvidersSectionViewModel viewModel) =>
+        ProxyProvidersRoot.DataContext = viewModel;
+
     private void OnSsidBindCurrentClick(object sender, RoutedEventArgs e)
     {
         if (SsidStrategyRoot.DataContext is SsidStrategySectionViewModel viewModel)

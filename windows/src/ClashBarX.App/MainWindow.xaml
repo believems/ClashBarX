@@ -12,6 +12,9 @@
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
         <core:InverseBoolConverter x:Key="InverseBool" />
+        <core:InverseBoolToVisibilityConverter x:Key="InvertVis" />
+        <core:InverseBoolToVisibilityConverter x:Key="InverseBoolToVis" />
+        <core:StringToVisibilityConverter x:Key="StringToVis" />
     </Window.Resources>
     <DockPanel Margin="12">
         <!-- 远程机器切换器（源：MenuBarHeaderView.headerConnectionControl——状态点 + 目标下拉 + 管理） -->
@@ -145,6 +148,122 @@
                                    VerticalAlignment="Center" />
                     </DockPanel>
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                        <!-- Provider 区（M5-5：源 proxyProvidersSection——可折叠、更新全部、
+                             行：节点数/更新时间/到期（<15 天警示）/配额条/healthcheck/刷新） -->
+                        <StackPanel x:Name="ProxyProvidersRoot" Margin="2,0,2,4">
+                            <StackPanel.Resources>
+                                <Style x:Key="ProviderActionStyle" TargetType="Button">
+                                    <Setter Property="FontSize" Value="11" />
+                                    <Setter Property="Padding" Value="6,1" />
+                                    <Setter Property="Margin" Value="4,0,0,0" />
+                                </Style>
+                            </StackPanel.Resources>
+                            <DockPanel Margin="2,4,2,2">
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                    <Button x:Name="UpdateAllProvidersButton"
+                                            Content="{DynamicResource ProvidersUpdateAll}"
+                                            Style="{StaticResource ProviderActionStyle}"
+                                            Command="{Binding UpdateAllCommand}"
+                                            IsEnabled="{Binding IsRefreshingAll, Converter={StaticResource InverseBool}}" />
+                                    <ToggleButton x:Name="ProvidersCollapseToggle"
+                                                  IsChecked="{Binding IsCollapsed}"
+                                                  FontSize="11"
+                                                  Padding="6,1"
+                                                  Margin="4,0,0,0"
+                                                  Content="▲▼" />
+                                </StackPanel>
+                                <TextBlock Text="{DynamicResource ProvidersTitle}"
+                                           FontWeight="SemiBold"
+                                           FontSize="12"
+                                           VerticalAlignment="Center" />
+                            </DockPanel>
+                            <ItemsControl ItemsSource="{Binding Rows}"
+                                          Visibility="{Binding IsCollapsed, Converter={StaticResource InverseBoolToVis}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border BorderBrush="#DDD" BorderThickness="1" CornerRadius="4"
+                                                Background="#FAFAFA" Margin="0,0,0,4" Padding="8,4">
+                                            <StackPanel>
+                                                <DockPanel>
+                                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                                        <Button Content="⚡"
+                                                                Style="{StaticResource ProviderActionStyle}"
+                                                                ToolTip="{DynamicResource ProvidersHealthcheck}"
+                                                                Command="{Binding DataContext.HealthcheckProviderCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                CommandParameter="{Binding Name}" />
+                                                        <Button Content="⟳"
+                                                                Style="{StaticResource ProviderActionStyle}"
+                                                                ToolTip="{DynamicResource ProvidersRefresh}"
+                                                                Command="{Binding DataContext.UpdateProviderCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                CommandParameter="{Binding Name}"
+                                                                IsEnabled="{Binding IsUpdating, Converter={StaticResource InverseBool}}" />
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12" />
+                                                        <TextBlock Text="{Binding NodeCount, StringFormat={}{0} 节点}"
+                                                                   FontSize="11"
+                                                                   Foreground="#5E6B78"
+                                                                   Margin="8,0,0,0"
+                                                                   VerticalAlignment="Center" />
+                                                        <TextBlock Text="{Binding UpdatedText}"
+                                                                   FontSize="11"
+                                                                   Foreground="#8A93A0"
+                                                                   Margin="10,0,0,0"
+                                                                   VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </DockPanel>
+                                                <StackPanel Margin="2,4,0,0"
+                                                            Visibility="{Binding QuotaText, Converter={StaticResource StringToVis}}">
+                                                    <DockPanel>
+                                                        <TextBlock DockPanel.Dock="Right"
+                                                                   Text="{Binding QuotaText}"
+                                                                   FontSize="11"
+                                                                   Foreground="#5E6B78"
+                                                                   VerticalAlignment="Center" />
+                                                        <TextBlock Text="{Binding ExpireText}"
+                                                                   FontSize="11"
+                                                                   VerticalAlignment="Center">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Foreground" Value="#5E6B78" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding ExpiresSoon}" Value="True">
+                                                                            <Setter Property="Foreground" Value="#B45309" />
+                                                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </DockPanel>
+                                                    <!-- 用量比例条（≥90% 红 / ≥75% 黄 / 其余灰；源：usedRatio 条） -->
+                                                    <ProgressBar Height="4"
+                                                                 Margin="0,4,0,0"
+                                                                 Maximum="1"
+                                                                 Minimum="0"
+                                                                 Value="{Binding UsedRatio, TargetNullValue=0}">
+                                                        <ProgressBar.Style>
+                                                            <Style TargetType="ProgressBar">
+                                                                <Setter Property="Foreground" Value="#5E6B78" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding QuotaLevel}" Value="warn">
+                                                                        <Setter Property="Foreground" Value="#B45309" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding QuotaLevel}" Value="critical">
+                                                                        <Setter Property="Foreground" Value="#C0392B" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </ProgressBar.Style>
+                                                    </ProgressBar>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
                         <ItemsControl x:Name="ProxyGroupsList" ItemsSource="{Binding Groups}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -239,6 +358,7 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        </StackPanel>
                     </ScrollViewer>
                 </DockPanel>
             </TabItem>

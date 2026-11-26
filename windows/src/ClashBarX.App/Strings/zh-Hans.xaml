@@ -60,4 +60,9 @@
 
     <sys:String x:Key="AboutVersionTooltip">查看发布页</sys:String>
     <sys:String x:Key="AboutCheckUpdate">检查更新</sys:String>
+
+    <sys:String x:Key="ProvidersTitle">订阅源</sys:String>
+    <sys:String x:Key="ProvidersUpdateAll">更新全部</sys:String>
+    <sys:String x:Key="ProvidersHealthcheck">健康检查（测速全部节点）</sys:String>
+    <sys:String x:Key="ProvidersRefresh">更新此订阅源</sys:String>
 </ResourceDictionary>
