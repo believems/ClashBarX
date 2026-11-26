@@ -1,6 +1,7 @@
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using ClashBarX.App.Core;
 
 namespace ClashBarX.App;
 
@@ -76,6 +77,20 @@ public partial class MainWindow : Window
 
     /// <summary>当前是否停在「代理」tab（驱动代理页的刷新节奏）。</summary>
     public bool IsProxyTabSelected => MainTabs.SelectedIndex == 0;
+
+    /// <summary>当前是否停在「连接」tab（驱动连接流的全量列表处理）。</summary>
+    public bool IsConnectionsTabSelected => MainTabs.SelectedIndex == 1;
+
+    /// <summary>
+    /// 注入连接页模型并接上悬停暂停重排（源：isReorderingPaused——指针在列表上时
+    /// 已显示行保持位置，防止排序跳动导致悬停目标逃跑）。调用方负责 UI 线程编组。
+    /// </summary>
+    public void SetConnectionsPage(ConnectionsPageViewModel viewModel)
+    {
+        ConnectionsRoot.DataContext = viewModel;
+        ConnectionsList.MouseEnter += (_, _) => viewModel.IsReorderingPaused = true;
+        ConnectionsList.MouseLeave += (_, _) => viewModel.IsReorderingPaused = false;
+    }
 
     /// <summary>追加一行运行日志并滚动到底。调用方负责 UI 线程编组。</summary>
     public void AppendLog(string line)

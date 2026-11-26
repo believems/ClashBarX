@@ -128,6 +128,107 @@
                 </DockPanel>
             </TabItem>
 
+            <!-- 连接（M3-1）：实时连接列表（host/规则/链路/上下行速率）+ 关闭连接 -->
+            <TabItem Header="连接">
+                <DockPanel x:Name="ConnectionsRoot" Margin="4,8,4,4">
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
+                        <Button DockPanel.Dock="Right"
+                                Content="关闭全部"
+                                Padding="8,2"
+                                Margin="8,0,0,0"
+                                FontSize="11"
+                                Command="{Binding CloseAllConnectionsCommand}" />
+                        <TextBlock DockPanel.Dock="Right"
+                                   Text="{Binding SummaryText}"
+                                   Foreground="#5E6B78"
+                                   FontSize="11"
+                                   Margin="10,0,0,0"
+                                   VerticalAlignment="Center" />
+                        <ToggleButton DockPanel.Dock="Right"
+                                      Content="降序"
+                                      Padding="8,2"
+                                      Margin="8,0,0,0"
+                                      FontSize="11"
+                                      IsChecked="{Binding IsSortDescending}" />
+                        <ComboBox DockPanel.Dock="Right"
+                                  Width="104"
+                                  Margin="8,0,0,0"
+                                  ItemsSource="{Binding SortKeyOptions}"
+                                  DisplayMemberPath="Label"
+                                  SelectedValuePath="Value"
+                                  SelectedValue="{Binding SortKey}" />
+                        <ComboBox DockPanel.Dock="Left"
+                                  Width="76"
+                                  ItemsSource="{Binding TransportFilterOptions}"
+                                  DisplayMemberPath="Label"
+                                  SelectedValuePath="Value"
+                                  SelectedValue="{Binding TransportFilter}" />
+                        <TextBox Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}"
+                                 VerticalContentAlignment="Center"
+                                 Padding="6,2"
+                                 Margin="8,0,8,0" />
+                    </DockPanel>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="ConnectionsList" ItemsSource="{Binding Connections}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Padding="4,5" BorderBrush="#EAEAEA" BorderThickness="0,0,0,1">
+                                        <DockPanel>
+                                            <Button DockPanel.Dock="Right"
+                                                    Content="✕"
+                                                    Padding="5,0"
+                                                    Margin="8,0,0,0"
+                                                    FontSize="11"
+                                                    ToolTip="关闭连接"
+                                                    Command="{Binding CloseConnectionCommand}"
+                                                    CommandParameter="{Binding}" />
+                                            <StackPanel>
+                                                <!-- 行1：host + 规则 -->
+                                                <DockPanel>
+                                                    <TextBlock DockPanel.Dock="Right"
+                                                               Text="{Binding Rule}"
+                                                               Foreground="#5E6B78"
+                                                               FontSize="11"
+                                                               Margin="10,0,0,0"
+                                                               VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding Host}"
+                                                               FontWeight="SemiBold"
+                                                               FontSize="12"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </DockPanel>
+                                                <!-- 行2：时间 / 网络 / ↑速率 / ↓速率 / ↑累计 / ↓累计 -->
+                                                <Grid Margin="0,2,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition />
+                                                        <ColumnDefinition />
+                                                        <ColumnDefinition />
+                                                        <ColumnDefinition />
+                                                        <ColumnDefinition />
+                                                        <ColumnDefinition />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="{Binding Started}" Foreground="#5E6B78" FontSize="11" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Network}" Foreground="#5E6B78" FontSize="11" Margin="10,0,0,0" />
+                                                    <TextBlock Grid.Column="2" Text="{Binding UploadRate}" FontSize="11" Foreground="#0B6BCB" Margin="10,0,0,0" />
+                                                    <TextBlock Grid.Column="3" Text="{Binding DownloadRate}" FontSize="11" Foreground="#1B7F3B" Margin="10,0,0,0" />
+                                                    <TextBlock Grid.Column="4" Text="{Binding Upload}" FontSize="11" Foreground="#8A93A0" Margin="10,0,0,0" TextAlignment="Right" />
+                                                    <TextBlock Grid.Column="5" Text="{Binding Download}" FontSize="11" Foreground="#8A93A0" Margin="10,0,0,0" TextAlignment="Right" />
+                                                </Grid>
+                                                <!-- 行3：链路 -->
+                                                <TextBlock Text="{Binding Chain}"
+                                                           Foreground="#8A93A0"
+                                                           FontSize="10"
+                                                           Margin="0,2,0,0"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </TabItem>
+
             <!-- 订阅（M2-3）：URL 导入 + 配置列表切换/删除 -->
             <TabItem Header="订阅">
                 <DockPanel Margin="4,8,4,4">

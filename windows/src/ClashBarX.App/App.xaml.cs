@@ -1,7 +1,9 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Windows;
 using ClashBarX.App.Core;
+using ClashBarX.Core.Connections;
 using ClashBarX.Core.Json;
 using ClashBarX.Core.Mihomo;
 using ClashBarX.Core.Models;
@@ -41,6 +43,9 @@ public partial class App : Application
     private MainWindow? _mainWindow;
     private ProxyPageViewModel? _proxyPage;
     private ProxyBoardService? _proxyBoard;
+    private ConnectionsPageViewModel? _connectionsPage;
+    private ConnectionStatisticsService? _connectionStatistics;
+    private bool _connectionsProcessMatchingEnabled;
     private StreamCoordinator? _streams;
     private System.Threading.Timer? _proxyRefreshTimer;
     private string? _lastProxyRefreshError;
@@ -76,6 +81,7 @@ public partial class App : Application
         StartApiPolling();
         SetupSystemProxy();
         SetupProxyPage();
+        SetupConnectionsPage();
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -302,6 +308,70 @@ public partial class App : Application
             }
         }
     }
+
+    // ---- 连接页（M3-1：信息架构源 ConnectionsTabView/ConnectionsViewModel） ----
+
+    private void SetupConnectionsPage()
+    {
+        _connectionStatistics = new ConnectionStatisticsService();
+        _connectionsPage = new ConnectionsPageViewModel(
+            CloseConnectionAsync,
+            CloseAllConnectionsAsync,
+            message => Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog(message)));
+        _mainWindow!.SetConnectionsPage(_connectionsPage);
+        StartConnectionsStream();
+    }
+
+    private void StartConnectionsStream()
+    {
+        _connectionsProcessMatchingEnabled = false;
+        _streams!.Start(
+            "connections",
+            () => _apiClient!.CreateWebSocketConnection(MihomoEndpoint.Connections(intervalMilliseconds: 1000)),
+            async payload =>
+            {
+                try
+                {
+                    // 首帧确认 controller 就绪后开启进程识别（应用维度统计前提；源：enableTrafficStatisticsProcessMatching）
+                    if (!_connectionsProcessMatchingEnabled)
+                    {
+                        _connectionsProcessMatchingEnabled = true;
+                        try
+                        {
+                            await _apiClient!.RequestNoResponseAsync(MihomoEndpoint.PatchConfigs(
+                                new JsonObject { ["find-process-mode"] = "always" }));
+                        }
+                        catch (Exception error) when (error is not OperationCanceledException)
+                        {
+                            Dispatcher.BeginInvoke(() =>
+                                _mainWindow?.AppendLog($"[connections] 开启进程识别失败：{error.Message}"));
+                        }
+                    }
+
+                    // 可见性感知：仅连接 tab 可见时输出全量列表（源：applyConnectionsUpdate 的 tab 判定）
+                    bool connectionsVisible = _mainWindow is { IsVisible: true, IsConnectionsTabSelected: true };
+                    ConnectionStatisticsUpdate update = _connectionStatistics!.Process(
+                        payload,
+                        includeConnections: connectionsVisible);
+                    await Dispatcher.BeginInvoke(() => _connectionsPage?.IngestSnapshot(update));
+                }
+                catch (JsonException)
+                {
+                    // 噪声/半包 payload 丢弃（normalize 已滤常见噪声）
+                }
+                catch (Exception error)
+                {
+                    // 解码侧意外异常编组到 UI 线程记录，避免在线程池直调 UI 控件后循环触发重连
+                    Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog($"[connections] 处理失败：{error.Message}"));
+                }
+            });
+    }
+
+    private Task CloseConnectionAsync(string connectionId) =>
+        _apiClient!.RequestNoResponseAsync(MihomoEndpoint.CloseConnection(connectionId));
+
+    private Task CloseAllConnectionsAsync() =>
+        _apiClient!.RequestNoResponseAsync(MihomoEndpoint.CloseAllConnections());
 
     // ---- 订阅管理（M2-3） ----
 
