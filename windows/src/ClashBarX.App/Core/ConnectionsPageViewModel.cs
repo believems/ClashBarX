@@ -452,11 +452,13 @@ public sealed class ConnectionsPageViewModel : INotifyPropertyChanged
         return string.IsNullOrWhiteSpace(host) ? "-" : host;
     }
 
-    /// <summary>规则文本：MATCH/FINAL 显示 "--"，payload 优先（源：ConnectionsTabView 的规则解析）。</summary>
+    /// <summary>规则文本：MATCH/FINAL 显示 "--"（不区分大小写，mihomo 实测上报 "Match"），payload 优先。</summary>
     internal static string RuleText(ConnectionSummary connection)
     {
         string? rule = connection.Rule?.Trim();
-        if (string.IsNullOrEmpty(rule) || rule is "MATCH" or "FINAL")
+        if (string.IsNullOrEmpty(rule)
+            || rule.Equals("MATCH", StringComparison.OrdinalIgnoreCase)
+            || rule.Equals("FINAL", StringComparison.OrdinalIgnoreCase))
         {
             return "--";
         }

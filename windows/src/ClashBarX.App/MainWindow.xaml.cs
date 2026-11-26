@@ -30,7 +30,11 @@ public partial class MainWindow : Window
         InitializeComponent();
         SystemProxyToggle.Checked += (_, _) => RaiseToggled(true);
         SystemProxyToggle.Unchecked += (_, _) => RaiseToggled(false);
+        MainTabs.SelectionChanged += (_, _) => TabSelectionChanged?.Invoke(this, EventArgs.Empty);
     }
+
+    /// <summary>主 tab 选择变化（App 层在 UI 线程上缓存各页可见性，供后台流线程读取）。</summary>
+    public event EventHandler? TabSelectionChanged;
 
     public void SetCoreStatus(string status) => CoreStatusText.Text = status;
 

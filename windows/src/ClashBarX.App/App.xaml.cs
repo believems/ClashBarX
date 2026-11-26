@@ -49,6 +49,9 @@ public partial class App : Application
     private ConnectionsPageViewModel? _connectionsPage;
     private ConnectionStatisticsService? _connectionStatistics;
     private bool _connectionsProcessMatchingEnabled;
+
+    /// <summary>连接页 UI 可见性快照（UI 线程维护，供 WS 后台线程读取——直接读 WPF 属性会跨线程异常）。</summary>
+    private volatile bool _connectionsUiVisible;
     private LogsPageViewModel? _logsPage;
     private DispatcherTimer? _mihomoLogFlushTimer;
     private ProxyGuardService? _proxyGuard;
@@ -339,8 +342,17 @@ public partial class App : Application
             CloseAllConnectionsAsync,
             message => Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog(message)));
         _mainWindow!.SetConnectionsPage(_connectionsPage);
+
+        // UI 可见性在 UI 线程上缓存成快照（WS 回调线程直接读 WPF 属性会抛跨线程异常）
+        _mainWindow.TabSelectionChanged += (_, _) => RefreshConnectionsVisibility();
+        _mainWindow.IsVisibleChanged += (_, _) => RefreshConnectionsVisibility();
+        RefreshConnectionsVisibility();
         StartConnectionsStream();
     }
+
+    /// <summary>连接页可见性快照（仅 UI 线程调用：tab 选中 + 窗口可见）。</summary>
+    private void RefreshConnectionsVisibility() =>
+        _connectionsUiVisible = _mainWindow is { IsVisible: true, IsConnectionsTabSelected: true };
 
     private void StartConnectionsStream()
     {
@@ -368,12 +380,11 @@ public partial class App : Application
                         }
                     }
 
-                    // 可见性感知：列表仅在连接 tab 可见且非统计视图时输出；统计视图喂当前维度
-                    //（源：applyConnectionsUpdate 的 includeConnections/statisticsDimension 口径）
-                    bool connectionsVisible = _mainWindow is { IsVisible: true, IsConnectionsTabSelected: true }
-                        && _connectionsPage?.ShowsList != false;
-                    bool statisticsVisible = _mainWindow is { IsVisible: true, IsConnectionsTabSelected: true }
-                        && _connectionsPage?.ShowsStatistics == true;
+                    // 可见性感知：列表仅在连接页可见且非统计视图时输出；统计视图喂当前维度
+                    //（源：applyConnectionsUpdate 的 includeConnections/statisticsDimension 口径）。
+                    // 窗口/tab 可见性用 UI 线程维护的快照（volatile bool），VM 属性为普通 CLR 属性可跨线程读
+                    bool statisticsVisible = _connectionsUiVisible && _connectionsPage?.ShowsStatistics == true;
+                    bool connectionsVisible = _connectionsUiVisible && _connectionsPage?.ShowsList != false;
                     ConnectionStatisticsUpdate update = _connectionStatistics!.Process(
                         payload,
                         includeConnections: connectionsVisible,

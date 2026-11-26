@@ -263,6 +263,7 @@ public class ConnectionsPageViewModelTests
     {
         Assert.Equal("--", ConnectionsPageViewModel.RuleText(Connection("c", 0, 0, rule: "MATCH")));
         Assert.Equal("--", ConnectionsPageViewModel.RuleText(Connection("c", 0, 0, rule: "FINAL")));
+        Assert.Equal("--", ConnectionsPageViewModel.RuleText(Connection("c", 0, 0, rule: "Match")));   // mihomo 实测首字母大写
         Assert.Equal("GEOIP", ConnectionsPageViewModel.RuleText(Connection("c", 0, 0, rule: "GEOIP")));
         Assert.Equal("-", ConnectionsPageViewModel.ChainText(Connection("c", 0, 0, chains: null)));
 
