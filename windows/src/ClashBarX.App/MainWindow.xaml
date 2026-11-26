@@ -38,6 +38,13 @@
                         Margin="6,0,0,0"
                         VerticalAlignment="Center"
                         Click="OnManageMachinesClick" />
+                <!-- WebUI 入口（源：headerControllerWebUIButton——打开 external-ui；未配置时 metacubexd 引导） -->
+                <Button Content="{DynamicResource WebUIOpen}"
+                        FontSize="11"
+                        Padding="8,2"
+                        Margin="6,0,0,0"
+                        VerticalAlignment="Center"
+                        Click="OnOpenWebUIClick" />
             </StackPanel>
             <StackPanel Orientation="Horizontal">
                 <TextBlock x:Name="CoreStatusText"

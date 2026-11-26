@@ -23,6 +23,7 @@ using ClashBarX.Core.Subscriptions;
 using ClashBarX.Core.SystemProxy;
 using ClashBarX.Core.Tun;
 using ClashBarX.Core.Updates;
+using ClashBarX.Core.WebUI;
 
 namespace ClashBarX.App;
 
@@ -66,6 +67,9 @@ public partial class App : Application
     /// <summary>SSID 策略日志指纹去重（源：ssidStrategyLastLogFingerprint）。</summary>
     private string? _ssidStrategyLastLogFingerprint;
     private AppReleaseService? _releaseService;
+    /// <summary>WebUI 入口地址（源：controllerUIURL——随配置快照与切换目标刷新）。</summary>
+    private string _controllerUiUrl = ControllerWebUiUrl.Build(
+        DefaultController, null, externalUiConfigured: false, externalUiName: null);
     private ConnectionsPageViewModel? _connectionsPage;
     private ConnectionStatisticsService? _connectionStatistics;
     private bool _connectionsProcessMatchingEnabled;
@@ -144,6 +148,7 @@ public partial class App : Application
         _mainWindow.CopyProxyCommandRequested += OnCopyProxyCommandRequested;
         _mainWindow.MachineTargetSwitchRequested += machineId => _ = SwitchMachineTargetAsync(machineId);
         _mainWindow.ManageMachinesRequested += OpenRemoteMachineManager;
+        _mainWindow.OpenWebUIRequested += OpenControllerWebUI;
 
         _tray = new TrayIconService();
         _tray.ShowMainWindowRequested += ShowMainWindow;
@@ -357,6 +362,7 @@ public partial class App : Application
                 _logsPage?.SyncLogLevel(snapshot.LogLevel ?? "info");
                 _tunSection?.ApplySnapshot(snapshot.TunEnabled ?? false, snapshot.Tun?.Stack);   // 运行态显示同步（源：AppViewModel+Polling 的 tunStack 同步）
                 _ = RestoreTunAtStartupAsync();   // API 就绪后的 TUN 恢复链路（源：validate/verify/align 三连）
+                ApplyControllerUiUrl(snapshot);   // WebUI 入口随配置刷新（源：applyExternalUIConfiguration + controllerUIURL）
             });
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -881,6 +887,31 @@ public partial class App : Application
             Dispatcher.BeginInvoke(RefreshMachineSelector);
         };
         window.ShowDialog();
+    }
+
+    /// <summary>
+    /// 打开控制器 WebUI（源：openControllerWebUI）：已配置 external-ui 时指向 {controller}/ui，
+    /// 否则打开 metacubexd setup 引导页（带 controller 连接参数——「未配置的引导」对应物）。
+    /// </summary>
+    private void OpenControllerWebUI()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(_controllerUiUrl) { UseShellExecute = true });
+        }
+        catch (Exception error)
+        {
+            _mainWindow?.AppendLog($"[webui] 打开 WebUI 失败：{error.Message}");
+        }
+    }
+
+    /// <summary>external-ui 判定与入口地址刷新（源：applyExternalUIConfiguration + makeControllerUIURL）。</summary>
+    private void ApplyControllerUiUrl(ConfigSnapshot snapshot)
+    {
+        (string controller, string? secret) = ResolveActiveController();
+        bool configured = !string.IsNullOrWhiteSpace(snapshot.ExternalUiUrl);
+        _controllerUiUrl = ControllerWebUiUrl.Build(
+            controller, secret, configured, snapshot.ExternalUiName);
     }
 
     // ---- 应用更新（M5-4：源 AppViewModel+Maintenance.swift 的 currentAppVersionText/

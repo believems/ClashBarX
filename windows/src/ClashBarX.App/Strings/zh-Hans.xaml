@@ -70,4 +70,6 @@
     <sys:String x:Key="GroupsSortByLatency">延迟排序</sys:String>
     <sys:String x:Key="GroupsLatencyHistory">延迟历史</sys:String>
     <sys:String x:Key="GroupsShowHidden">显示隐藏分组</sys:String>
+
+    <sys:String x:Key="WebUIOpen">WebUI</sys:String>
 </ResourceDictionary>

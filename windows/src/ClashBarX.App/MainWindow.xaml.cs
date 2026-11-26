@@ -42,6 +42,11 @@ public partial class MainWindow : Window
     /// <summary>用户请求打开远程机器管理窗。</summary>
     public event Action? ManageMachinesRequested;
 
+    /// <summary>用户请求打开控制器 WebUI（源：openControllerWebUI）。</summary>
+    public event Action? OpenWebUIRequested;
+
+    private void OnOpenWebUIClick(object sender, RoutedEventArgs e) => OpenWebUIRequested?.Invoke();
+
     public MainWindow()
     {
         InitializeComponent();
