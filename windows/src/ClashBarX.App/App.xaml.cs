@@ -618,6 +618,9 @@ public partial class App : Application
         _proxyProviders.HealthcheckProviderRequested += name => _ = HealthcheckProviderAsync(name);
         _mainWindow.SetProxyProvidersSection(_proxyProviders);
 
+        // 一键测全部分组（M5-6：源 refreshAllGroupLatencies——hidden 视开关、并发组测速）
+        _proxyPage.TestAllGroupsRequested += () => _ = TestAllGroupsAsync();
+
         // traffic WS 流（M1 的 StreamCoordinator：重连去抖复用）
         _streams = new StreamCoordinator
         {
@@ -1401,6 +1404,45 @@ public partial class App : Application
 
     private static string NormalizeTunStack(string? stack) =>
         string.IsNullOrWhiteSpace(stack) ? TunControlService.DefaultStack : stack.Trim();
+
+    /// <summary>
+    /// 测全部分组（源：refreshAllGroupLatencies——UI 已按 hidden/模式过滤后的分组集，
+    /// 并发组测速；进行中态在 VM 上驱动按钮禁用）。
+    /// </summary>
+    private async Task TestAllGroupsAsync()
+    {
+        if (_proxyPage is null)
+        {
+            return;
+        }
+
+        _proxyPage.IsTestingAllGroupLatencies = true;
+        try
+        {
+            List<ProxyGroupViewModel> groups = _proxyPage.Groups.ToList();
+            await Task.WhenAll(groups.Select(group => TestGroupAndApplyAsync(group.Name))).ConfigureAwait(true);
+            _mainWindow?.AppendLog($"[proxy] 全部分组测速完成（{groups.Count} 组）");
+        }
+        finally
+        {
+            _proxyPage.IsTestingAllGroupLatencies = false;
+        }
+    }
+
+    private async Task TestGroupAndApplyAsync(string groupName)
+    {
+        try
+        {
+            IReadOnlyDictionary<string, int> results = await _proxyBoard!
+                .TestGroupAsync(groupName)
+                .ConfigureAwait(true);
+            _proxyPage?.ApplyGroupTestResults(groupName, results);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            _mainWindow?.AppendLog($"[proxy] {groupName} 测速失败：{error.Message}");
+        }
+    }
 
     /// <summary>更新全部 provider（源：refreshAllProxyProviders——顶部按钮、进行中态、完成后回填）。</summary>
     private async Task UpdateAllProvidersAsync()

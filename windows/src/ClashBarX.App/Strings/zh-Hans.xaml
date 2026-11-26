@@ -65,4 +65,9 @@
     <sys:String x:Key="ProvidersUpdateAll">更新全部</sys:String>
     <sys:String x:Key="ProvidersHealthcheck">健康检查（测速全部节点）</sys:String>
     <sys:String x:Key="ProvidersRefresh">更新此订阅源</sys:String>
+
+    <sys:String x:Key="GroupsTestAllTooltip">测全部可见分组的延迟</sys:String>
+    <sys:String x:Key="GroupsSortByLatency">延迟排序</sys:String>
+    <sys:String x:Key="GroupsLatencyHistory">延迟历史</sys:String>
+    <sys:String x:Key="GroupsShowHidden">显示隐藏分组</sys:String>
 </ResourceDictionary>

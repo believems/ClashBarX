@@ -264,6 +264,34 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                         </StackPanel>
+                        <!-- 分组卡视图开关（源：compactTopIcon 开关组——延迟排序/历史信号条/hidden 分组/测全部） -->
+                        <DockPanel Margin="2,4,2,2">
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <Button x:Name="TestAllGroupsButton"
+                                        Content="⚡ 全部测速"
+                                        FontSize="11"
+                                        Padding="8,1"
+                                        Command="{Binding TestAllGroupsCommand}"
+                                        IsEnabled="{Binding IsTestingAllGroupLatencies, Converter={StaticResource InverseBool}}"
+                                        ToolTip="{DynamicResource GroupsTestAllTooltip}" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <ToggleButton IsChecked="{Binding SortNodesByLatency}"
+                                              FontSize="11"
+                                              Padding="6,1"
+                                              Margin="0,0,6,0"
+                                              Content="{DynamicResource GroupsSortByLatency}" />
+                                <ToggleButton IsChecked="{Binding ShowLatencyHistory}"
+                                              FontSize="11"
+                                              Padding="6,1"
+                                              Margin="0,0,6,0"
+                                              Content="{DynamicResource GroupsLatencyHistory}" />
+                                <ToggleButton IsChecked="{Binding ShowHiddenProxyGroups}"
+                                              FontSize="11"
+                                              Padding="6,1"
+                                              Content="{DynamicResource GroupsShowHidden}" />
+                            </StackPanel>
+                        </DockPanel>
                         <ItemsControl x:Name="ProxyGroupsList" ItemsSource="{Binding Groups}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -298,9 +326,15 @@
                                                 <TextBlock Text="{Binding Name}"
                                                            FontWeight="SemiBold"
                                                            VerticalAlignment="Center" />
+                                                <!-- 分组图标（源：proxyGroupLeadingIcon——URL 直载，加载失败静默） -->
+                                                <Image Source="{Binding GroupIcon}"
+                                                       Width="16" Height="16"
+                                                       Margin="6,0,0,0"
+                                                       VerticalAlignment="Center"
+                                                       Stretch="Uniform" />
                                             </DockPanel>
                                         </Expander.Header>
-                                        <!-- 节点行：类型徽章 + 名称 + 延迟 + 单节点测速 -->
+                                        <!-- 节点行：类型徽章 + 名称 + 信号条 + 延迟 + 单节点测速 -->
                                         <ItemsControl ItemsSource="{Binding Nodes}" Margin="6,2">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
@@ -313,6 +347,28 @@
                                                                 ToolTip="测速"
                                                                 Command="{Binding DataContext.TestNodeCommand, RelativeSource={RelativeSource AncestorType=Expander}}"
                                                                 CommandParameter="{Binding}" />
+                                                        <!-- 延迟历史信号条（源：LatencySignalBars——5 槽右对齐、高度随延迟、颜色分好坏） -->
+                                                        <ItemsControl DockPanel.Dock="Right"
+                                                                      ItemsSource="{Binding SignalBars}"
+                                                                      Visibility="{Binding HasSignalBars, Converter={StaticResource BoolToVis}}"
+                                                                      Margin="8,0,0,0"
+                                                                      VerticalAlignment="Center">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <StackPanel Orientation="Horizontal" />
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <Rectangle Width="2"
+                                                                               Height="{Binding Height}"
+                                                                               RadiusX="0.75"
+                                                                               RadiusY="0.75"
+                                                                               Margin="0,0,1.5,0"
+                                                                               Fill="{Binding ColorHex}" />
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
                                                         <TextBlock DockPanel.Dock="Right"
                                                                    Text="{Binding DelayText}"
                                                                    Foreground="#5E6B78"

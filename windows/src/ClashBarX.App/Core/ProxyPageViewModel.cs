@@ -7,6 +7,12 @@ using ClashBarX.Core.Proxies;
 
 namespace ClashBarX.App.Core;
 
+/// <summary>
+/// 延迟历史信号条单根（源：LatencySignalBars——高度由延迟数值决定、颜色表达好坏、
+/// 未测槽位为矮桩）。
+/// </summary>
+public sealed record SignalBarViewModel(double Height, string ColorHex);
+
 /// <summary>代理页的分组视图单元：头（名/当前/延迟）+ 节点行集合。命令由页面模型注入。</summary>
 public sealed class ProxyGroupViewModel : INotifyPropertyChanged
 {
@@ -20,7 +26,8 @@ public sealed class ProxyGroupViewModel : INotifyPropertyChanged
         IEnumerable<ProxyNodeViewModel> nodes,
         ICommand? switchNodeCommand = null,
         ICommand? testNodeCommand = null,
-        ICommand? testGroupCommand = null)
+        ICommand? testGroupCommand = null,
+        string? groupIcon = null)
     {
         Name = name;
         GroupType = groupType;
@@ -28,11 +35,15 @@ public sealed class ProxyGroupViewModel : INotifyPropertyChanged
         SwitchNodeCommand = switchNodeCommand;
         TestNodeCommand = testNodeCommand;
         TestGroupCommand = testGroupCommand;
+        GroupIcon = groupIcon;
     }
 
     public string Name { get; }
 
     public string GroupType { get; }
+
+    /// <summary>分组图标 URL（源：proxyGroupIconURL；null 不显示）。</summary>
+    public string? GroupIcon { get; }
 
     public ObservableCollection<ProxyNodeViewModel> Nodes { get; }
 
@@ -66,22 +77,24 @@ public sealed class ProxyGroupViewModel : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private void SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    private bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value))
         {
-            return;
+            return false;
         }
 
         field = value;
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        return true;
     }
 }
 
-/// <summary>节点行：名称/类型/延迟/选中态与命令由页面模型注入。</summary>
+/// <summary>节点行：名称/类型/延迟/信号条/选中态与命令由页面模型注入。</summary>
 public sealed class ProxyNodeViewModel : INotifyPropertyChanged
 {
     private string _delayText = string.Empty;
+    private IReadOnlyList<SignalBarViewModel> _signalBars = Array.Empty<SignalBarViewModel>();
     private bool _isSelected;
     private bool _isTesting;
 
@@ -101,6 +114,22 @@ public sealed class ProxyNodeViewModel : INotifyPropertyChanged
         set => SetProperty(ref _delayText, value);
     }
 
+    /// <summary>延迟历史信号条（开启历史视图时 5 槽右对齐；否则仅最新一根）。</summary>
+    public IReadOnlyList<SignalBarViewModel> SignalBars
+    {
+        get => _signalBars;
+        set
+        {
+            if (SetProperty(ref _signalBars, value))
+            {
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasSignalBars)));
+            }
+        }
+    }
+
+    /// <summary>是否显示信号条区（有样本时）。</summary>
+    public bool HasSignalBars => SignalBars.Count > 0;
+
     /// <summary>是否为分组当前选中节点（高亮）。</summary>
     public bool IsSelected
     {
@@ -116,15 +145,16 @@ public sealed class ProxyNodeViewModel : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private void SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    private bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value))
         {
-            return;
+            return false;
         }
 
         field = value;
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        return true;
     }
 }
 
@@ -162,6 +192,65 @@ public sealed class ProxyPageViewModel : INotifyPropertyChanged
     private string _trafficSummary = string.Empty;
     private bool _showTrafficOverview = true;
     private string _mode = "rule";
+    private ProxyBoard? _lastBoard;
+
+    // ---- 分组卡四视图（源：ProxyGroupsViewModel + compactTopIcon 开关组；会话态不持久化） ----
+
+    private bool _sortNodesByLatency;
+    private bool _showLatencyHistory;
+    private bool _showHiddenProxyGroups;
+    private bool _isTestingAllGroupLatencies;
+
+    /// <summary>用户请求测全部分组（App 层并发测速；源：refreshAllGroupLatencies）。</summary>
+    public event Action? TestAllGroupsRequested;
+
+    /// <summary>按延迟排序节点（排序时过滤不可用节点；源：sortGroupNodesByLatency + sortedNodes）。</summary>
+    public bool SortNodesByLatency
+    {
+        get => _sortNodesByLatency;
+        set
+        {
+            if (SetProperty(ref _sortNodesByLatency, value))
+            {
+                ReapplyBoard();
+            }
+        }
+    }
+
+    /// <summary>延迟历史信号条（源：showLatencyHistory）。</summary>
+    public bool ShowLatencyHistory
+    {
+        get => _showLatencyHistory;
+        set
+        {
+            if (SetProperty(ref _showLatencyHistory, value))
+            {
+                ReapplyBoard();
+            }
+        }
+    }
+
+    /// <summary>显示 hidden 分组（源：hideHiddenProxyGroups 取反；默认隐藏）。</summary>
+    public bool ShowHiddenProxyGroups
+    {
+        get => _showHiddenProxyGroups;
+        set
+        {
+            if (SetProperty(ref _showHiddenProxyGroups, value))
+            {
+                ReapplyBoard();
+            }
+        }
+    }
+
+    /// <summary>测全部分组进行中（源：isTestingAllGroupLatencies）。</summary>
+    public bool IsTestingAllGroupLatencies
+    {
+        get => _isTestingAllGroupLatencies;
+        set => SetProperty(ref _isTestingAllGroupLatencies, value);
+    }
+
+    public ICommand TestAllGroupsCommand { get; }
 
     public ProxyPageViewModel(
         ProxyBoardService board,
@@ -175,6 +264,15 @@ public sealed class ProxyPageViewModel : INotifyPropertyChanged
         SwitchNodeCommand = new RelayCommand(parameter => ExecuteForNodeAsync(parameter, SwitchNodeCoreAsync));
         TestNodeCommand = new RelayCommand(parameter => ExecuteForNodeAsync(parameter, TestNodeCoreAsync));
         TestGroupCommand = new RelayCommand(parameter => ExecuteForGroupAsync(parameter, TestGroupCoreAsync));
+        TestAllGroupsCommand = new RelayCommand(_ =>
+        {
+            if (!IsTestingAllGroupLatencies)
+            {
+                TestAllGroupsRequested?.Invoke();
+            }
+
+            return Task.CompletedTask;
+        });
     }
 
     public ObservableCollection<ProxyGroupViewModel> Groups { get; }
@@ -325,28 +423,109 @@ public sealed class ProxyPageViewModel : INotifyPropertyChanged
         _ => $"{bytes}B",
     };
 
-    /// <summary>刷新分组卡（Core 已按 GLOBAL 序排序）。</summary>
+    /// <summary>
+    /// 刷新分组卡：hidden 分组与 GLOBAL（按模式）过滤（源：filteredProxyGroups）、
+    /// 节点排序（按延迟升序、不可用垫尾并过滤；源：sortedNodes）、信号条装配。
+    /// </summary>
     public void ApplyBoard(ProxyBoard board)
     {
-        Groups.Clear();
-        foreach (ProxyGroup group in board.Groups)
+        _lastBoard = board;
+        ReapplyBoard();
+    }
+
+    /// <summary>以最近一次面板数据按当前视图开关重排（开关切换即时生效）。</summary>
+    private void ReapplyBoard()
+    {
+        ProxyBoard? board = _lastBoard;
+        if (board is null)
         {
-            var nodes = group.All.Select(nodeName => new ProxyNodeViewModel(
-                nodeName,
-                board.NodeTypes.GetValueOrDefault(nodeName) ?? string.Empty)
-            {
-                DelayText = FormatDelay(board.DelaySamples.GetValueOrDefault(nodeName)),
-                IsSelected = nodeName == group.Now,
-            });
+            return;
+        }
+
+        Groups.Clear();
+        foreach (ProxyGroup group in board.Groups.Where(ShouldShowGroup))
+        {
+            var nodes = OrderGroupNodes(group, board.DelaySamples)
+                .Select(nodeName => new ProxyNodeViewModel(
+                    nodeName,
+                    board.NodeTypes.GetValueOrDefault(nodeName) ?? string.Empty)
+                {
+                    DelayText = FormatDelay(board.DelaySamples.GetValueOrDefault(nodeName)),
+                    SignalBars = ComputeSignalBars(board.DelaySamples.GetValueOrDefault(nodeName)),
+                    IsSelected = nodeName == group.Now,
+                });
             var groupViewModel = new ProxyGroupViewModel(
                 group.Name, group.Type ?? string.Empty, nodes,
-                SwitchNodeCommand, TestNodeCommand, TestGroupCommand)
+                SwitchNodeCommand, TestNodeCommand, TestGroupCommand,
+                group.Icon)
             {
                 CurrentNode = group.Now ?? "—",
                 DelayText = FormatDelay(group.DelayHistory.Count > 0 ? group.DelayHistory : null),
             };
             Groups.Add(groupViewModel);
         }
+    }
+
+    /// <summary>分组可见性（源：updateFilteredProxyGroups——非 global 模式滤 GLOBAL；默认滤 hidden）。</summary>
+    internal bool ShouldShowGroup(ProxyGroup group) =>
+        (Mode == "global" || !string.Equals(group.Name, "GLOBAL", StringComparison.OrdinalIgnoreCase))
+        && (ShowHiddenProxyGroups || group.Hidden != true);
+
+    /// <summary>
+    /// 节点序（源：sortedGroupNodes/defaultGroupNodes）：默认保持配置序去重；
+    /// 排序模式按延迟升序（未测/超时垫尾后按名称），并过滤不可用节点
+    /// （延迟为 null 或 0；源：hideUnavailableProxyNodes 在排序路径的过滤）。
+    /// </summary>
+    internal IEnumerable<string> OrderGroupNodes(
+        ProxyGroup group, IReadOnlyDictionary<string, IReadOnlyList<int>> delaySamples)
+    {
+        var unique = group.All.Where(name => name.Length > 0).Distinct().ToList();
+        if (!SortNodesByLatency)
+        {
+            return unique;
+        }
+
+        int? LatencyOf(string name) => delaySamples.GetValueOrDefault(name) is { Count: > 0 } samples
+            ? samples[^1]
+            : null;
+
+        return unique
+            .OrderBy(name => LatencyOf(name) ?? int.MaxValue)   // 未测垫尾（可用按延迟升序）
+            .ThenBy(name => name, StringComparer.Ordinal)
+            .Where(name => LatencyOf(name) is > 0);
+    }
+
+    /// <summary>信号条（源：LatencySignalBars——5 槽右对齐、未测矮桩、高度与颜色按分级）。</summary>
+    internal IReadOnlyList<SignalBarViewModel> ComputeSignalBars(IReadOnlyList<int>? samples)
+    {
+        const int barCount = 5;
+        const double placeholderHeight = 2;
+
+        if (ShowLatencyHistory)
+        {
+            var recent = (samples ?? Array.Empty<int>()).TakeLast(barCount).ToList();
+            int padding = Math.Max(0, barCount - recent.Count);
+            var bars = new List<SignalBarViewModel>(barCount);
+            for (int index = 0; index < padding; index++)
+            {
+                bars.Add(new SignalBarViewModel(placeholderHeight, "#B8BEC6"));
+            }
+
+            bars.AddRange(recent.Select(delay => new SignalBarViewModel(
+                LatencyLevelExtensions.Of(delay).SignalBarHeight(),
+                LatencyLevelExtensions.Of(delay).ColorHex())));
+            return bars;
+        }
+
+        // 单根模式：仅显示最新一次（无样本时整区隐藏）
+        return samples is { Count: > 0 }
+            ? new[]
+            {
+                new SignalBarViewModel(
+                    LatencyLevelExtensions.Of(samples[^1]).SignalBarHeight(),
+                    LatencyLevelExtensions.Of(samples[^1]).ColorHex()),
+            }
+            : Array.Empty<SignalBarViewModel>();
     }
 
     /// <summary>组测速结果回填节点延迟显示。</summary>
@@ -363,6 +542,7 @@ public sealed class ProxyPageViewModel : INotifyPropertyChanged
             if (results.TryGetValue(node.Name, out int delay))
             {
                 node.DelayText = FormatDelay(new[] { delay });
+                node.SignalBars = ComputeSignalBars(new[] { delay });
             }
         }
 
@@ -371,7 +551,7 @@ public sealed class ProxyPageViewModel : INotifyPropertyChanged
             : null);
     }
 
-    /// <summary>单节点测速结果回填。</summary>
+    /// <summary>单节点测速结果回填（文本与信号条一起更新）。</summary>
     public void ApplyNodeTestResult(string groupName, string nodeName, int? delay)
     {
         ProxyGroupViewModel? group = Groups.FirstOrDefault(item => item.Name == groupName);
@@ -379,6 +559,7 @@ public sealed class ProxyPageViewModel : INotifyPropertyChanged
         if (node != null)
         {
             node.DelayText = FormatDelay(delay is null ? null : new[] { delay.Value });
+            node.SignalBars = ComputeSignalBars(delay is null ? null : new[] { delay.Value });
         }
     }
 
@@ -488,14 +669,15 @@ public sealed class ProxyPageViewModel : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private void SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    private bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value))
         {
-            return;
+            return false;
         }
 
         field = value;
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        return true;
     }
 }

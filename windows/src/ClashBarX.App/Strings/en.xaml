@@ -65,4 +65,9 @@
     <sys:String x:Key="ProvidersUpdateAll">Update All</sys:String>
     <sys:String x:Key="ProvidersHealthcheck">Health check (test all nodes)</sys:String>
     <sys:String x:Key="ProvidersRefresh">Update this provider</sys:String>
+
+    <sys:String x:Key="GroupsTestAllTooltip">Test latency of all visible groups</sys:String>
+    <sys:String x:Key="GroupsSortByLatency">Sort by latency</sys:String>
+    <sys:String x:Key="GroupsLatencyHistory">Latency history</sys:String>
+    <sys:String x:Key="GroupsShowHidden">Show hidden</sys:String>
 </ResourceDictionary>
