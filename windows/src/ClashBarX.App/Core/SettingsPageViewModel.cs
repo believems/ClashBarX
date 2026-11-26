@@ -110,6 +110,78 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
     /// <summary>核心设置子模型（allow-lan/ipv6/tcp-concurrent/日志等级/端口；经 PATCH /configs）。</summary>
     public CoreSettingsViewModel CoreSettings { get; } = new();
 
+    /// <summary>维护动作委托（App 层注入 MaintenanceService 调用；返回状态文案）。</summary>
+    public Func<Task<string>>? UpgradeGeoRequested { get; set; }
+
+    public Func<Task<string>>? UpgradeCoreRequested { get; set; }
+
+    private bool _isMaintaining;
+    private string? _maintenanceStatusText;
+    private string _maintenanceStatusLevel = "info";
+
+    public bool IsMaintaining
+    {
+        get => _isMaintaining;
+        private set => SetProperty(ref _isMaintaining, value);
+    }
+
+    /// <summary>维护结果反馈行（null = 隐藏）。</summary>
+    public string? MaintenanceStatusText
+    {
+        get => _maintenanceStatusText;
+        private set
+        {
+            if (SetProperty(ref _maintenanceStatusText, value))
+            {
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasMaintenanceStatus)));
+            }
+        }
+    }
+
+    public string MaintenanceStatusLevel
+    {
+        get => _maintenanceStatusLevel;
+        private set => SetProperty(ref _maintenanceStatusLevel, value);
+    }
+
+    public bool HasMaintenanceStatus => MaintenanceStatusText is { Length: > 0 };
+
+    public System.Windows.Input.ICommand UpgradeGeoCommand { get; }
+
+    public System.Windows.Input.ICommand UpgradeCoreCommand { get; }
+
+    public SettingsPageViewModel()
+    {
+        UpgradeGeoCommand = new RelayCommand(_ => RunMaintenanceAsync(UpgradeGeoRequested));
+        UpgradeCoreCommand = new RelayCommand(_ => RunMaintenanceAsync(UpgradeCoreRequested));
+    }
+
+    /// <summary>执行维护动作并反馈结果（进行中禁用按钮；源：维护区交互）。</summary>
+    private async Task RunMaintenanceAsync(Func<Task<string>>? action)
+    {
+        if (IsMaintaining || action is null)
+        {
+            return;
+        }
+
+        IsMaintaining = true;
+        try
+        {
+            string message = await action();
+            MaintenanceStatusText = message;
+            MaintenanceStatusLevel = message.StartsWith("失败", StringComparison.Ordinal) ? "error" : "ok";
+        }
+        catch (Exception error)
+        {
+            MaintenanceStatusText = $"失败：{error.Message}";
+            MaintenanceStatusLevel = "error";
+        }
+        finally
+        {
+            IsMaintaining = false;
+        }
+    }
+
     public IReadOnlyList<EnumOption<AppLanguage>> LanguageOptions { get; } = new[]
     {
         new EnumOption<AppLanguage>("简体中文", AppLanguage.ChineseSimplified),

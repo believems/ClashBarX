@@ -24,12 +24,33 @@
             <!-- 代理（M2-4）：流量摘要 + 分组卡（节点行内联展开） -->
             <TabItem Header="{DynamicResource TabProxy}">
                 <DockPanel>
-                    <TextBlock DockPanel.Dock="Top"
-                               Text="{Binding TrafficSummary}"
-                               FontSize="13"
-                               FontWeight="SemiBold"
-                               Margin="4,6,4,6"
-                               Visibility="{Binding ShowTrafficOverview, Converter={StaticResource BoolToVis}}" />
+                    <DockPanel DockPanel.Dock="Top" Margin="4,6,4,6">
+                        <!-- 分流模式（源：rule/global/direct segmented；PATCH /configs 即时生效） -->
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <RadioButton Content="规则"
+                                         GroupName="ProxyMode"
+                                         FontSize="12"
+                                         Margin="0,0,10,0"
+                                         VerticalAlignment="Center"
+                                         IsChecked="{Binding IsModeRule}" />
+                            <RadioButton Content="全局"
+                                         GroupName="ProxyMode"
+                                         FontSize="12"
+                                         Margin="0,0,10,0"
+                                         VerticalAlignment="Center"
+                                         IsChecked="{Binding IsModeGlobal}" />
+                            <RadioButton Content="直连"
+                                         GroupName="ProxyMode"
+                                         FontSize="12"
+                                         VerticalAlignment="Center"
+                                         IsChecked="{Binding IsModeDirect}" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding TrafficSummary}"
+                                   FontSize="13"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center"
+                                   Visibility="{Binding ShowTrafficOverview, Converter={StaticResource BoolToVis}}" />
+                    </DockPanel>
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <ItemsControl x:Name="ProxyGroupsList" ItemsSource="{Binding Groups}">
                             <ItemsControl.ItemTemplate>
@@ -579,6 +600,15 @@
                                 Margin="8,0,0,0"
                                 FontSize="11"
                                 Command="{Binding ClearAllCommand}" />
+                        <!-- 内核日志等级快捷入口（源：日志页级别菜单直接改内核设置） -->
+                        <ComboBox DockPanel.Dock="Right"
+                                  Width="90"
+                                  Margin="8,0,0,0"
+                                  FontSize="11"
+                                  ItemsSource="{Binding LogLevelOptions}"
+                                  DisplayMemberPath="Label"
+                                  SelectedValuePath="Value"
+                                  SelectedValue="{Binding LogLevel}" />
                         <Button DockPanel.Dock="Right"
                                 Content="复制全部"
                                 Padding="10,2"
@@ -962,6 +992,61 @@
                                 </Grid>
                             </StackPanel>
                         </Border>
+
+                        <!-- 维护（源：SystemTabView 维护区；GEO 热更新 + 内核自升级） -->
+                        <TextBlock Text="维护"
+                                   FontWeight="SemiBold"
+                                   FontSize="12"
+                                   Margin="0,16,0,6" />
+                        <StackPanel Orientation="Horizontal">
+                            <Button Padding="10,2"
+                                    FontSize="11"
+                                    MinWidth="96"
+                                    Command="{Binding UpgradeGeoCommand}">
+                                <Button.Style>
+                                    <Style TargetType="Button">
+                                        <Setter Property="Content" Value="更新 GEO 数据" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsMaintaining}" Value="True">
+                                                <Setter Property="Content" Value="执行中…" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                            <Button Padding="10,2"
+                                    FontSize="11"
+                                    MinWidth="96"
+                                    Margin="8,0,0,0"
+                                    Command="{Binding UpgradeCoreCommand}">
+                                <Button.Style>
+                                    <Style TargetType="Button">
+                                        <Setter Property="Content" Value="升级内核" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsMaintaining}" Value="True">
+                                                <Setter Property="Content" Value="执行中…" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </StackPanel>
+                        <TextBlock Margin="0,6,0,0"
+                                   FontSize="11"
+                                   TextWrapping="Wrap"
+                                   Text="{Binding MaintenanceStatusText}"
+                                   Visibility="{Binding HasMaintenanceStatus, Converter={StaticResource BoolToVis}}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="#1B7F3B" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding MaintenanceStatusLevel}" Value="error">
+                                            <Setter Property="Foreground" Value="#C0392B" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                     </StackPanel>
                 </Border>
             </TabItem>

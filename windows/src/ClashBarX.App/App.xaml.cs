@@ -8,6 +8,7 @@ using ClashBarX.App.Core;
 using ClashBarX.Core.Connections;
 using ClashBarX.Core.Json;
 using ClashBarX.Core.Logging;
+using ClashBarX.Core.Maintenance;
 using ClashBarX.Core.Mihomo;
 using ClashBarX.Core.Models;
 using ClashBarX.Core.Overrides;
@@ -172,6 +173,27 @@ public partial class App : Application
         };
         _settingsPage.CoreSettings.RestoreCloseConnections(saved.CloseConnectionsOnSwitch);
         _settingsPage.CoreSettings.CloseConnectionsChanged += _ => SaveCurrentSettings();
+        _settingsPage.CoreSettings.LogLevelChanged += level => _logsPage?.SyncLogLevel(level);
+
+        // 维护动作（源：AppViewModel+Maintenance——GEO 热更新与内核自升级）
+        var maintenance = new MaintenanceService(_apiClient!);
+        _settingsPage.UpgradeGeoRequested = async () =>
+        {
+            CoreUpgradeResponse response = await maintenance.UpgradeGeoAsync();
+            string message = $"GEO 数据更新：{response.Status ?? "已提交"}"
+                + (string.IsNullOrWhiteSpace(response.Message) ? string.Empty : $"（{response.Message}）");
+            _mainWindow?.AppendLog($"[maintenance] {message}");
+            return message;
+        };
+        _settingsPage.UpgradeCoreRequested = async () =>
+        {
+            CoreUpgradeResponse response = await maintenance.UpgradeCoreAsync();
+            string message = $"内核升级：{response.Status ?? "已提交"}"
+                + (string.IsNullOrWhiteSpace(response.Message) ? string.Empty : $"（{response.Message}）")
+                + "；Windows 上运行中内核文件可能被锁，失败时请手动替换 core\\mihomo.exe 后重启";
+            _mainWindow?.AppendLog($"[maintenance] {message}");
+            return message;
+        };
         _settingsPage.AppearanceChanged += mode =>
         {
             AppearanceManager.ApplyTheme(mode);
@@ -198,6 +220,35 @@ public partial class App : Application
         _mainWindow!.SetSettingsPage(_settingsPage);
     }
 
+    /// <summary>切换内核日志等级（日志页快捷入口；PATCH /configs log-level）。</summary>
+    private async Task PatchLogLevelAsync(string level)
+    {
+        try
+        {
+            await _apiClient!.RequestNoResponseAsync(
+                MihomoEndpoint.PatchConfigs(new JsonObject { ["log-level"] = level }));
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            _mainWindow?.AppendLog($"[logs] 日志等级切换失败：{error.Message}");
+        }
+    }
+
+    /// <summary>切换分流模式（rule/global/direct；PATCH /configs 即时生效）。</summary>
+    private async Task PatchModeAsync(string mode)
+    {
+        try
+        {
+            await _apiClient!.RequestNoResponseAsync(
+                MihomoEndpoint.PatchConfigs(new JsonObject { ["mode"] = mode }));
+            _mainWindow?.AppendLog($"[mode] 已切换分流模式：{mode}");
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            _mainWindow?.AppendLog($"[mode] 切换失败：{error.Message}");
+        }
+    }
+
     /// <summary>API 就绪后拉一次内核运行配置（核心设置区初始化；不触发 PATCH）。</summary>
     private async Task LoadCoreSettingsSnapshotAsync()
     {
@@ -210,9 +261,14 @@ public partial class App : Application
         {
             ConfigSnapshot snapshot = await _apiClient!.RequestAsync<ConfigSnapshot>(MihomoEndpoint.GetConfigs());
             _coreSettingsLoaded = true;
-            await Dispatcher.BeginInvoke(() => _settingsPage?.CoreSettings.ApplySnapshot(
-                snapshot.AllowLan, snapshot.Ipv6, snapshot.TcpConcurrent, snapshot.LogLevel,
-                snapshot.MixedPort, snapshot.Port, snapshot.SocksPort, snapshot.RedirPort, snapshot.TproxyPort));
+            await Dispatcher.BeginInvoke(() =>
+            {
+                _settingsPage?.CoreSettings.ApplySnapshot(
+                    snapshot.AllowLan, snapshot.Ipv6, snapshot.TcpConcurrent, snapshot.LogLevel,
+                    snapshot.MixedPort, snapshot.Port, snapshot.SocksPort, snapshot.RedirPort, snapshot.TproxyPort);
+                _proxyPage?.ApplyMode(snapshot.Mode ?? "rule");
+                _logsPage?.SyncLogLevel(snapshot.LogLevel ?? "info");
+            });
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -437,6 +493,7 @@ public partial class App : Application
             _proxyBoard,
             message => Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog(message)),
             () => _processManager?.IsRunning == true);
+        _proxyPage.ModeChanged += mode => _ = PatchModeAsync(mode);
         _mainWindow!.DataContext = _proxyPage;
 
         // traffic WS 流（M1 的 StreamCoordinator：重连去抖复用）
@@ -780,6 +837,11 @@ public partial class App : Application
     private void SetupLogsPage()
     {
         _logsPage = new LogsPageViewModel();
+        _logsPage.LogLevelChanged += level =>
+        {
+            _settingsPage?.CoreSettings.SyncLogLevel(level);   // 设置页同步显示（不重复 PATCH）
+            _ = PatchLogLevelAsync(level);
+        };
         _mainWindow!.SetLogsPage(_logsPage);
 
         // mihomo 日志 150ms 批量刷（源：mihomoLogFlushIntervalNanoseconds = 150ms）
@@ -1066,7 +1128,7 @@ public partial class App : Application
             _subscriptions.Select(info.FileName);
             _mainWindow?.AppendLog($"[subscription] 已导入并启用 {info.FileName}");
             RefreshConfigList();
-            await RestartCoreWithSelectedAsync();
+            await ApplySelectedConfigAsync();
         }
         catch (Exception error)
         {
@@ -1085,7 +1147,7 @@ public partial class App : Application
             _subscriptions!.Select(fileName);
             _mainWindow?.AppendLog($"[config] 已切换 {fileName}");
             RefreshConfigList();
-            await RestartCoreWithSelectedAsync();
+            await ApplySelectedConfigAsync();
         }
         catch (Exception error)
         {
@@ -1102,7 +1164,7 @@ public partial class App : Application
             RefreshConfigList();
             if (_subscriptions.GetSelectedConfigPath() == null)
             {
-                _ = RestartCoreWithSelectedAsync();   // 删除的是当前配置 → 回默认配置重启
+                _ = ApplySelectedConfigAsync();   // 删除的是当前配置 → 回默认配置热重载
             }
         }
         catch (Exception error)
@@ -1111,20 +1173,38 @@ public partial class App : Application
         }
     }
 
-    /// <summary>以订阅选中配置（或默认配置）重启内核。</summary>
-    private async Task RestartCoreWithSelectedAsync()
+    /// <summary>
+    /// 应用订阅选中配置（或默认配置）：内核运行中优先 PUT /configs 热重载
+    /// （源：submitCoreLaunchConfig——覆写时推 payload 全文、否则推 path；连接不断、
+    /// 进程不重启）；未运行时启动；热重载失败记错误日志（内核继续用旧配置，源语义）。
+    /// </summary>
+    private async Task ApplySelectedConfigAsync()
     {
-        MihomoProcessManager? manager = _processManager;
-        if (manager == null)
-        {
-            return;
-        }
-
         string configPath = _subscriptions?.GetSelectedConfigPath() ?? ClashBarXPaths.DefaultConfigPath();
         try
         {
             (string launchPath, string? workingDirectory) = ResolveCoreLaunchConfig(configPath);
-            await manager.RestartAsync(launchPath, workingDirectory, DefaultController);
+            if (_processManager is { IsRunning: true })
+            {
+                bool overrideEnabled = _settingsStore.Load().RuleOverrideEnabled;
+                if (overrideEnabled)
+                {
+                    string payload = await File.ReadAllTextAsync(launchPath);
+                    await _apiClient!.RequestNoResponseAsync(
+                        MihomoEndpoint.PutConfigs(force: false, path: launchPath, payload: payload));
+                    _mainWindow?.AppendLog($"[config] 已热重载覆写配置（{Path.GetFileName(launchPath)}）");
+                }
+                else
+                {
+                    await _apiClient!.RequestNoResponseAsync(
+                        MihomoEndpoint.PutConfigs(force: false, path: launchPath, payload: null));
+                    _mainWindow?.AppendLog($"[config] 已热重载 {Path.GetFileName(launchPath)}（连接保持）");
+                }
+
+                return;
+            }
+
+            await _processManager!.StartAsync(launchPath, workingDirectory, DefaultController);
         }
         catch (MihomoBinaryResolutionException)
         {

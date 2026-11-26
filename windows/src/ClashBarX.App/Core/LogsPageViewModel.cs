@@ -41,6 +41,7 @@ public sealed class LogsPageViewModel : INotifyPropertyChanged
     private bool _isWarningSelected;
     private bool _isErrorSelected;
     private string _matchedCountText = "0";
+    private string _logLevel = "info";
 
     public LogsPageViewModel()
     {
@@ -111,6 +112,38 @@ public sealed class LogsPageViewModel : INotifyPropertyChanged
     }
 
     public ICommand ClearAllCommand { get; }
+
+    /// <summary>内核日志等级变化（App 层 PATCH /configs log-level；源：日志页级别菜单直接改内核设置）。</summary>
+    public event Action<string>? LogLevelChanged;
+
+    /// <summary>内核日志等级（debug/info/warning/error/silent）。</summary>
+    public string LogLevel
+    {
+        get => _logLevel;
+        set
+        {
+            if (SetProperty(ref _logLevel, value) && value.Length > 0)
+            {
+                LogLevelChanged?.Invoke(value);
+            }
+        }
+    }
+
+    public IReadOnlyList<PolicyOption> LogLevelOptions { get; } = new[]
+    {
+        new PolicyOption("debug", "debug"),
+        new PolicyOption("info", "info"),
+        new PolicyOption("warning", "warning"),
+        new PolicyOption("error", "error"),
+        new PolicyOption("silent", "silent"),
+    };
+
+    /// <summary>同步等级显示（设置页或快照回推；不触发事件）。</summary>
+    public void SyncLogLevel(string level)
+    {
+        _logLevel = string.IsNullOrWhiteSpace(level) ? "info" : level;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LogLevel)));
+    }
 
     /// <summary>App 自身日志：不入缓冲直接入列（源：appendLog(source: .clashbar)）。</summary>
     public void AppendClashBarLog(string message) => AppendClashBarLog("info", message);

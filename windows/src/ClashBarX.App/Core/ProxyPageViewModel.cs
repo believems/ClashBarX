@@ -161,6 +161,7 @@ public sealed class ProxyPageViewModel : INotifyPropertyChanged
     private readonly Func<bool> _isCoreRunning;
     private string _trafficSummary = string.Empty;
     private bool _showTrafficOverview = true;
+    private string _mode = "rule";
 
     public ProxyPageViewModel(
         ProxyBoardService board,
@@ -189,6 +190,72 @@ public sealed class ProxyPageViewModel : INotifyPropertyChanged
     {
         get => _showTrafficOverview;
         set => SetProperty(ref _showTrafficOverview, value);
+    }
+
+    /// <summary>内核分流模式变化（App 层 PATCH /configs {"mode"}；源：rule/global/direct 切换）。</summary>
+    public event Action<string>? ModeChanged;
+
+    /// <summary>分流模式（rule/global/direct；初始化经 ApplyMode 不触发事件）。</summary>
+    public string Mode
+    {
+        get => _mode;
+        set
+        {
+            if (_mode == value)
+            {
+                return;
+            }
+
+            _mode = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Mode)));
+            ModeChanged?.Invoke(value);
+        }
+    }
+
+    public bool IsModeRule
+    {
+        get => _mode == "rule";
+        set
+        {
+            if (value)
+            {
+                Mode = "rule";
+            }
+        }
+    }
+
+    public bool IsModeGlobal
+    {
+        get => _mode == "global";
+        set
+        {
+            if (value)
+            {
+                Mode = "global";
+            }
+        }
+    }
+
+    public bool IsModeDirect
+    {
+        get => _mode == "direct";
+        set
+        {
+            if (value)
+            {
+                Mode = "direct";
+            }
+        }
+    }
+
+    /// <summary>初始化分流模式（快照载入；不触发 PATCH）。</summary>
+    public void ApplyMode(string mode)
+    {
+        _mode = string.IsNullOrWhiteSpace(mode) ? "rule" : mode;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Mode)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsModeRule)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsModeGlobal)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsModeDirect)));
     }
 
     public ICommand SwitchNodeCommand { get; }

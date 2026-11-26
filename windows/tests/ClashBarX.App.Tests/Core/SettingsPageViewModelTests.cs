@@ -85,6 +85,39 @@ public class SettingsPageViewModelTests
     }
 
     [Fact]
+    public async Task 维护动作成功反馈状态行()
+    {
+        var viewModel = new SettingsPageViewModel
+        {
+            UpgradeGeoRequested = () => Task.FromResult("GEO 数据更新：success"),
+        };
+
+        await Task.Run(() => viewModel.UpgradeGeoCommand.Execute(null));
+        await Task.Delay(50);
+
+        Assert.Equal("GEO 数据更新：success", viewModel.MaintenanceStatusText);
+        Assert.Equal("ok", viewModel.MaintenanceStatusLevel);
+        Assert.False(viewModel.IsMaintaining);
+    }
+
+    [Fact]
+    public async Task 维护动作异常反馈失败状态()
+    {
+        var viewModel = new SettingsPageViewModel
+        {
+            UpgradeCoreRequested = () => throw new InvalidOperationException("文件被锁"),
+        };
+
+        await Task.Run(() => viewModel.UpgradeCoreCommand.Execute(null));
+        await Task.Delay(50);
+
+        Assert.StartsWith("失败：", viewModel.MaintenanceStatusText);
+        Assert.Contains("文件被锁", viewModel.MaintenanceStatusText!);
+        Assert.Equal("error", viewModel.MaintenanceStatusLevel);
+        Assert.False(viewModel.IsMaintaining);
+    }
+
+    [Fact]
     public void Restore恢复初始态不触发事件()
     {
         var harness = new Harness();

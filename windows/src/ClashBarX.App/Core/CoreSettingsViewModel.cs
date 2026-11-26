@@ -86,6 +86,9 @@ public sealed class CoreSettingsViewModel : INotifyPropertyChanged
         }
     }
 
+    /// <summary>日志等级变化（日志页快捷入口双向同步用）。</summary>
+    public event Action<string>? LogLevelChanged;
+
     /// <summary>日志等级（debug/info/warning/error/silent；源：log-level）。</summary>
     public string LogLevel
     {
@@ -94,9 +97,17 @@ public sealed class CoreSettingsViewModel : INotifyPropertyChanged
         {
             if (SetProperty(ref _logLevel, value) && value.Length > 0)
             {
+                LogLevelChanged?.Invoke(value);
                 _ = PatchAsync("log-level", value);
             }
         }
+    }
+
+    /// <summary>同步等级显示（日志页或快照回推；不触发 PATCH 与事件）。</summary>
+    public void SyncLogLevel(string level)
+    {
+        _logLevel = string.IsNullOrWhiteSpace(level) ? "info" : level;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LogLevel)));
     }
 
     public IReadOnlyList<PolicyOption> LogLevelOptions { get; } = new[]
