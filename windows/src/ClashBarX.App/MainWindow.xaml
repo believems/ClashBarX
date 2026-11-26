@@ -5,17 +5,24 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:ClashBarX.App"
         mc:Ignorable="d"
-        Title="ClashBarX" Height="220" Width="380"
-        WindowStartupLocation="CenterScreen"
-        ResizeMode="NoResize">
-    <StackPanel Margin="16" VerticalAlignment="Center">
-        <TextBlock Text="ClashBarX（Windows 版）"
-                   FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center"/>
-        <TextBlock Text="M1 骨架阶段：协议层（26 端点 API 客户端 + WebSocket 四流）已就绪。"
-                   Margin="0,10,0,0" TextWrapping="Wrap" HorizontalAlignment="Center"
-                   Foreground="#666"/>
-        <TextBlock Text="托盘常驻与内核 sidecar 启停将在后续里程碑接入。"
-                   Margin="0,6,0,0" TextWrapping="Wrap" HorizontalAlignment="Center"
-                   Foreground="#666"/>
-    </StackPanel>
+        Title="ClashBarX" Height="420" Width="640"
+        WindowStartupLocation="CenterScreen">
+    <DockPanel Margin="12">
+        <TextBlock x:Name="CoreStatusText"
+                   DockPanel.Dock="Top"
+                   Text="内核未启动"
+                   FontSize="14" FontWeight="SemiBold" />
+        <TextBlock DockPanel.Dock="Top"
+                   Margin="0,6,0,10"
+                   Foreground="#666"
+                   TextWrapping="Wrap"
+                   Text="M1 骨架：托盘常驻 + 内核 sidecar 启停。关闭本窗口即最小化到托盘；退出请使用托盘菜单。" />
+        <TextBox x:Name="LogTextBox"
+                 IsReadOnly="True"
+                 VerticalScrollBarVisibility="Auto"
+                 TextWrapping="NoWrap"
+                 FontFamily="Consolas, Microsoft YaHei UI"
+                 FontSize="12"
+                 Background="#FAFAFA" />
+    </DockPanel>
 </Window>
