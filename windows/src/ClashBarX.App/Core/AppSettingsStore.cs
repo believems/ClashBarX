@@ -3,8 +3,11 @@ using System.Text.Json;
 
 namespace ClashBarX.App.Core;
 
-/// <summary>应用设置（M2 阶段仅系统代理开关的会话间持久化）。</summary>
-public sealed record AppSettings(bool SystemProxyEnabled)
+/// <summary>应用设置（会话间持久化；新字段带默认值以兼容旧 JSON）。</summary>
+public sealed record AppSettings(
+    bool SystemProxyEnabled,
+    bool ProxyGuardEnabled = false,
+    int ProxyGuardIntervalSeconds = 300)
 {
     public static readonly AppSettings Default = new(false);
 }

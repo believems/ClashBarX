@@ -7,6 +7,9 @@
         mc:Ignorable="d"
         Title="ClashBarX" Height="560" Width="760"
         WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    </Window.Resources>
     <DockPanel Margin="12">
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal">
             <TextBlock x:Name="CoreStatusText"
@@ -341,6 +344,76 @@
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
+                </DockPanel>
+            </TabItem>
+            <!-- 设置（M3-3）：自动代理守护——开关 + 周期 + 立即检查 + 结果反馈行（开启才展开） -->
+            <TabItem Header="设置">
+                <DockPanel x:Name="GuardSettingsRoot" Margin="4,8,4,4">
+                    <StackPanel>
+                        <CheckBox IsChecked="{Binding IsGuardEnabled}"
+                                  Content="自动代理守护（自动切换可用节点）"
+                                  FontWeight="SemiBold"
+                                  FontSize="13" />
+                        <StackPanel Margin="20,8,0,0"
+                                    Visibility="{Binding IsGuardEnabled, Converter={StaticResource BoolToVis}}">
+                            <StackPanel Orientation="Horizontal" Margin="0,4">
+                                <TextBlock Text="探测周期（秒）" VerticalAlignment="Center" FontSize="12" />
+                                <TextBox Text="{Binding IntervalText}"
+                                         Width="64"
+                                         Margin="8,0,0,0"
+                                         Padding="4,2"
+                                         VerticalContentAlignment="Center" />
+                            </StackPanel>
+                            <Button Margin="0,6,0,0"
+                                    Padding="10,2"
+                                    MinWidth="96"
+                                    HorizontalAlignment="Left"
+                                    Command="{Binding CheckNowCommand}">
+                                <Button.Style>
+                                    <Style TargetType="Button">
+                                        <Setter Property="Content" Value="立即检查" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsProbing}" Value="True">
+                                                <Setter Property="Content" Value="检查中…" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                            <TextBlock Margin="0,8,0,0"
+                                       FontSize="12"
+                                       Text="{Binding OutcomeText}"
+                                       Visibility="{Binding HasOutcome, Converter={StaticResource BoolToVis}}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="#1B7F3B" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding OutcomeLevel}" Value="warning">
+                                                <Setter Property="Foreground" Value="#B7791F" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                        <!-- 关闭时的说明行（源：ui.settings.proxy_guard_disabled_hint） -->
+                        <TextBlock Text="{Binding DisabledHint}"
+                                   Foreground="#5E6B78"
+                                   FontSize="12"
+                                   Margin="20,8,0,0"
+                                   TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsGuardEnabled}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
                 </DockPanel>
             </TabItem>
         </TabControl>

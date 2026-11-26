@@ -10,6 +10,7 @@ using ClashBarX.Core.Logging;
 using ClashBarX.Core.Mihomo;
 using ClashBarX.Core.Models;
 using ClashBarX.Core.Proxies;
+using ClashBarX.Core.ProxyGuard;
 using ClashBarX.Core.Runtime;
 using ClashBarX.Core.Streams;
 using ClashBarX.Core.Subscriptions;
@@ -50,6 +51,11 @@ public partial class App : Application
     private bool _connectionsProcessMatchingEnabled;
     private LogsPageViewModel? _logsPage;
     private DispatcherTimer? _mihomoLogFlushTimer;
+    private ProxyGuardService? _proxyGuard;
+    private ProxyGuardSettingsViewModel? _guardSettings;
+    private int _guardIntervalSeconds = 300;
+    private bool _cliProxyGuardTrigger;
+    private EventWaitHandle? _guardTriggerEvent;
     private StreamCoordinator? _streams;
     private System.Threading.Timer? _proxyRefreshTimer;
     private string? _lastProxyRefreshError;
@@ -57,6 +63,10 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // CLI 触发（源：--proxy-guard——通知运行中实例立即探测；本实例为首个实例时随启动触发）
+        _cliProxyGuardTrigger = Environment.GetCommandLineArgs()
+            .Contains(ProxyGuardService.CliTriggerArgument, StringComparer.OrdinalIgnoreCase);
 
         _processManager = new MihomoProcessManager();
         _processManager.OnLog += line => Dispatcher.BeginInvoke(() =>
@@ -88,6 +98,7 @@ public partial class App : Application
         SetupProxyPage();
         SetupConnectionsPage();
         SetupLogsPage();
+        SetupProxyGuard();
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -95,6 +106,8 @@ public partial class App : Application
         // 兜底：正常退出路径也会先在此终结内核，避免任何路径漏杀
         _proxyRefreshTimer?.Dispose();
         _mihomoLogFlushTimer?.Stop();
+        _proxyGuard?.Dispose();
+        _guardTriggerEvent?.Dispose();
         _streams?.Dispose();
         _proxyWatcher?.Dispose();
         _poller?.Dispose();
@@ -418,6 +431,158 @@ public partial class App : Application
                     Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog($"[logs] 处理失败：{error.Message}"));
                 }
             });
+    }
+
+    // ---- 代理守护（M3-3：源 AppViewModel+ProxyGuard.swift；CLI 触发的进程间通知
+    //      选型为命名 EventWaitHandle——对齐 macOS 的 DistributedNotificationCenter，
+    //      语义为「通知运行中实例立即探测；无实例时随应用启动触发」） ----
+
+    /// <summary>守护触发的跨进程命名事件名（对应 macOS 的 com.clashbarx.proxyguard.trigger）。</summary>
+    private const string GuardTriggerEventName = "ClashBarX.ProxyGuard.Trigger";
+
+    private void SetupProxyGuard()
+    {
+        AppSettings settings = _settingsStore.Load();
+        _guardIntervalSeconds = Math.Max(ProxyGuardService.MinimumIntervalSeconds, settings.ProxyGuardIntervalSeconds);
+
+        _proxyGuard = new ProxyGuardService(
+            _apiClient!,
+            ProbeViaCoreProxyAsync,
+            () => _guardIntervalSeconds,
+            canProbe: () => _processManager?.IsRunning == true && _poller?.Status == ApiHealth.Healthy);
+        // Logged 与 ProbeCompleted 来自后台线程，统一编组到 UI
+        _proxyGuard.Logged += (level, message) =>
+            Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog($"[guard] {message}"));
+        _proxyGuard.ProbeCompleted += state =>
+            Dispatcher.BeginInvoke(() => _guardSettings?.ApplyProbeState(state));
+
+        _guardSettings = new ProxyGuardSettingsViewModel(CheckGuardNowAsync, () => _processManager?.IsRunning == true);
+        _guardSettings.Restore(settings.ProxyGuardEnabled, _guardIntervalSeconds);
+        _guardSettings.GuardToggled += OnGuardToggled;
+        _guardSettings.IntervalChanged += seconds =>
+        {
+            _guardIntervalSeconds = seconds;
+            SaveCurrentSettings();
+        };
+        _mainWindow!.SetGuardSettings(_guardSettings);
+
+        if (_cliProxyGuardTrigger)
+        {
+            TryTriggerRunningGuardInstance();
+        }
+
+        if (settings.ProxyGuardEnabled || _cliProxyGuardTrigger)
+        {
+            // 持久化开启意图恢复；CLI 触发时首启先探一次（源：startProxyGuardIfNeeded 的 CLI 分支）
+            _proxyGuard.Start(probeImmediately: _cliProxyGuardTrigger);
+        }
+
+        StartGuardTriggerListener();
+    }
+
+    /// <summary>探测：经内核混合端口对 204 URL 发 HEAD（源：probeConnectivity 的 127.0.0.1:{mixedPort} 口径）。</summary>
+    private async Task<bool> ProbeViaCoreProxyAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            ConfigSnapshot config = await _apiClient!.RequestAsync<ConfigSnapshot>(
+                MihomoEndpoint.GetConfigs(), cancellationToken);
+            int mixedPort = config.MixedPort ?? 0;
+            return mixedPort > 0
+                && await ProxyGuardProbe.ProbeAsync(ProxyGuardService.DefaultProbeUrl, mixedPort, null, cancellationToken);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            return false;   // 探测失败视为不可用（源：非 2xx / 超时 / 错误均失败）
+        }
+    }
+
+    private async Task CheckGuardNowAsync()
+    {
+        if (_proxyGuard is null)
+        {
+            return;
+        }
+
+        // 立即检查时守护可能未运行（开关关）：临时启动一次探测
+        if (!_proxyGuard.IsRunning)
+        {
+            _proxyGuard.Start();
+        }
+
+        await _proxyGuard.ProbeNowAsync();
+    }
+
+    private void OnGuardToggled(bool enabled)
+    {
+        if (enabled)
+        {
+            _proxyGuard?.Start();
+        }
+        else
+        {
+            _proxyGuard?.Stop();
+        }
+
+        SaveCurrentSettings();
+    }
+
+    /// <summary>合并当前守护设置后落盘（系统代理开关等其他字段保持已存值）。</summary>
+    private void SaveCurrentSettings()
+    {
+        AppSettings saved = _settingsStore.Load();
+        _settingsStore.Save(saved with
+        {
+            ProxyGuardEnabled = _guardSettings?.IsGuardEnabled ?? saved.ProxyGuardEnabled,
+            ProxyGuardIntervalSeconds = _guardIntervalSeconds,
+        });
+    }
+
+    /// <summary>通知运行中的其他实例立即探测（源：DistributedNotificationCenter 触发分支）。</summary>
+    private void TryTriggerRunningGuardInstance()
+    {
+        if (EventWaitHandle.TryOpenExisting(GuardTriggerEventName, out EventWaitHandle? existing))
+        {
+            try
+            {
+                existing.Set();
+            }
+            finally
+            {
+                existing.Dispose();
+            }
+        }
+    }
+
+    /// <summary>监听命名事件：CLI 或其他实例触发时立即探测。</summary>
+    private void StartGuardTriggerListener()
+    {
+        _guardTriggerEvent = new EventWaitHandle(false, EventResetMode.AutoReset, GuardTriggerEventName);
+        _ = Task.Run(async () =>
+        {
+            while (true)
+            {
+                bool signaled;
+                try
+                {
+                    signaled = _guardTriggerEvent.WaitOne();
+                }
+                catch (ObjectDisposedException)
+                {
+                    return;
+                }
+
+                if (!signaled)
+                {
+                    return;
+                }
+
+                if (_proxyGuard is { IsRunning: true } guard)
+                {
+                    await guard.ProbeNowAsync().ConfigureAwait(false);
+                }
+            }
+        });
     }
 
     // ---- 订阅管理（M2-3） ----

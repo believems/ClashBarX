@@ -98,6 +98,10 @@ public partial class MainWindow : Window
         LogsRoot.DataContext = viewModel;
     }
 
+    /// <summary>注入代理守护设置区模型。调用方负责 UI 线程编组。</summary>
+    public void SetGuardSettings(ProxyGuardSettingsViewModel viewModel) =>
+        GuardSettingsRoot.DataContext = viewModel;
+
     /// <summary>追加一行运行日志。调用方负责 UI 线程编组。</summary>
     public void AppendLog(string line)
     {
