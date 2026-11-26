@@ -95,11 +95,13 @@ public class SystemProxyServiceTests
         service.Enable(Target());
         // 真实时序：自写注册表先触发一轮 watcher 通知（被抑制）
         service.NotifyRegistryChanged();
-        int enableCallsBefore = controller.EnableCalls;
 
         controller.ExternalWrite(new SystemProxySnapshot(false, null, Array.Empty<string>()));
         service.NotifyRegistryChanged();
-        await TestAsyncHelper.WaitUntilAsync(() => controller.EnableCalls > enableCallsBefore, "守护回写发生");
+        // 等终态而非 EnableCalls 计数：计数递增与断言之间在慢机（CI 首跑 flaky 根因）
+        // 存在观察窗口，以最终 State 为准消除撕裂。
+        await TestAsyncHelper.WaitUntilAsync(
+            () => controller.State is { Enabled: true, Server: "127.0.0.1:7890" }, "守护回写发生");
 
         Assert.True(controller.State.Enabled);
         Assert.Equal("127.0.0.1:7890", controller.State.Server);
