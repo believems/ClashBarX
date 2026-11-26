@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:ClashBarX.App"
         xmlns:core="clr-namespace:ClashBarX.App.Core"
+        xmlns:overrides="clr-namespace:ClashBarX.Core.Overrides;assembly=ClashBarX.Core"
         mc:Ignorable="d"
         Title="ClashBarX" Height="560" Width="760"
         WindowStartupLocation="CenterScreen">
@@ -176,6 +177,162 @@
                                Foreground="#5E6B78"
                                FontSize="11"
                                Margin="0,0,0,4" />
+                    <!-- 规则覆写（M4-1b：内嵌卡片——「列表是查看，覆写是操作」；源 OverrideTabView） -->
+                    <Border DockPanel.Dock="Bottom"
+                            x:Name="OverrideCardRoot"
+                            Margin="0,6,0,0"
+                            Padding="8"
+                            BorderBrush="#DDD"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Background="#FAFAFA">
+                        <StackPanel>
+                            <DockPanel>
+                                <CheckBox DockPanel.Dock="Right"
+                                          Content="启用"
+                                          FontSize="12"
+                                          IsChecked="{Binding IsEnabled}" />
+                                <TextBlock Text="规则覆写"
+                                           FontWeight="SemiBold"
+                                           FontSize="12"
+                                           VerticalAlignment="Center" />
+                            </DockPanel>
+                            <TextBlock Text="{Binding DisabledHint}"
+                                       Foreground="#5E6B78"
+                                       FontSize="10"
+                                       Margin="0,4,0,0"
+                                       TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsEnabled}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <StackPanel Margin="0,6,0,0"
+                                        Visibility="{Binding IsEnabled, Converter={StaticResource BoolToVis}}">
+                                <!-- 三文件区行（同一时间只展开一个） -->
+                                <Button Command="{Binding ToggleFileCommand}"
+                                        CommandParameter="{x:Static overrides:RuleOverrideFile.Prepend}"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        HorizontalContentAlignment="Stretch"
+                                        Padding="2,3">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="↑" FontSize="12" VerticalAlignment="Center" />
+                                        <TextBlock Text="前置规则（插在订阅 rules 最前）" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Counts.Prepend, StringFormat={}{0} 条}" Foreground="#5E6B78" FontSize="11" Margin="10,0,0,0" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Command="{Binding ToggleFileCommand}"
+                                        CommandParameter="{x:Static overrides:RuleOverrideFile.Append}"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        HorizontalContentAlignment="Stretch"
+                                        Padding="2,3">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="↓" FontSize="12" VerticalAlignment="Center" />
+                                        <TextBlock Text="追加规则（插在 MATCH/FINAL 之前）" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Counts.Append, StringFormat={}{0} 条}" Foreground="#5E6B78" FontSize="11" Margin="10,0,0,0" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Command="{Binding ToggleFileCommand}"
+                                        CommandParameter="{x:Static overrides:RuleOverrideFile.RuleProviders}"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        HorizontalContentAlignment="Stretch"
+                                        Padding="2,3">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="≡" FontSize="12" VerticalAlignment="Center" />
+                                        <TextBlock Text="规则集（同名以覆写为准）" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Counts.RuleProviders, StringFormat={}{0} 个}" Foreground="#5E6B78" FontSize="11" Margin="10,0,0,0" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <!-- 编辑器（展开时显示，固定高 180；源：PlainTextEditor editorHeight） -->
+                                <Grid Margin="0,6,0,0"
+                                      Visibility="{Binding HasExpandedFile, Converter={StaticResource BoolToVis}}">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="*" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBox Text="{Binding CurrentDraft, UpdateSourceTrigger=PropertyChanged}"
+                                             AcceptsReturn="True"
+                                             TextWrapping="NoWrap"
+                                             VerticalScrollBarVisibility="Auto"
+                                             HorizontalScrollBarVisibility="Auto"
+                                             FontFamily="Consolas, Microsoft YaHei UI"
+                                             FontSize="12"
+                                             Height="180"
+                                             Background="White"
+                                             BorderBrush="#CCC" />
+                                    <StackPanel Grid.Row="1"
+                                                Orientation="Horizontal"
+                                                HorizontalAlignment="Right"
+                                                Margin="0,4,0,0">
+                                        <Button Content="还原"
+                                                Padding="10,2"
+                                                FontSize="11"
+                                                Margin="0,0,8,0"
+                                                Command="{Binding RevertCommand}"
+                                                IsEnabled="{Binding IsDirty}" />
+                                        <Button Content="保存"
+                                                Padding="10,2"
+                                                FontSize="11"
+                                                Command="{Binding SaveCommand}"
+                                                IsEnabled="{Binding IsDirty}" />
+                                    </StackPanel>
+                                </Grid>
+                                <!-- 状态行 -->
+                                <TextBlock Margin="0,6,0,0"
+                                           FontSize="11"
+                                           TextWrapping="Wrap"
+                                           Text="{Binding StatusText}"
+                                           Visibility="{Binding HasStatus, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="#1B7F3B" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding StatusLevel}" Value="error">
+                                                    <Setter Property="Foreground" Value="#C0392B" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding StatusLevel}" Value="info">
+                                                    <Setter Property="Foreground" Value="#5E6B78" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <!-- 操作按钮 -->
+                                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                    <Button Padding="10,2"
+                                            FontSize="11"
+                                            MinWidth="88"
+                                            HorizontalAlignment="Left"
+                                            Command="{Binding ApplyNowCommand}">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Content" Value="立即应用" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsApplying}" Value="True">
+                                                        <Setter Property="Content" Value="应用中…" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="打开覆写目录"
+                                            Padding="10,2"
+                                            FontSize="11"
+                                            Margin="8,0,0,0"
+                                            Command="{Binding OpenFolderCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <ItemsControl ItemsSource="{Binding Rows}">
                             <ItemsControl.Resources>

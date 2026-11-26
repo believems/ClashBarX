@@ -94,6 +94,10 @@ public partial class MainWindow : Window
     /// <summary>注入规则页模型。调用方负责 UI 线程编组。</summary>
     public void SetRulesPage(RulesPageViewModel viewModel) => RulesRoot.DataContext = viewModel;
 
+    /// <summary>注入规则覆写卡片模型（规则页底部独立 DataContext）。调用方负责 UI 线程编组。</summary>
+    public void SetRuleOverridePage(RuleOverrideViewModel viewModel) =>
+        OverrideCardRoot.DataContext = viewModel;
+
     public void SetConnectionsPage(ConnectionsPageViewModel viewModel)
     {
         ConnectionsRoot.DataContext = viewModel;

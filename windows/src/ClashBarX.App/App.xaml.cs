@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -9,6 +10,7 @@ using ClashBarX.Core.Json;
 using ClashBarX.Core.Logging;
 using ClashBarX.Core.Mihomo;
 using ClashBarX.Core.Models;
+using ClashBarX.Core.Overrides;
 using ClashBarX.Core.Proxies;
 using ClashBarX.Core.ProxyGuard;
 using ClashBarX.Core.Rules;
@@ -52,6 +54,8 @@ public partial class App : Application
     private bool _connectionsProcessMatchingEnabled;
     private RulesBoardService? _rulesBoard;
     private RulesPageViewModel? _rulesPage;
+    private RuleOverrideService? _ruleOverride;
+    private RuleOverrideViewModel? _ruleOverridePage;
 
     /// <summary>连接页 UI 可见性快照（UI 线程维护，供 WS 后台线程读取——直接读 WPF 属性会跨线程异常）。</summary>
     private volatile bool _connectionsUiVisible;
@@ -152,11 +156,12 @@ public partial class App : Application
         MihomoProcessManager manager = _processManager!;
         try
         {
-            // 优先订阅选中配置；否则根目录手工 config.yaml
+            // 优先订阅选中配置；否则根目录手工 config.yaml；覆写启用时换 runtime 配置
             string configPath = _subscriptions?.GetSelectedConfigPath() ?? ClashBarXPaths.DefaultConfigPath();
+            (string launchPath, string? workingDirectory) = ResolveCoreLaunchConfig(configPath);
             CoreLifecycleStatus status = await manager.StartAsync(
-                configPath,
-                workingDirectory: null,
+                launchPath,
+                workingDirectory,
                 DefaultController);
             _ = status;
         }
@@ -366,6 +371,126 @@ public partial class App : Application
             null,
             TimeSpan.FromSeconds(3),
             TimeSpan.FromSeconds(20));
+
+        SetupRuleOverride();
+    }
+
+    // ---- 规则覆写（M4-1b：源 RuleOverrideService/AppViewModel+RuleOverride.swift） ----
+
+    private void SetupRuleOverride()
+    {
+        _ruleOverride = new RuleOverrideService(
+            ClashBarXPaths.OverridesDirectory(), ClashBarXPaths.RuntimeConfigDirectory());
+        _ruleOverridePage = new RuleOverrideViewModel(
+            _ruleOverride,
+            ApplyRuleOverridesAsync,
+            () => _processManager?.IsRunning == true,
+            message => Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog(message)),
+            OpenOverridesFolder)
+        {
+            // 初始化需要读文件，放在 UI 线程同步段（文件小，开销可忽略）
+        };
+        _ruleOverridePage.Restore(_settingsStore.Load().RuleOverrideEnabled);
+        _ruleOverridePage.ReloadFromFilesystem();
+        _ruleOverridePage.EnabledToggled += enabled =>
+        {
+            SaveCurrentSettings();
+            if (enabled)
+            {
+                _ = Dispatcher.InvokeAsync(() => _ = ApplyRuleOverridesAsync());
+            }
+        };
+        _mainWindow!.SetRuleOverridePage(_ruleOverridePage);
+    }
+
+    /// <summary>打开覆写目录（不存在则先创建，源：openRuleOverridesFolder）。</summary>
+    private void OpenOverridesFolder()
+    {
+        try
+        {
+            string directory = ClashBarXPaths.OverridesDirectory();
+            _ruleOverride?.EnsureOverridesDirectory();
+            Process.Start(new ProcessStartInfo("explorer.exe", directory) { UseShellExecute = true });
+        }
+        catch (Exception error)
+        {
+            _mainWindow?.AppendLog($"[override] 打开目录失败：{error.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 启动/重启内核的配置解析（源：prepareCoreLaunchConfig）：覆写启用且内容非空时
+    /// 生成 runtime 配置（沿用原文件名），工作目录保持原配置目录（相对路径资源解析一致）。
+    /// 生成失败抛错不回退（源语义：避免用户误以为覆写已生效）。
+    /// </summary>
+    private (string LaunchPath, string? WorkingDirectory) ResolveCoreLaunchConfig(string configPath)
+    {
+        if (!_settingsStore.Load().RuleOverrideEnabled)
+        {
+            return (configPath, null);
+        }
+
+        RuleOverrideContent content = _ruleOverride!.LoadContent();
+        if (content.Counts.IsEmpty)
+        {
+            return (configPath, null);
+        }
+
+        string runtimePath = _ruleOverride.WriteRuntimeConfig(configPath, content);
+        RuleOverrideCounts counts = content.Counts;
+        Dispatcher.BeginInvoke(() =>
+        {
+            _ruleOverridePage?.MarkApplied(Path.GetFileName(configPath), counts);
+            _mainWindow?.AppendLog(
+                $"[override] 运行时配置已生成：{Path.GetFileName(runtimePath)}（前置 {counts.Prepend} · 追加 {counts.Append} · 规则集 {counts.RuleProviders}）");
+        });
+        return (runtimePath, Path.GetDirectoryName(Path.GetFullPath(configPath)));
+    }
+
+    /// <summary>运行中应用覆写（源：applyRuleOverridesIfRunning——PUT /configs 推 payload 全文）。</summary>
+    private async Task ApplyRuleOverridesAsync()
+    {
+        if (!_ruleOverridePage?.IsEnabled == true)
+        {
+            return;
+        }
+
+        if (_processManager?.IsRunning != true)
+        {
+            _ruleOverridePage?.MarkPending();
+            return;
+        }
+
+        try
+        {
+            string configPath = _subscriptions?.GetSelectedConfigPath() ?? ClashBarXPaths.DefaultConfigPath();
+            RuleOverrideContent content = _ruleOverride!.LoadContent();
+            if (content.Counts.IsEmpty)
+            {
+                _ruleOverridePage?.MarkEmpty();
+                return;
+            }
+
+            string runtimePath = _ruleOverride.WriteRuntimeConfig(configPath, content);
+            string payload = await File.ReadAllTextAsync(runtimePath).ConfigureAwait(false);
+            await _apiClient!.RequestNoResponseAsync(
+                MihomoEndpoint.PutConfigs(force: false, path: runtimePath, payload: payload))
+                .ConfigureAwait(false);
+            RuleOverrideCounts counts = content.Counts;
+            await Dispatcher.BeginInvoke(() =>
+            {
+                _ruleOverridePage?.MarkApplied(Path.GetFileName(configPath), counts);
+                _mainWindow?.AppendLog($"[override] 已应用到运行中的内核（{Path.GetFileName(runtimePath)}）");
+            });
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            await Dispatcher.BeginInvoke(() =>
+            {
+                _ruleOverridePage?.MarkFailed(error.Message);
+                _mainWindow?.AppendLog($"[override] 应用失败：{error.Message}");
+            });
+        }
     }
 
     private async Task RefreshRulesAsync(bool useProvidersRefresh)
@@ -626,7 +751,7 @@ public partial class App : Application
         SaveCurrentSettings();
     }
 
-    /// <summary>合并当前守护设置后落盘（系统代理开关等其他字段保持已存值）。</summary>
+    /// <summary>合并当前守护与覆写设置后落盘（系统代理开关等其他字段保持已存值）。</summary>
     private void SaveCurrentSettings()
     {
         AppSettings saved = _settingsStore.Load();
@@ -634,6 +759,7 @@ public partial class App : Application
         {
             ProxyGuardEnabled = _guardSettings?.IsGuardEnabled ?? saved.ProxyGuardEnabled,
             ProxyGuardIntervalSeconds = _guardIntervalSeconds,
+            RuleOverrideEnabled = _ruleOverridePage?.IsEnabled ?? saved.RuleOverrideEnabled,
         });
     }
 
@@ -780,7 +906,8 @@ public partial class App : Application
         string configPath = _subscriptions?.GetSelectedConfigPath() ?? ClashBarXPaths.DefaultConfigPath();
         try
         {
-            await manager.RestartAsync(configPath, workingDirectory: null, DefaultController);
+            (string launchPath, string? workingDirectory) = ResolveCoreLaunchConfig(configPath);
+            await manager.RestartAsync(launchPath, workingDirectory, DefaultController);
         }
         catch (MihomoBinaryResolutionException)
         {

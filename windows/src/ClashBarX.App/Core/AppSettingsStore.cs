@@ -7,7 +7,8 @@ namespace ClashBarX.App.Core;
 public sealed record AppSettings(
     bool SystemProxyEnabled,
     bool ProxyGuardEnabled = false,
-    int ProxyGuardIntervalSeconds = 300)
+    int ProxyGuardIntervalSeconds = 300,
+    bool RuleOverrideEnabled = false)
 {
     public static readonly AppSettings Default = new(false);
 }
