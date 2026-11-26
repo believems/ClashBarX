@@ -54,14 +54,14 @@ cd clashbarx && git switch -c feature/win-m1 origin/integration
 | updateProxyProvider | PUT | `/providers/proxies/{name}` | — | — | 30s |
 | proxyProviderHealthcheck | GET | `/providers/proxies/{name}/healthcheck` | `url`、`timeout` | — | **180s** |
 | proxyProviderProxyHealthcheck | GET | `/providers/proxies/{provider}/{proxy}/healthcheck` | 同上 | — | 同上 |
-| rules | GET | `/rules` | — | — | 2s |
+| rules | GET | `/rules` | — | — | 5s |
 | ruleProviders | GET | `/providers/rules` | — | — | 5s |
 | updateRuleProvider | PUT | `/providers/rules/{name}` | — | — | 30s |
-| connections | GET | `/connections` | `interval={秒}` | — | WS |
+| connections | GET | `/connections` | `interval={毫秒}` | — | WS |
 | closeAllConnections | DELETE | `/connections` | — | — | 2s |
 | closeConnection | DELETE | `/connections/{id}` | — | — | 2s |
-| flushFakeIPCache | POST | `/cache/fakeip/flush` | — | `{"path":"","payload":""}` | 2s |
-| flushDNSCache | POST | `/cache/dns/flush` | — | 同上 | 2s |
+| flushFakeIPCache | POST | `/cache/fakeip/flush` | — | — | 2s |
+| flushDNSCache | POST | `/cache/dns/flush` | — | — | 2s |
 | upgradeCore | POST | `/upgrade` | — | 同上 | 60s |
 | upgradeGeo | POST | `/upgrade/geo` | — | 同上 | 60s |
 
@@ -82,7 +82,7 @@ payload 为空串 / "null" / "{}" 时视为噪声丢弃（不重置计数、不�
 各流 payload：
 - `/traffic`：`{"up":int,"down":int}`（字节/秒），约每秒一条；
 - `/memory`：`{"inuse":int}`；
-- `/connections`：`{"downloadTotal":int,"uploadTotal":int,"connections":[…],"memory":int}`，按 `interval` 轮询；
+- `/connections`：`{"downloadTotal":int,"uploadTotal":int,"connections":[…],"memory":int}`，按 `interval`（毫秒，Swift 实证传 1000）轮询；
 - `/logs`：`{"type":"info|warning|error","payload":"…"}`。
 
 ## 5. 系统集成对照（macOS → Windows）
