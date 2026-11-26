@@ -13,6 +13,7 @@
     <Resource Include="Assets\tray.ico" />
     <Resource Include="Assets\tray-run.ico" />
     <Resource Include="Assets\tray-sleep.ico" />
+    <Resource Include="Assets\tray-tun.ico" />
   </ItemGroup>
 
   <ItemGroup>

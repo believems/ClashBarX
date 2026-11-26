@@ -32,4 +32,8 @@
     <sys:String x:Key="SettingsTrafficOverviewTitle">Traffic overview</sys:String>
     <sys:String x:Key="SettingsTrafficOverviewHint">Show live rates and connection summary at the top of the proxy page</sys:String>
     <sys:String x:Key="SettingsBasicSection">Basics</sys:String>
+
+    <sys:String x:Key="ProxyTunMode">TUN Mode</sys:String>
+    <sys:String x:Key="ProxyTunToggle">Enable</sys:String>
+    <sys:String x:Key="ProxyTunStackHint">TUN stack; switching restarts TUN and requires administrator privileges</sys:String>
 </ResourceDictionary>

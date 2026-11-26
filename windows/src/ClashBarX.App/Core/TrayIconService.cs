@@ -4,12 +4,15 @@ using System.Windows.Controls;
 
 namespace ClashBarX.App.Core;
 
-/// <summary>托盘图标形态（与 macOS 菜单栏同源资产：BrandLogo / BrandRun / BrandSleep）。</summary>
+/// <summary>托盘图标形态（与 macOS 菜单栏同源资产：BrandLogo / BrandRun / BrandSleep / BrandTun）。</summary>
 public enum TrayIconKind
 {
     Logo,
     Running,
     Sleeping,
+
+    /// <summary>运行中且 TUN 开启（源：StatusItemContentView 的 tunBrandStatusIconImage 分支）。</summary>
+    Tun,
 }
 
 /// <summary>
@@ -25,6 +28,7 @@ public sealed class TrayIconService : IDisposable
     private readonly System.Drawing.Icon _logoIcon;
     private readonly System.Drawing.Icon _runningIcon;
     private readonly System.Drawing.Icon _sleepingIcon;
+    private readonly System.Drawing.Icon _tunIcon;
     private TrayIconKind _kind;
 
     /// <summary>用户请求显示主窗（托盘单击或菜单）。</summary>
@@ -87,6 +91,7 @@ public sealed class TrayIconService : IDisposable
         _logoIcon = LoadEmbeddedIcon("tray.ico");
         _runningIcon = LoadEmbeddedIcon("tray-run.ico");
         _sleepingIcon = LoadEmbeddedIcon("tray-sleep.ico");
+        _tunIcon = LoadEmbeddedIcon("tray-tun.ico");
 
         _taskbarIcon = new H.NotifyIcon.TaskbarIcon
         {
@@ -140,6 +145,7 @@ public sealed class TrayIconService : IDisposable
         {
             TrayIconKind.Running => _runningIcon,
             TrayIconKind.Sleeping => _sleepingIcon,
+            TrayIconKind.Tun => _tunIcon,
             _ => _logoIcon,
         };
     }
@@ -195,6 +201,7 @@ public sealed class TrayIconService : IDisposable
         _logoIcon.Dispose();
         _runningIcon.Dispose();
         _sleepingIcon.Dispose();
+        _tunIcon.Dispose();
     }
 
     /// <summary>从程序集内嵌资源（csproj Resource）加载 ICO。</summary>

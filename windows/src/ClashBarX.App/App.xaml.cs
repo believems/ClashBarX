@@ -19,6 +19,7 @@ using ClashBarX.Core.Runtime;
 using ClashBarX.Core.Streams;
 using ClashBarX.Core.Subscriptions;
 using ClashBarX.Core.SystemProxy;
+using ClashBarX.Core.Tun;
 
 namespace ClashBarX.App;
 
@@ -51,6 +52,8 @@ public partial class App : Application
     private MainWindow? _mainWindow;
     private ProxyPageViewModel? _proxyPage;
     private ProxyBoardService? _proxyBoard;
+    private TunControlService? _tunControl;
+    private TunSectionViewModel? _tunSection;
     private ConnectionsPageViewModel? _connectionsPage;
     private ConnectionStatisticsService? _connectionStatistics;
     private bool _connectionsProcessMatchingEnabled;
@@ -149,6 +152,7 @@ public partial class App : Application
         StartApiPolling();
         SetupSystemProxy();
         SetupProxyPage();
+        SetupTunSection();
         SetupRulesPage();
         SetupConnectionsPage();
         SetupLogsPage();
@@ -304,6 +308,8 @@ public partial class App : Application
                 _proxyPage?.ApplyMode(snapshot.Mode ?? "rule");
                 _tray?.SetModeChecked(snapshot.Mode ?? "rule");
                 _logsPage?.SyncLogLevel(snapshot.LogLevel ?? "info");
+                _tunSection?.ApplySnapshot(snapshot.TunEnabled ?? false, snapshot.Tun?.Stack);   // 运行态显示同步（源：AppViewModel+Polling 的 tunStack 同步）
+                _ = RestoreTunAtStartupAsync();   // API 就绪后的 TUN 恢复链路（源：validate/verify/align 三连）
             });
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -390,7 +396,11 @@ public partial class App : Application
                 Dispatcher.BeginInvoke(() => _ = LoadCoreSettingsSnapshotAsync());
             }
         };
-        _poller.VersionChanged += _ => Dispatcher.BeginInvoke(RefreshPresentationState);
+        _poller.VersionChanged += _ => Dispatcher.BeginInvoke(() =>
+        {
+            RefreshPresentationState();
+            RefreshTunMipsSupport();   // 内核版本就绪后刷新 mips 门槛（源：isMipsStackSupported）
+        });
         _poller.ErrorLogged += message => Dispatcher.BeginInvoke(() => _mainWindow?.AppendLog($"[api] {message}"));
         _poller.Start();
     }
@@ -617,6 +627,319 @@ public partial class App : Application
             }
         }
     }
+
+    // ---- TUN（M5-1：源 AppViewModel+Tun.swift + ProxyTabView 的 tunModeQuickToggleRow/tunStackMenu。
+    //      权限语义：macOS 对 mihomo 二进制 setuid root；Windows 无 setuid，TUN 需内核进程持
+    //      管理员令牌（内核由本应用拉起、令牌继承），故收敛为「应用以管理员身份运行」——
+    //      未提权开启时经 UAC 重启引导，拒绝/失败如实反馈并回滚开关意图） ----
+
+    private void SetupTunSection()
+    {
+        AppSettings saved = _settingsStore.Load();
+        _tunControl = new TunControlService(_apiClient!);
+        _tunSection = new TunSectionViewModel(() => _processManager?.IsRunning == true);
+        // 启动初值来自持久化快照（源：overlay）；运行态待 API 就绪后校验（restore 链路）
+        _tunSection.ApplySnapshot(saved.TunEnabled, saved.TunStack);
+        _tunSection.ToggleRequested += enable => _ = OnTunToggleRequestedAsync(enable);
+        _tunSection.StackSelected += stack => _ = OnTunStackSelectedAsync(stack);
+        _mainWindow!.SetTunSection(_tunSection);
+        RefreshTunMipsSupport();
+    }
+
+    /// <summary>mips stack 门槛随内核版本刷新（源：isMipsStackSupported；版本未知时不支持）。</summary>
+    private void RefreshTunMipsSupport() =>
+        _tunSection?.SetMipsSupport(TunControlService.IsMipsStackSupported(_poller?.Version));
+
+    /// <summary>开关请求（源：toggleTunMode——防重入、PATCH、GET 验证、状态回填与日志）。</summary>
+    private async Task OnTunToggleRequestedAsync(bool enable)
+    {
+        if (_tunSection is not { IsTunSyncing: false })
+        {
+            return;
+        }
+
+        if (enable && !WindowsElevationService.IsCurrentProcessElevated())
+        {
+            await PromptElevationForTunAsync(enable: true, requestedStack: null);
+            return;
+        }
+
+        await RunTunPatchAsync(enable, stack: null, reason: "user toggle");
+    }
+
+    /// <summary>stack 选择请求（源：selectTunStack——mips 门槛、开态判等防抖、PATCH+验证）。</summary>
+    private async Task OnTunStackSelectedAsync(string stack)
+    {
+        if (_tunSection is not { IsTunSyncing: false })
+        {
+            return;
+        }
+
+        if (stack.Equals("mips", StringComparison.OrdinalIgnoreCase)
+            && !TunControlService.IsMipsStackSupported(_poller?.Version))
+        {
+            // 源：banner 警告 + log warning + return（Windows 对应物：tooltip 闪现）
+            string detail = $"mips stack 需要内核 {TunControlService.MipsStackMinimumCoreVersion}+";
+            _mainWindow?.AppendLog($"[tun] {detail}，当前版本不支持");
+            _tray?.ShowTransientMessage(detail);
+            RollbackTunSelection();
+            return;
+        }
+
+        // 源：isTunEnabled 且 stack 与当前一致（忽略大小写）时跳过
+        if (_tunSection.IsTunEnabled
+            && string.Equals(_tunSection.SelectedStack, stack, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (!WindowsElevationService.IsCurrentProcessElevated())
+        {
+            await PromptElevationForTunAsync(enable: true, requestedStack: stack);
+            return;
+        }
+
+        await RunTunPatchAsync(enable: true, stack, reason: "stack switch");
+    }
+
+    /// <summary>
+    /// UAC 重启引导（Windows 特有；源对应物：ensureTunPermissions 的管理员授权）：
+    /// 先落盘开关意图（新实例启动恢复链路自动开启 TUN），再拆内核与系统代理
+    /// （避免新旧实例内核端口竞态），runas 提权启动新实例后退出。拒绝/失败回滚意图。
+    /// </summary>
+    private async Task PromptElevationForTunAsync(bool enable, string? requestedStack)
+    {
+        var choice = System.Windows.MessageBox.Show(
+            _mainWindow,
+            "开启 TUN 需要管理员权限。\n\n将以管理员身份重启 ClashBarX（当前配置与状态会自动恢复），是否继续？",
+            "TUN 模式",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+        if (choice != MessageBoxResult.Yes)
+        {
+            _mainWindow?.AppendLog("[tun] 已取消管理员授权，TUN 未开启");
+            RollbackTunSelection();
+            return;
+        }
+
+        if (requestedStack is null)
+        {
+            requestedStack = await ResolvePreferredTunStackAsync().ConfigureAwait(true);
+        }
+
+        AppSettings saved = _settingsStore.Load();
+        _settingsStore.Save(saved with { TunEnabled = true, TunStack = NormalizeTunStack(requestedStack) });
+
+        if (!WindowsElevationService.TryRestartAsAdministrator(out string? failureMessage))
+        {
+            _settingsStore.Save(_settingsStore.Load() with { TunEnabled = saved.TunEnabled });
+            _mainWindow?.AppendLog($"[tun] 提权重启失败：{failureMessage ?? "未知错误"}");
+            RollbackTunSelection();
+            return;
+        }
+
+        // 先拆内核与系统代理再退出（新实例拉内核时旧内核必然已死，规避 9090 端口竞态）
+        if (_systemProxy?.ExpectedTarget != null)
+        {
+            _systemProxy.Disable();
+        }
+
+        _processManager?.StopImmediately();
+        Shutdown();
+    }
+
+    /// <summary>TUN PATCH 主链路（源：toggleTunMode/selectTunStack 的 try 段）：PATCH → 验证 → 回填 → 持久化。</summary>
+    private async Task RunTunPatchAsync(bool enable, string? stack, string reason)
+    {
+        _tunSection!.SetSyncing(true);
+        try
+        {
+            string? effectiveStack = stack;
+            if (enable && string.IsNullOrWhiteSpace(effectiveStack))
+            {
+                effectiveStack = await ResolvePreferredTunStackAsync().ConfigureAwait(true);
+            }
+
+            TunToggleResult result = await _tunControl!
+                .ToggleAsync(enable, effectiveStack)
+                .ConfigureAwait(true);
+            _tunSection.ApplySnapshot(result.State.Enabled, result.State.Stack);
+            PersistTunState(result.State);
+            if (result.Outcome == TunToggleOutcome.Applied)
+            {
+                string message = stack is null
+                    ? $"[tun] TUN 已{(result.State.Enabled ? "开启" : "关闭")}"
+                    : $"[tun] stack 已切换：{result.State.Stack}";
+                _mainWindow?.AppendLog(message);
+            }
+            else
+            {
+                // 源：runtime_state_mismatch → log error（不抛）
+                _mainWindow?.AppendLog("[tun] 切换失败：内核运行态与期望不一致");
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            _mainWindow?.AppendLog($"[tun] 切换失败（{reason}）：{error.Message}");
+            await RefreshTunFromRuntimeAsync().ConfigureAwait(true);
+        }
+        finally
+        {
+            _tunSection.SetSyncing(false);
+            Dispatcher.BeginInvoke(RefreshPresentationState);
+        }
+    }
+
+    /// <summary>偏好 stack（源：preferredTunStack）：保存值优先；配置自带 stack 时不注入；否则 mixed。</summary>
+    private async Task<string?> ResolvePreferredTunStackAsync()
+    {
+        AppSettings saved = _settingsStore.Load();
+        if (!string.IsNullOrWhiteSpace(saved.TunStack))
+        {
+            return saved.TunStack.Trim();
+        }
+
+        string? configPath = _subscriptions?.GetSelectedConfigPath() ?? ClashBarXPaths.DefaultConfigPath();
+        try
+        {
+            if (File.Exists(configPath)
+                && TunYamlStackScanner.DeclaresTunStack(await File.ReadAllTextAsync(configPath).ConfigureAwait(true)))
+            {
+                return null;   // 配置已声明 stack，交内核使用配置值
+            }
+        }
+        catch (IOException)
+        {
+            // 读取失败按未声明处理（用默认值兜底）
+        }
+
+        return TunControlService.DefaultStack;
+    }
+
+    /// <summary>启动恢复（源：validateTunPermissionsOnStartup + verifyTunAfterOverlayIfNeeded +
+    /// ensureTunStackOnStartupIfNeeded 的组合）：API 就绪后执行一次。</summary>
+    private async Task RestoreTunAtStartupAsync()
+    {
+        AppSettings saved = _settingsStore.Load();
+        if (!saved.TunEnabled)
+        {
+            return;
+        }
+
+        if (!WindowsElevationService.IsCurrentProcessElevated())
+        {
+            // 源：权限失败 → 关闭 TUN + 持久化 + warning（Windows：未以管理员运行）
+            try
+            {
+                if (_processManager?.IsRunning == true)
+                {
+                    await _tunControl!.ToggleAsync(enable: false).ConfigureAwait(true);
+                }
+            }
+            catch (Exception)
+            {
+                // 关闭失败不阻断启动（源：try? patchTunConfig）
+            }
+
+            _settingsStore.Save(_settingsStore.Load() with { TunEnabled = false });
+            _tunSection?.ApplySnapshot(enabled: false, saved.TunStack);
+            _mainWindow?.AppendLog(
+                "[tun] TUN 需要管理员权限，本次启动已自动关闭；以管理员身份运行 ClashBarX 可恢复");
+            Dispatcher.BeginInvoke(RefreshPresentationState);
+            return;
+        }
+
+        try
+        {
+            TunToggleResult result = await _tunControl!
+                .RestoreAtStartupAsync(savedEnabled: true, await ResolvePreferredTunStackAsync().ConfigureAwait(true))
+                .ConfigureAwait(true);
+            _tunSection?.ApplySnapshot(result.State.Enabled, result.State.Stack);
+            PersistTunState(result.State);
+            if (result.Outcome == TunToggleOutcome.Applied)
+            {
+                _mainWindow?.AppendLog("[tun] TUN 已恢复开启");
+                await TryAlignTunStackAsync().ConfigureAwait(true);
+            }
+            else
+            {
+                _mainWindow?.AppendLog("[tun] 启动恢复失败：内核运行态与期望不一致");
+                await RefreshTunFromRuntimeAsync().ConfigureAwait(true);
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            _mainWindow?.AppendLog($"[tun] 启动恢复失败：{error.Message}");
+            await RefreshTunFromRuntimeAsync().ConfigureAwait(true);
+        }
+
+        Dispatcher.BeginInvoke(RefreshPresentationState);
+    }
+
+    /// <summary>启动 stack 对齐（源：ensureTunStackOnStartupIfNeeded；失败仅记日志）。</summary>
+    private async Task TryAlignTunStackAsync()
+    {
+        try
+        {
+            string? preferred = await ResolvePreferredTunStackAsync().ConfigureAwait(true);
+            if (await _tunControl!.AlignStackIfEnabledAsync(preferred).ConfigureAwait(true))
+            {
+                TunRuntimeState state = await _tunControl.FetchRuntimeStateAsync().ConfigureAwait(true);
+                _tunSection?.ApplySnapshot(state.Enabled, state.Stack);
+                PersistTunState(state);
+                _mainWindow?.AppendLog($"[tun] stack 已对齐：{state.Stack}");
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            _mainWindow?.AppendLog($"[tun] 启动 stack 对齐失败：{error.Message}");
+        }
+    }
+
+    /// <summary>从运行态回读开关与 stack（源：refreshTunStatusFromRuntimeConfig；失败静默）。</summary>
+    private async Task RefreshTunFromRuntimeAsync()
+    {
+        try
+        {
+            TunRuntimeState state = await _tunControl!.FetchRuntimeStateAsync().ConfigureAwait(true);
+            await Dispatcher.BeginInvoke(() =>
+            {
+                _tunSection?.ApplySnapshot(state.Enabled, state.Stack);
+                PersistTunState(state);
+            });
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            _ = error;   // 回读失败静默（源：catch {}）
+        }
+    }
+
+    /// <summary>回滚 UI 开关/stack 到当前实际显示前的值（拒绝授权或失败后，抑制事件回放）。</summary>
+    private void RollbackTunSelection()
+    {
+        if (_tunSection == null)
+        {
+            return;
+        }
+
+        AppSettings saved = _settingsStore.Load();
+        _tunSection.ApplySnapshot(saved.TunEnabled, saved.TunStack);
+        Dispatcher.BeginInvoke(RefreshPresentationState);
+    }
+
+    /// <summary>持久化 TUN 实际态（源：persistEditableSettingsSnapshot 的 tun 字段对）。</summary>
+    private void PersistTunState(TunRuntimeState state)
+    {
+        AppSettings saved = _settingsStore.Load();
+        _settingsStore.Save(saved with
+        {
+            TunEnabled = state.Enabled,
+            TunStack = string.IsNullOrWhiteSpace(state.Stack) ? saved.TunStack : state.Stack.Trim(),
+        });
+    }
+
+    private static string NormalizeTunStack(string? stack) =>
+        string.IsNullOrWhiteSpace(stack) ? TunControlService.DefaultStack : stack.Trim();
 
     // ---- 规则页（M4-1：信息架构源 RulesTabView/RulesViewModel；源数据流 refreshProvidersAndRules） ----
 
@@ -1542,8 +1865,11 @@ public partial class App : Application
         bool coreRunning = _processManager?.IsRunning == true;
         ApiHealth apiHealth = _poller?.Status ?? ApiHealth.Unknown;
 
+        // TUN 开启时用 TUN 品牌图（源：StatusItemContentView 的 tunBrandStatusIconImage 分支）
         _tray?.SetKind(coreRunning
-            ? apiHealth == ApiHealth.Healthy ? TrayIconKind.Running : TrayIconKind.Logo
+            ? apiHealth == ApiHealth.Healthy
+                ? _tunSection?.IsTunEnabled == true ? TrayIconKind.Tun : TrayIconKind.Running
+                : TrayIconKind.Logo
             : TrayIconKind.Sleeping);
 
         if (_mainWindow == null)

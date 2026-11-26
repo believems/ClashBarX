@@ -97,6 +97,10 @@ public partial class MainWindow : Window
     public void SetSystemProxySection(SystemProxySectionViewModel viewModel) =>
         SystemProxySectionRoot.DataContext = viewModel;
 
+    /// <summary>注入代理页 TUN 快捷区模型。调用方负责 UI 线程编组。</summary>
+    public void SetTunSection(TunSectionViewModel viewModel) =>
+        TunSectionRoot.DataContext = viewModel;
+
     /// <summary>注入设置页模型。调用方负责 UI 线程编组。</summary>
     public void SetSettingsPage(SettingsPageViewModel viewModel) =>
         SettingsRoot.DataContext = viewModel;

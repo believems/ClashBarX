@@ -14,7 +14,9 @@ public sealed record AppSettings(
     string Language = "zh-Hans",
     bool LaunchAtLogin = false,
     bool ShowTrafficOverview = true,
-    bool CloseConnectionsOnSwitch = false)
+    bool CloseConnectionsOnSwitch = false,
+    bool TunEnabled = false,
+    string TunStack = "mixed")
 {
     public static readonly AppSettings Default = new(false);
 }
