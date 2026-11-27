@@ -88,6 +88,12 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <!-- 日志过滤项：WPF 原生 ToggleButton 外观（不自绘胶囊），仅统一字号/内边距/间距 -->
+        <Style x:Key="LogFilterToggleStyle" TargetType="ToggleButton">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Padding" Value="8,1" />
+            <Setter Property="Margin" Value="0,0,4,0" />
+        </Style>
     </Window.Resources>
     <Border BorderBrush="{DynamicResource ThemeBorderBrush}" BorderThickness="1">
     <DockPanel>
@@ -1063,89 +1069,45 @@
             </TabItem>
 
             <!-- 日志（M3-2）：mihomo WS 流 + 等级过滤 + 搜索 + 渲染上限；
-                 定稿=表格化（时间/来源/等级/消息四列、彩色徽章、斑马纹、行悬停、表头吸顶、胶囊过滤） -->
+                 定稿=表格化（时间/来源/等级/消息四列、彩色徽章、斑马纹、行悬停、表头吸顶、原生样式过滤项） -->
             <TabItem Header="{DynamicResource TabLogs}">
                 <DockPanel x:Name="LogsRoot" Margin="4,8,4,4">
-                    <DockPanel.Resources>
-                        <!-- 过滤胶囊（源：日志页 chip——圆角 99；选中=彩色边框/文字/浅底） -->
-                        <ControlTemplate x:Key="FilterChipTemplate" TargetType="ToggleButton">
-                            <Border x:Name="ChipBorder"
-                                    Background="{TemplateBinding Background}"
-                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="99"
-                                    Padding="{TemplateBinding Padding}"
-                                    SnapsToDevicePixels="True">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="ChipBorder" Property="Opacity" Value="0.85" />
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                        <Style x:Key="FilterChipBase" TargetType="ToggleButton">
-                            <Setter Property="FontSize" Value="11" />
-                            <Setter Property="Padding" Value="10,2" />
-                            <Setter Property="Margin" Value="0,0,6,0" />
-                            <Setter Property="Foreground" Value="#5E6B78" />
-                            <Setter Property="BorderBrush" Value="#CDD4DC" />
-                            <Setter Property="Background" Value="White" />
-                            <Setter Property="Cursor" Value="Hand" />
-                            <Setter Property="Template" Value="{StaticResource FilterChipTemplate}" />
-                        </Style>
-                        <Style x:Key="ChipMihomoStyle" TargetType="ToggleButton" BasedOn="{StaticResource FilterChipBase}">
-                            <Style.Triggers>
-                                <Trigger Property="IsChecked" Value="True">
-                                    <Setter Property="Foreground" Value="#2563EB" />
-                                    <Setter Property="BorderBrush" Value="#2563EB" />
-                                    <Setter Property="Background" Value="#1A2563EB" />
-                                    <Setter Property="FontWeight" Value="SemiBold" />
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                        <Style x:Key="ChipClashBarStyle" TargetType="ToggleButton" BasedOn="{StaticResource FilterChipBase}">
-                            <Style.Triggers>
-                                <Trigger Property="IsChecked" Value="True">
-                                    <Setter Property="Foreground" Value="#5E6B78" />
-                                    <Setter Property="BorderBrush" Value="#5E6B78" />
-                                    <Setter Property="Background" Value="#1A5E6B78" />
-                                    <Setter Property="FontWeight" Value="SemiBold" />
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                        <Style x:Key="ChipErrorStyle" TargetType="ToggleButton" BasedOn="{StaticResource FilterChipBase}">
-                            <Style.Triggers>
-                                <Trigger Property="IsChecked" Value="True">
-                                    <Setter Property="Foreground" Value="#C0392B" />
-                                    <Setter Property="BorderBrush" Value="#C0392B" />
-                                    <Setter Property="Background" Value="#1AC0392B" />
-                                    <Setter Property="FontWeight" Value="SemiBold" />
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                        <Style x:Key="ChipWarningStyle" TargetType="ToggleButton" BasedOn="{StaticResource FilterChipBase}">
-                            <Style.Triggers>
-                                <Trigger Property="IsChecked" Value="True">
-                                    <Setter Property="Foreground" Value="#B45309" />
-                                    <Setter Property="BorderBrush" Value="#B45309" />
-                                    <Setter Property="Background" Value="#1AB45309" />
-                                    <Setter Property="FontWeight" Value="SemiBold" />
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                        <Style x:Key="ChipInfoStyle" TargetType="ToggleButton" BasedOn="{StaticResource FilterChipBase}">
-                            <Style.Triggers>
-                                <Trigger Property="IsChecked" Value="True">
-                                    <Setter Property="Foreground" Value="#1B7F3B" />
-                                    <Setter Property="BorderBrush" Value="#1B7F3B" />
-                                    <Setter Property="Background" Value="#1A1B7F3B" />
-                                    <Setter Property="FontWeight" Value="SemiBold" />
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                    </DockPanel.Resources>
-                    <!-- 过滤栏：来源/等级胶囊 + 搜索 + 等级快捷 + 动作 -->
+                    <!-- 过滤栏分两行：此前左侧过滤组与右侧搜索/操作区同挤一行，过滤组溢出后盖住搜索框，
+                         「错误」之后的过滤项被截断。改为第一行=来源/等级过滤 + 搜索，第二行=匹配数 + 等级/动作，
+                         任一侧变宽都不会与另一侧重叠 -->
+                    <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <!-- 来源过滤（源：logsSourceFilterButtons——空集 = 全部）+ 等级过滤（空集 = 全部）；
+                             WPF 原生 ToggleButton 外观 -->
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <ToggleButton Content="Mihomo"
+                                          Style="{StaticResource LogFilterToggleStyle}"
+                                          IsChecked="{Binding IsMihomoSourceSelected}" />
+                            <ToggleButton Content="ClashBarX"
+                                          Style="{StaticResource LogFilterToggleStyle}"
+                                          IsChecked="{Binding IsClashBarSourceSelected}" />
+                            <Rectangle Width="1" Height="14" Fill="#D9DEE4" Margin="4,0,8,0" />
+                            <ToggleButton Content="{DynamicResource LogsLevelError}"
+                                          Style="{StaticResource LogFilterToggleStyle}"
+                                          IsChecked="{Binding IsErrorSelected}" />
+                            <ToggleButton Content="{DynamicResource LogsLevelWarning}"
+                                          Style="{StaticResource LogFilterToggleStyle}"
+                                          IsChecked="{Binding IsWarningSelected}" />
+                            <ToggleButton Content="{DynamicResource LogsLevelInfo}"
+                                          Style="{StaticResource LogFilterToggleStyle}"
+                                          IsChecked="{Binding IsInfoSelected}" />
+                        </StackPanel>
+                        <TextBox Grid.Column="1"
+                                 Width="220"
+                                 HorizontalAlignment="Right"
+                                 ToolTip="{DynamicResource LogsSearchHint}"
+                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                 VerticalContentAlignment="Center"
+                                 Padding="6,2" />
+                    </Grid>
                     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
                         <Button DockPanel.Dock="Right"
                                 Content="{DynamicResource LogsClear}"
@@ -1168,35 +1130,12 @@
                                   DisplayMemberPath="Label"
                                   SelectedValuePath="Value"
                                   SelectedValue="{Binding LogLevel}" />
-                        <TextBox DockPanel.Dock="Right"
-                                 Width="160"
-                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                                 VerticalContentAlignment="Center"
-                                 Padding="6,2" />
-                        <!-- 来源过滤（源：logsSourceFilterButtons——空集 = 全部） -->
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <ToggleButton Content="Mihomo"
-                                          Style="{StaticResource ChipMihomoStyle}"
-                                          IsChecked="{Binding IsMihomoSourceSelected}" />
-                            <ToggleButton Content="ClashBarX"
-                                          Style="{StaticResource ChipClashBarStyle}"
-                                          IsChecked="{Binding IsClashBarSourceSelected}" />
-                            <Rectangle Width="1" Height="16" Fill="#D9DEE4" Margin="4,0,10,0" />
-                            <ToggleButton Content="{DynamicResource LogsLevelError}"
-                                          Style="{StaticResource ChipErrorStyle}"
-                                          IsChecked="{Binding IsErrorSelected}" />
-                            <ToggleButton Content="{DynamicResource LogsLevelWarning}"
-                                          Style="{StaticResource ChipWarningStyle}"
-                                          IsChecked="{Binding IsWarningSelected}" />
-                            <ToggleButton Content="{DynamicResource LogsLevelInfo}"
-                                          Style="{StaticResource ChipInfoStyle}"
-                                          IsChecked="{Binding IsInfoSelected}" />
-                            <TextBlock Text="{Binding MatchedCountText}"
-                                       Foreground="#5E6B78"
-                                       FontSize="11"
-                                       Margin="10,0,0,0"
-                                       VerticalAlignment="Center" />
-                        </StackPanel>
+                        <!-- 匹配条数（全部匹配数，含渲染上限之外） -->
+                        <TextBlock VerticalAlignment="Center"
+                                   Foreground="#5E6B78"
+                                   FontSize="11">
+                            <Run Text="{DynamicResource LogsMatchedPrefix}" /><Run Text="{Binding MatchedCountText, Mode=OneWay}" />
+                        </TextBlock>
                     </DockPanel>
                     <!-- 日志表格卡：表头吸顶（表头在滚动区外） + 斑马纹 + 行悬停 -->
                     <Border BorderBrush="#DDD"

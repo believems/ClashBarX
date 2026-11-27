@@ -121,6 +121,8 @@
     <sys:String x:Key="LogsColSource">Source</sys:String>
     <sys:String x:Key="LogsColLevel">Level</sys:String>
     <sys:String x:Key="LogsColMessage">Message</sys:String>
+    <sys:String x:Key="LogsSearchHint">Search log messages (case-insensitive)</sys:String>
+    <sys:String x:Key="LogsMatchedPrefix">Matched </sys:String>
     <sys:String x:Key="SubscriptionUpdate">Update</sys:String>
     <sys:String x:Key="SubscriptionUpdateAll">Update All</sys:String>
     <sys:String x:Key="SettingsLaunchAtLoginHint">Start ClashBarX automatically when signing in to Windows</sys:String>
