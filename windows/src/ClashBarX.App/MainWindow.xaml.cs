@@ -131,9 +131,9 @@ public partial class MainWindow : Window
     /// <summary>切换到网络页（订阅区 2026-11-27 起在此页；「去导入」引导的落点）。</summary>
     public void SelectNetworkTab() => MainTabs.SelectedIndex = 4;
 
-    /// <summary>设置页窗高（真机实测 2026-11-27，200% DPI）：内容自然高 + 全自绘chrome 恰好收尾；
-    /// 内容长高（如 SSID 绑定增多）时走页内滚动，不出留白。</summary>
-    private const double SettingsTabWindowHeight = 402;
+    /// <summary>设置页窗高（真机实测 2026-11-27，200% DPI；以「下滚一页内容是否移动」的行为学判定为准逐轮校准：
+    /// 402-416 逐轮溢 5.5→0.5 逻辑像素，420 含亚像素安全量收口）；内容长高（如 SSID 绑定增多）时走页内滚动。</summary>
+    private const double SettingsTabWindowHeight = 420;
 
     /// <summary>其余页窗高：列表类页面靠内部滚动填满视口，固定不收。
     /// 479 = 绕过列表双列化 + 右列端口/内边距极限收紧后网络页内容实测收口高（2026-11-27 真机）。</summary>
