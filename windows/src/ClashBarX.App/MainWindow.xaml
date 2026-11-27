@@ -1666,17 +1666,9 @@
                                            FontWeight="SemiBold"
                                            FontSize="12"
                                            Margin="0,0,0,6" />
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-                                    <Button Grid.Row="0" Grid.Column="0"
+                                <!-- UniformGrid 强制等宽单元格（star 列会被按钮内容宽度顶得不等宽，真机实测参差） -->
+                                <UniformGrid Columns="3" Rows="2">
+                                    <Button
                                             Padding="6,2"
                                             Margin="0,0,4,4"
                                             FontSize="11"
@@ -1692,7 +1684,7 @@
                                             </Style>
                                         </Button.Style>
                                     </Button>
-                                    <Button Grid.Row="0" Grid.Column="1"
+                                    <Button
                                             Padding="6,2"
                                             Margin="0,0,4,4"
                                             FontSize="11"
@@ -1708,25 +1700,25 @@
                                             </Style>
                                         </Button.Style>
                                     </Button>
-                                    <Button Grid.Row="0" Grid.Column="2"
+                                    <Button
                                             Padding="6,2"
                                             Margin="0,0,0,4"
                                             FontSize="11"
                                             Command="{Binding FlushFakeIPCommand}"
                                             Content="{DynamicResource MaintenanceFlushFakeIP}" />
-                                    <Button Grid.Row="1" Grid.Column="0"
+                                    <Button
                                             Padding="6,2"
                                             Margin="0,0,4,0"
                                             FontSize="11"
                                             Command="{Binding FlushDNSCommand}"
                                             Content="{DynamicResource MaintenanceFlushDNS}" />
-                                    <Button Grid.Row="1" Grid.Column="1"
+                                    <Button
                                             Padding="6,2"
                                             Margin="0,0,4,0"
                                             FontSize="11"
                                             Content="{DynamicResource MaintenanceOpenCoreDir}"
                                             Click="OnOpenCoreDirectoryClick" />
-                                </Grid>
+                                </UniformGrid>
                                 <TextBlock Margin="0,6,0,0"
                                            FontSize="11"
                                            TextWrapping="Wrap"
@@ -1834,14 +1826,20 @@
                             </Grid.ColumnDefinitions>
                             <!-- 应用块（源：MenuBarCommonViews footer——版本 + 检查更新 + 发布页链接） -->
                             <StackPanel Grid.Column="0" Margin="0,0,16,0">
-                                <DockPanel>
-                                    <Button DockPanel.Dock="Right"
+                                <!-- 标题行：Grid 两列（左标识 / 右按钮），避免 DockPanel 行高交互重叠 -->
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="1"
                                             Content="{DynamicResource AboutCheckUpdate}"
                                             FontSize="11"
                                             Padding="8,2"
+                                            VerticalAlignment="Center"
                                             Command="{Binding CheckUpdateCommand}"
                                             IsEnabled="{Binding IsCheckingUpdate, Converter={StaticResource InverseBool}}" />
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                                         <Image Source="/Assets/tray.ico"
                                                Width="24" Height="24"
                                                RenderOptions.BitmapScalingMode="HighQuality" />
@@ -1853,9 +1851,13 @@
                                             <Run Text="{Binding CurrentVersionText, Mode=OneWay}" Foreground="#5E6B78" FontSize="11" FontWeight="Normal" />
                                         </TextBlock>
                                     </StackPanel>
-                                </DockPanel>
-                                <DockPanel Margin="0,6,0,0">
-                                    <Button DockPanel.Dock="Right"
+                                </Grid>
+                                <Grid Margin="0,6,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="1"
                                             Content="{DynamicResource AboutOpenRelease}"
                                             FontSize="11"
                                             Foreground="#0B6BCB"
@@ -1864,8 +1866,9 @@
                                             Background="Transparent"
                                             BorderThickness="0"
                                             Cursor="Hand"
+                                            VerticalAlignment="Center"
                                             Click="OnOpenReleasePageClick" />
-                                    <StackPanel Orientation="Horizontal">
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
                                         <Button Visibility="{Binding HasAvailableUpdate, Converter={StaticResource BoolToVis}}"
                                                 Click="OnOpenReleasePageClick"
                                                 FontSize="11"
@@ -1897,7 +1900,7 @@
                                             </TextBlock.Style>
                                         </TextBlock>
                                     </StackPanel>
-                                </DockPanel>
+                                </Grid>
                             </StackPanel>
                             <!-- 内核块（定稿：检查发现新版本后才显示升级按钮 + 发布页链接） -->
                             <Border Grid.Column="1"
@@ -1905,8 +1908,13 @@
                                     BorderThickness="1,0,0,0"
                                     Padding="16,0,0,0">
                                 <StackPanel>
-                                    <DockPanel>
-                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                    <!-- 标题行：Grid 两列（左标识 / 右按钮），避免 DockPanel 行高交互重叠 -->
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                                             <Button Visibility="{Binding HasKernelUpdate, Converter={StaticResource BoolToVis}}"
                                                     Command="{Binding UpgradeCoreCommand}"
                                                     FontSize="11"
@@ -1925,7 +1933,7 @@
                                                     Command="{Binding CheckKernelUpdateCommand}"
                                                     IsEnabled="{Binding IsCheckingKernelUpdate, Converter={StaticResource InverseBool}}" />
                                         </StackPanel>
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                                             <Border Width="24" Height="24"
                                                     CornerRadius="5"
                                                     Background="#EEF1F5"
@@ -1943,9 +1951,13 @@
                                                 <Run Text="{Binding KernelVersionText, Mode=OneWay}" Foreground="#5E6B78" FontSize="11" FontWeight="Normal" />
                                             </TextBlock>
                                         </StackPanel>
-                                    </DockPanel>
-                                    <DockPanel Margin="0,6,0,0">
-                                        <Button DockPanel.Dock="Right"
+                                    </Grid>
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="1"
                                                 Content="{DynamicResource AboutOpenRelease}"
                                                 FontSize="11"
                                                 Foreground="#0B6BCB"
@@ -1954,8 +1966,9 @@
                                                 Background="Transparent"
                                                 BorderThickness="0"
                                                 Cursor="Hand"
+                                                VerticalAlignment="Center"
                                                 Click="OnOpenKernelReleasePageClick" />
-                                        <StackPanel Orientation="Horizontal">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal">
                                             <TextBlock FontSize="11"
                                                        Foreground="#5E6B78"
                                                        TextTrimming="CharacterEllipsis"
@@ -1984,7 +1997,7 @@
                                                        Text="{Binding KernelFoundText, Mode=OneWay}"
                                                        Visibility="{Binding HasKernelUpdate, Converter={StaticResource BoolToVis}}" />
                                         </StackPanel>
-                                    </DockPanel>
+                                    </Grid>
                                 </StackPanel>
                             </Border>
                         </Grid>
