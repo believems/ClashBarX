@@ -162,6 +162,5 @@
     <sys:String x:Key="SubscriptionUpdateHint">重新下载当前选中的订阅（选中项即列表中高亮的配置）</sys:String>
     <sys:String x:Key="SubscriptionUpdateAllHint">重新下载全部订阅</sys:String>
     <sys:String x:Key="NetworkSubscriptionEnableHint">启用列表中选中的配置（切换生效配置）</sys:String>
-    <sys:String x:Key="SubscriptionButtonsHint">按钮作用于列表选中行：更新=重下载 · 启用=切换生效 · 删除=删除文件</sys:String>
     <sys:String x:Key="NetworkSubscriptionRemoveHint">删除列表中选中的配置文件</sys:String>
 </ResourceDictionary>

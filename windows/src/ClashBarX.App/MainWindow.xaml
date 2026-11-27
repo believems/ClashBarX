@@ -1855,7 +1855,8 @@
                         </Grid>
                     </Grid>
 
-                    <!-- 订阅管理（M2-3：Boss 定稿挪入设置页全宽行；远程目标时整体只读） -->
+                    <!-- 订阅管理（M2-3：设置页全宽行；双栏——左=导入行+订阅列表，右=操作按钮列；
+                         原与按钮同行的说明文字收进各按钮 ToolTip；远程目标时整体只读） -->
                     <Border x:Name="SubscriptionSectionRoot"
                             Grid.Row="1"
                             Padding="8"
@@ -1877,59 +1878,64 @@
                                            FontWeight="SemiBold"
                                            FontSize="12" />
                             </DockPanel>
-                            <DockPanel Margin="0,0,0,6">
-                                <Button x:Name="ImportLocalButton"
-                                        DockPanel.Dock="Right"
-                                        Content="{DynamicResource NetworkSubscriptionImportLocal}"
-                                        Padding="10,2"
-                                        MinWidth="60"
-                                        Margin="6,0,0,0"
-                                        ToolTip="{DynamicResource NetworkSubscriptionImportLocalHint}"
-                                        Click="OnImportLocalClick" />
-                                <Button x:Name="ImportButton"
-                                        DockPanel.Dock="Right"
-                                        Content="{DynamicResource NetworkSubscriptionImport}"
-                                        Padding="10,2"
-                                        MinWidth="60"
-                                        ToolTip="{DynamicResource NetworkSubscriptionImportHint}"
-                                        Click="OnImportClick" />
-                                <TextBox x:Name="SubscriptionUrlBox"
-                                         VerticalContentAlignment="Center"
-                                         Padding="4,2" />
-                            </DockPanel>
-                            <ListBox x:Name="ConfigFilesBox"
-                                     MinHeight="72"
-                                     MaxHeight="120" />
-                            <!-- 说明与四按钮同一行（定稿——说明左置、按钮组右置） -->
-                            <DockPanel Margin="0,6,0,0">
-                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <!-- 左栏：导入行（订阅链接 + 导入 / 导入本地文件）+ 订阅列表 -->
+                                <DockPanel Grid.Column="0" Margin="0,0,8,0">
+                                    <Button x:Name="ImportLocalButton"
+                                            DockPanel.Dock="Right"
+                                            Content="{DynamicResource NetworkSubscriptionImportLocal}"
+                                            Padding="10,2"
+                                            MinWidth="60"
+                                            Margin="6,0,0,0"
+                                            ToolTip="{DynamicResource NetworkSubscriptionImportLocalHint}"
+                                            Click="OnImportLocalClick" />
+                                    <Button x:Name="ImportButton"
+                                            DockPanel.Dock="Right"
+                                            Content="{DynamicResource NetworkSubscriptionImport}"
+                                            Padding="10,2"
+                                            MinWidth="60"
+                                            ToolTip="{DynamicResource NetworkSubscriptionImportHint}"
+                                            Click="OnImportClick" />
+                                    <TextBox x:Name="SubscriptionUrlBox"
+                                             VerticalContentAlignment="Center"
+                                             Padding="4,2" />
+                                    <ListBox x:Name="ConfigFilesBox"
+                                             MinHeight="96"
+                                             MaxHeight="160"
+                                             Margin="0,6,0,0" />
+                                </DockPanel>
+                                <!-- 右栏：操作按钮列（等宽；更新/启用/删除作用于列表选中行，未选中时置灰） -->
+                                <StackPanel Grid.Column="1" Width="120">
                                     <!-- 远程订阅更新（源：ProxyTabView 订阅行刷新/更新全部） -->
-                                    <Button Content="{DynamicResource SubscriptionUpdate}"
+                                    <Button x:Name="UpdateSubscriptionButton"
+                                            Content="{DynamicResource SubscriptionUpdate}"
+                                            ToolTip="{DynamicResource SubscriptionUpdateHint}"
                                             Padding="10,2"
-                                            MinWidth="60"
-                                            Margin="0,0,8,0"
+                                            Margin="0,0,0,6"
                                             Click="OnRefreshSubscriptionClick" />
-                                    <Button Content="{DynamicResource SubscriptionUpdateAll}"
+                                    <Button x:Name="UpdateAllSubscriptionsButton"
+                                            Content="{DynamicResource SubscriptionUpdateAll}"
+                                            ToolTip="{DynamicResource SubscriptionUpdateAllHint}"
                                             Padding="10,2"
-                                            MinWidth="72"
-                                            Margin="0,0,8,0"
+                                            Margin="0,0,0,6"
                                             Click="OnRefreshAllSubscriptionsClick" />
-                                    <Button Content="{DynamicResource NetworkSubscriptionEnable}"
+                                    <Button x:Name="EnableConfigButton"
+                                            Content="{DynamicResource NetworkSubscriptionEnable}"
+                                            ToolTip="{DynamicResource NetworkSubscriptionEnableHint}"
                                             Padding="10,2"
-                                            MinWidth="60"
-                                            Margin="0,0,8,0"
+                                            Margin="0,0,0,6"
                                             Click="OnEnableClick" />
-                                    <Button Content="{DynamicResource NetworkSubscriptionRemove}"
+                                    <Button x:Name="RemoveConfigButton"
+                                            Content="{DynamicResource NetworkSubscriptionRemove}"
+                                            ToolTip="{DynamicResource NetworkSubscriptionRemoveHint}"
                                             Padding="10,2"
-                                            MinWidth="60"
                                             Click="OnRemoveClick" />
                                 </StackPanel>
-                                <TextBlock Text="{DynamicResource SubscriptionButtonsHint}"
-                                           FontSize="11"
-                                           Foreground="#5E6B78"
-                                           VerticalAlignment="Center"
-                                           TextWrapping="Wrap" />
-                            </DockPanel>
+                            </Grid>
                         </StackPanel>
                     </Border>
                     

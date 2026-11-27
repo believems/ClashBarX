@@ -162,6 +162,5 @@
     <sys:String x:Key="SubscriptionUpdateHint">Re-download the selected subscription (the highlighted row)</sys:String>
     <sys:String x:Key="SubscriptionUpdateAllHint">Re-download all subscriptions</sys:String>
     <sys:String x:Key="NetworkSubscriptionEnableHint">Activate the selected config row</sys:String>
-    <sys:String x:Key="SubscriptionButtonsHint">Buttons act on the selected row: Update = re-download · Enable = activate · Delete = remove file</sys:String>
     <sys:String x:Key="NetworkSubscriptionRemoveHint">Delete the selected config file</sys:String>
 </ResourceDictionary>

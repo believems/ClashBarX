@@ -54,6 +54,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         MainTabs.SelectionChanged += (_, _) => TabSelectionChanged?.Invoke(this, EventArgs.Empty);
+        ConfigFilesBox.SelectionChanged += (_, _) => RefreshSubscriptionActionState();
     }
 
     /// <summary>主 tab 选择变化（App 层在 UI 线程上缓存各页可见性，供后台流线程读取）。</summary>
@@ -142,6 +143,18 @@ public partial class MainWindow : Window
                 ConfigFilesBox.SelectedItem = item;
             }
         }
+
+        RefreshSubscriptionActionState();
+    }
+
+    /// <summary>订阅操作按钮作用域：更新/启用/删除作用于列表选中行（无选中置灰）；更新全部依赖存在订阅。</summary>
+    private void RefreshSubscriptionActionState()
+    {
+        bool hasSelection = SelectedFileName is not null;
+        UpdateSubscriptionButton.IsEnabled = hasSelection;
+        EnableConfigButton.IsEnabled = hasSelection;
+        RemoveConfigButton.IsEnabled = hasSelection;
+        UpdateAllSubscriptionsButton.IsEnabled = ConfigFilesBox.Items.Count > 0;
     }
 
     /// <summary>导入按钮的可用态（下载期间禁用防重复提交）。</summary>
