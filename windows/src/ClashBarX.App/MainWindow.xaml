@@ -67,6 +67,7 @@
                 <!-- 左上角 App 图标 → 应用菜单：关于 / 检查更新 / 关闭窗口（收起到托盘，非退出） -->
                 <Button x:Name="AppMenuButton"
                         Click="OnAppMenuClick"
+                        AutomationProperties.Name="{DynamicResource AppMenuTooltip}"
                         ToolTip="{DynamicResource AppMenuTooltip}"
                         Background="Transparent"
                         BorderThickness="0"

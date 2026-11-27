@@ -97,10 +97,14 @@ public partial class MainWindow : Window
 
     private void OnAppMenuClick(object sender, RoutedEventArgs e)
     {
-        // 图标点击在按钮下方弹出应用菜单（ContextMenu 显式 IsOpen；关闭窗口=收起到托盘）
+        // 图标点击在按钮下方弹出应用菜单（关闭窗口=收起到托盘）。
+        // 必须延迟到当前鼠标消息处理完再开：Click 里同步 IsOpen=true 会被同一次
+        // 点击的抬起消息当作「菜单外点击」当即关闭（真机实测菜单闪退不出现）
         ContextMenu menu = AppMenuButton.ContextMenu;
         menu.PlacementTarget = AppMenuButton;
-        menu.IsOpen = true;
+        Dispatcher.BeginInvoke(
+            new Action(() => menu.IsOpen = true),
+            System.Windows.Threading.DispatcherPriority.Input);
     }
 
     private void OnAppAboutClick(object sender, RoutedEventArgs e) => AppAboutRequested?.Invoke();
