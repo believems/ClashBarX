@@ -23,6 +23,9 @@
     <sys:String x:Key="NetworkGuardChecking">Checking…</sys:String>
     <sys:String x:Key="NetworkSubscriptionTitle">Subscriptions</sys:String>
     <sys:String x:Key="NetworkSubscriptionImport">Import</sys:String>
+    <sys:String x:Key="NetworkSubscriptionImporting">Importing…</sys:String>
+    <sys:String x:Key="NetworkSubscriptionUrlPlaceholder">Paste subscription URL…</sys:String>
+    <sys:String x:Key="NetworkSubscriptionEmptyHint">No subscription yet: paste a URL above and click Import, or use Import Local File to pick a YAML config</sys:String>
     <sys:String x:Key="NetworkSubscriptionEnable">Enable</sys:String>
     <sys:String x:Key="NetworkSubscriptionRemove">Remove</sys:String>
 

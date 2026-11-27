@@ -50,11 +50,15 @@ public partial class MainWindow : Window
 
     private void OnOpenWebUIClick(object sender, RoutedEventArgs e) => OpenWebUIRequested?.Invoke();
 
+    private bool _importBusy;
+
     public MainWindow()
     {
         InitializeComponent();
         MainTabs.SelectionChanged += (_, _) => TabSelectionChanged?.Invoke(this, EventArgs.Empty);
         ConfigFilesBox.SelectionChanged += (_, _) => RefreshSubscriptionActionState();
+        SubscriptionUrlBox.TextChanged += (_, _) => RefreshImportActionState();
+        RefreshImportActionState();
     }
 
     /// <summary>主 tab 选择变化（App 层在 UI 线程上缓存各页可见性，供后台流线程读取）。</summary>
@@ -157,11 +161,37 @@ public partial class MainWindow : Window
         UpdateAllSubscriptionsButton.IsEnabled = ConfigFilesBox.Items.Count > 0;
     }
 
-    /// <summary>导入按钮的可用态（下载期间禁用防重复提交）。</summary>
+    /// <summary>导入按钮的可用态（下载期间禁用防重复提交；文案「导入中…」走资源字典，恢复后回到本地化文案）。</summary>
     public void SetImportBusy(bool busy)
     {
-        ImportButton.IsEnabled = !busy;
-        ImportButton.Content = busy ? "导入中…" : "导入";
+        _importBusy = busy;
+        RefreshImportActionState();
+        ImportButton.SetResourceReference(
+            ContentControl.ContentProperty, busy ? "NetworkSubscriptionImporting" : "NetworkSubscriptionImport");
+    }
+
+    /// <summary>
+    /// 导入按钮仅在订阅链接非空且不在导入中时可用（此前空链接点「导入」无任何反馈）；
+    /// 占位提示随输入显隐。
+    /// </summary>
+    private void RefreshImportActionState()
+    {
+        bool hasUrl = SubscriptionUrlBox.Text.Trim().Length > 0;
+        ImportButton.IsEnabled = !_importBusy && hasUrl;
+        SubscriptionUrlPlaceholder.Visibility = hasUrl ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    /// <summary>切到设置页并把焦点交给订阅链接输入框（「去导入」引导的落点）。</summary>
+    public void FocusSubscriptionUrlBox()
+    {
+        SelectSettingsTab();
+        Dispatcher.BeginInvoke(
+            new Action(() =>
+            {
+                SubscriptionUrlBox.Focus();
+                System.Windows.Input.Keyboard.Focus(SubscriptionUrlBox);
+            }),
+            System.Windows.Threading.DispatcherPriority.Input);
     }
 
     /// <summary>当前是否停在「代理」tab（驱动代理页的刷新节奏）。</summary>

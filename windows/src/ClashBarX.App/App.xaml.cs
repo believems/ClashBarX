@@ -464,6 +464,14 @@ public partial class App : Application
             return;
         }
 
+        // 没有可启动的配置（还没导入订阅）：不把不存在的配置路径交给内核（内核会立刻退出）；
+        // 启动自动拉起不弹窗（源：auto trigger 的 startupErrorMessage 语义），由代理页与订阅区的空态提示引导
+        if (!HasRunnableConfig())
+        {
+            _mainWindow?.AppendLog(L("log.start.no_config_hint"));
+            return;
+        }
+
         MihomoProcessManager manager = _processManager!;
         try
         {
@@ -2190,6 +2198,14 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
 
     // ---- 订阅管理（M2-3） ----
 
+    /// <summary>模态反馈（源：runModalAlert 的 Windows 对应物；UI 线程调用）。</summary>
+    private void ShowMessage(string title, string message, bool isError) => System.Windows.MessageBox.Show(
+        _mainWindow,
+        message,
+        title,
+        System.Windows.MessageBoxButton.OK,
+        isError ? System.Windows.MessageBoxImage.Warning : System.Windows.MessageBoxImage.Information);
+
     private void RefreshConfigList()
     {
         if (_subscriptions == null || _mainWindow == null)
@@ -2202,6 +2218,10 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
         _mainWindow.SetConfigFiles(files, selected);
     }
 
+    /// <summary>内核是否已放置（no-core 策略：%APPDATA%\ClashBarX\core\mihomo.exe）。</summary>
+    private bool IsCoreBinaryPresent() =>
+        _processManager?.DetectedBinaryPath is { } binaryPath && File.Exists(binaryPath);
+
     private async void OnSubscriptionImportRequested(string urlText)
     {
         if (_remoteStore?.IsRemoteTarget == true)
@@ -2211,10 +2231,15 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
 
         if (!Uri.TryCreate(urlText, UriKind.Absolute, out Uri? url))
         {
-            _mainWindow?.AppendLog(L("log.subscription.invalid_url"));
+            string invalidUrl = L("log.subscription.invalid_url");
+            _mainWindow?.AppendLog(invalidUrl);
+            ShowMessage(L("guide.import_failed.title"), invalidUrl, isError: true);
             return;
         }
 
+        // 首次导入（此前没有任何配置文件）给引导性反馈（源：app.config.remote_import.alert.success）
+        int configCountBeforeImport = _subscriptions!.ListConfigFiles().Count;
+        bool corePresent = IsCoreBinaryPresent();
         _mainWindow?.SetImportBusy(true);
         try
         {
@@ -2222,16 +2247,26 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
             string version = _poller?.Version is string current && current.Length > 0
                 ? current
                 : DefaultMihomoVersionForUserAgent;
-            SubscriptionInfo info = await _subscriptions!.AddAsync(url, $"clash.meta/{version}");
+            SubscriptionInfo info = await _subscriptions.AddAsync(url, $"clash.meta/{version}");
 
             _subscriptions.Select(info.FileName);
             _mainWindow?.AppendLog(L("log.subscription.imported", info.FileName));
             RefreshConfigList();
+            if (FirstRunGuidePolicy.ShouldAnnounceImportSuccess(configCountBeforeImport, corePresent))
+            {
+                ShowMessage(
+                    L("guide.import_success.title"),
+                    L("guide.import_success.message", info.FileName),
+                    isError: false);
+            }
+
             await ApplySelectedConfigAsync();
         }
         catch (Exception error)
         {
-            _mainWindow?.AppendLog(L("log.subscription.import_failed", error.Message));
+            string message = L("log.subscription.import_failed", error.Message);
+            _mainWindow?.AppendLog(message);
+            ShowMessage(L("guide.import_failed.title"), message, isError: true);   // 失败原因只进日志页用户看不到
         }
         finally
         {
@@ -2247,6 +2282,8 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
             return;   // 远程目标配置管理只读（UI 已禁用，此处兜底）
         }
 
+        int configCountBeforeImport = _subscriptions?.ListConfigFiles().Count ?? 0;
+        bool corePresent = IsCoreBinaryPresent();
         try
         {
             string fileName = Path.GetFileName(sourcePath);
@@ -2264,11 +2301,21 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
             _subscriptions!.Select(fileName);
             _mainWindow?.AppendLog(L("log.subscription.local_imported", fileName));
             RefreshConfigList();
+            if (FirstRunGuidePolicy.ShouldAnnounceImportSuccess(configCountBeforeImport, corePresent))
+            {
+                ShowMessage(
+                    L("guide.import_success.title"),
+                    L("guide.import_success.message", fileName),
+                    isError: false);
+            }
+
             await ApplySelectedConfigAsync();
         }
         catch (Exception error)
         {
-            _mainWindow?.AppendLog(L("log.subscription.local_import_failed", error.Message));
+            string message = L("log.subscription.local_import_failed", error.Message);
+            _mainWindow?.AppendLog(message);
+            ShowMessage(L("guide.import_failed.title"), message, isError: true);
         }
     }
 
@@ -2486,11 +2533,41 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
 
     // ---- 手动内核生命周期（源：MenuBarHeaderView 的启动/停止/重启动作） ----
 
+    /// <summary>是否存在可启动的运行配置（选中配置或根目录手工 config.yaml）。</summary>
+    private bool HasRunnableConfig() => FirstRunGuidePolicy.HasRunnableConfig(
+        _subscriptions?.GetSelectedConfigPath(), ClashBarXPaths.DefaultConfigPath());
+
+    /// <summary>
+    /// 没有可启动的运行配置：提示先导入订阅，可一键前往订阅设置
+    /// （源：log.start.no_config + reportCoreStartFailure 的启动失败告警）。
+    /// </summary>
+    private void ShowNoConfigPrompt()
+    {
+        _mainWindow?.AppendLog(L("log.start.no_config"));
+        System.Windows.MessageBoxResult choice = System.Windows.MessageBox.Show(
+            _mainWindow,
+            L("guide.no_config.message"),
+            L("guide.no_config.title"),
+            System.Windows.MessageBoxButton.YesNo,
+            System.Windows.MessageBoxImage.Information);
+        if (choice == System.Windows.MessageBoxResult.Yes)
+        {
+            _mainWindow?.FocusSubscriptionUrlBox();
+        }
+    }
+
     private async Task StartCoreManualAsync()
     {
         if (_processManager?.IsRunning == true)
         {
             _mainWindow?.AppendLog(L("log.core.already_running"));
+            return;
+        }
+
+        // 首次使用引导链 ②：还没有可启动的配置（还没导入订阅）→ 引导去导入
+        if (!HasRunnableConfig())
+        {
+            ShowNoConfigPrompt();
             return;
         }
 
@@ -2540,6 +2617,12 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
 
     private async Task RestartCoreManualAsync()
     {
+        if (!HasRunnableConfig())
+        {
+            ShowNoConfigPrompt();
+            return;
+        }
+
         string configPath = _subscriptions?.GetSelectedConfigPath() ?? ClashBarXPaths.DefaultConfigPath();
         try
         {

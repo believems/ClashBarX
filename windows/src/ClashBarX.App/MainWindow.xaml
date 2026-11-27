@@ -1824,28 +1824,61 @@
                                 </Grid.ColumnDefinitions>
                                 <!-- 左栏：导入行（订阅链接 + 导入 / 导入本地文件）+ 订阅列表 -->
                                 <DockPanel Grid.Column="0" Margin="0,0,8,0">
-                                    <Button x:Name="ImportLocalButton"
-                                            DockPanel.Dock="Right"
-                                            Content="{DynamicResource NetworkSubscriptionImportLocal}"
-                                            Padding="10,2"
-                                            MinWidth="60"
-                                            Margin="6,0,0,0"
-                                            ToolTip="{DynamicResource NetworkSubscriptionImportLocalHint}"
-                                            Click="OnImportLocalClick" />
-                                    <Button x:Name="ImportButton"
-                                            DockPanel.Dock="Right"
-                                            Content="{DynamicResource NetworkSubscriptionImport}"
-                                            Padding="10,2"
-                                            MinWidth="60"
-                                            ToolTip="{DynamicResource NetworkSubscriptionImportHint}"
-                                            Click="OnImportClick" />
-                                    <TextBox x:Name="SubscriptionUrlBox"
-                                             VerticalContentAlignment="Center"
-                                             Padding="4,2" />
-                                    <ListBox x:Name="ConfigFilesBox"
-                                             MinHeight="96"
-                                             MaxHeight="160"
-                                             Margin="0,6,0,0" />
+                                    <!-- 导入行独立成一段停靠顶部：两个按钮停靠右侧，输入框作为末子元素占满剩余宽度 -->
+                                    <DockPanel DockPanel.Dock="Top">
+                                        <Button x:Name="ImportLocalButton"
+                                                DockPanel.Dock="Right"
+                                                Content="{DynamicResource NetworkSubscriptionImportLocal}"
+                                                Padding="10,2"
+                                                MinWidth="60"
+                                                Margin="6,0,0,0"
+                                                ToolTip="{DynamicResource NetworkSubscriptionImportLocalHint}"
+                                                Click="OnImportLocalClick" />
+                                        <Button x:Name="ImportButton"
+                                                DockPanel.Dock="Right"
+                                                Content="{DynamicResource NetworkSubscriptionImport}"
+                                                Padding="10,2"
+                                                MinWidth="60"
+                                                ToolTip="{DynamicResource NetworkSubscriptionImportHint}"
+                                                Click="OnImportClick" />
+                                        <!-- 订阅链接输入框：无内容时显示占位提示（引导用户粘贴链接） -->
+                                        <Grid>
+                                            <TextBox x:Name="SubscriptionUrlBox"
+                                                     VerticalContentAlignment="Center"
+                                                     Padding="4,2" />
+                                            <TextBlock x:Name="SubscriptionUrlPlaceholder"
+                                                       Text="{DynamicResource NetworkSubscriptionUrlPlaceholder}"
+                                                       Foreground="#8A93A0"
+                                                       FontSize="12"
+                                                       Margin="6,0,0,0"
+                                                       VerticalAlignment="Center"
+                                                       IsHitTestVisible="False" />
+                                        </Grid>
+                                    </DockPanel>
+                                    <!-- 订阅列表（末子元素占满剩余高度）：为空时显示导入引导（覆盖在列表区上） -->
+                                    <Grid Margin="0,6,0,0">
+                                        <ListBox x:Name="ConfigFilesBox"
+                                                 MinHeight="96"
+                                                 MaxHeight="160" />
+                                        <TextBlock Text="{DynamicResource NetworkSubscriptionEmptyHint}"
+                                                   Foreground="#8A93A0"
+                                                   FontSize="12"
+                                                   TextWrapping="Wrap"
+                                                   TextAlignment="Center"
+                                                   Margin="12"
+                                                   IsHitTestVisible="False">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Path=HasItems, ElementName=ConfigFilesBox}" Value="False">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Grid>
                                 </DockPanel>
                                 <!-- 右栏：操作按钮列（等宽；更新/启用/删除作用于列表选中行，未选中时置灰） -->
                                 <StackPanel Grid.Column="1" Width="120">
