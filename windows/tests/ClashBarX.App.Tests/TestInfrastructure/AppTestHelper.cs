@@ -6,13 +6,16 @@ namespace ClashBarX.App.Tests.TestInfrastructure;
 /// <summary>进程类测试的等待与假内核（批处理）工厂。</summary>
 public static class AppTestHelper
 {
-    /// <summary>轮询等待条件成立（5 秒超时，避免测试挂死）。</summary>
-    public static async Task WaitUntilAsync(Func<bool> condition, string description)
+    /// <summary>
+    /// 轮询等待条件成立（默认 5 秒超时，避免测试挂死）。依赖系统异步行为（如关 Job 句柄后
+    /// 由系统终结进程树）的等待可放宽预算：CI 负载下明显慢于本机，紧预算会偶发超时。
+    /// </summary>
+    public static async Task WaitUntilAsync(Func<bool> condition, string description, int timeoutMilliseconds = 5000)
     {
         var watch = Stopwatch.StartNew();
         while (!condition())
         {
-            if (watch.ElapsedMilliseconds > 5000)
+            if (watch.ElapsedMilliseconds > timeoutMilliseconds)
             {
                 throw new TimeoutException($"等待超时：{description}");
             }
@@ -22,7 +25,7 @@ public static class AppTestHelper
     }
 
     /// <summary>等待指定 pid 的进程退出（进程已不存在视为已退出）。</summary>
-    public static async Task WaitProcessExitedAsync(int processId, string description)
+    public static async Task WaitProcessExitedAsync(int processId, string description, int timeoutMilliseconds = 5000)
     {
         await WaitUntilAsync(() =>
         {
@@ -35,7 +38,38 @@ public static class AppTestHelper
             {
                 return true;   // 进程已不存在
             }
-        }, description);
+        }, description, timeoutMilliseconds);
+    }
+
+    /// <summary>
+    /// 等待并读出子进程写下的 pid 文件。写入方是「先建文件 → 再写内容 → 最后关闭」：
+    /// File.Exists 为真时文件可能仍被写入方占用（File.ReadAllText 抛 IOException）
+    /// 或内容尚未落盘（解析失败）——必须带重试地读，直到拿到合法 pid。
+    /// </summary>
+    public static async Task<int> WaitForPidFileAsync(string path, string description, int timeoutMilliseconds = 5000)
+    {
+        int pid = 0;
+        await WaitUntilAsync(() => TryReadPid(path, out pid), description, timeoutMilliseconds);
+        return pid;
+    }
+
+    private static bool TryReadPid(string path, out int pid)
+    {
+        pid = 0;
+        try
+        {
+            return File.Exists(path)
+                && int.TryParse(File.ReadAllText(path).Trim(), out pid)
+                && pid > 0;
+        }
+        catch (IOException)
+        {
+            return false;   // 写入方尚未关闭文件
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;   // 写入方持有的共享模式暂不允许读
+        }
     }
 
     /// <summary>
