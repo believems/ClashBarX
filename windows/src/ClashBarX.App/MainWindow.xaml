@@ -7,16 +7,104 @@
         xmlns:core="clr-namespace:ClashBarX.App.Core"
         xmlns:overrides="clr-namespace:ClashBarX.Core.Overrides;assembly=ClashBarX.Core"
         mc:Ignorable="d"
-        Title="ClashBarX" Height="560" Width="760"
+        Title="ClashBarX" Height="660" Width="760"
+        WindowStyle="None"
+        Background="{DynamicResource ThemeWindowBrush}"
         WindowStartupLocation="CenterScreen">
+    <!-- 自绘标题栏（原型 titlebar 语义：LOGO→应用菜单 + 应用名 + 窗控按钮）；
+         CaptionHeight=0 全自绘，ResizeBorderThickness 保留边缘缩放 -->
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="0"
+                      ResizeBorderThickness="6"
+                      CornerRadius="0"
+                      GlassFrameThickness="0"
+                      UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
     <Window.Resources>
+        <!-- 自绘标题栏窗控按钮（扁平、悬停浅灰底） -->
+        <Style x:Key="TitleBarButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="46" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource ThemeSecondaryTextBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#14000000" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
         <core:InverseBoolConverter x:Key="InverseBool" />
         <core:InverseBoolToVisibilityConverter x:Key="InvertVis" />
         <core:InverseBoolToVisibilityConverter x:Key="InverseBoolToVis" />
         <core:StringToVisibilityConverter x:Key="StringToVis" />
     </Window.Resources>
-    <DockPanel Margin="12">
+    <Border BorderBrush="{DynamicResource ThemeBorderBrush}" BorderThickness="1">
+    <DockPanel>
+        <!-- 自绘标题栏：LOGO（应用菜单）+ 应用名 | 最小化/最大化/关闭；拖动移窗、双击最大化/还原 -->
+        <DockPanel x:Name="TitleBarRoot"
+                   DockPanel.Dock="Top"
+                   Height="34"
+                   Background="{DynamicResource ThemeWindowBrush}"
+                   MouseLeftButtonDown="OnTitleBarMouseLeftButtonDown">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Content="—"
+                        Style="{StaticResource TitleBarButtonStyle}"
+                        ToolTip="{DynamicResource TitleBarMinimize}"
+                        Click="OnMinimizeClick" />
+                <Button Content="▢"
+                        Style="{StaticResource TitleBarButtonStyle}"
+                        ToolTip="{DynamicResource TitleBarMaximize}"
+                        Click="OnMaximizeClick" />
+                <Button Content="✕"
+                        Style="{StaticResource TitleBarButtonStyle}"
+                        ToolTip="{DynamicResource TitleBarClose}"
+                        Click="OnCloseClick" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                <Button x:Name="AppMenuButton"
+                        Click="OnAppMenuClick"
+                        AutomationProperties.Name="{DynamicResource AppMenuTooltip}"
+                        ToolTip="{DynamicResource AppMenuTooltip}"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Padding="2"
+                        VerticalAlignment="Center"
+                        Cursor="Hand">
+                    <Image Source="/Assets/tray.ico"
+                           Width="20" Height="20"
+                           RenderOptions.BitmapScalingMode="HighQuality" />
+                    <Button.ContextMenu>
+                        <ContextMenu Placement="Bottom" PlacementTarget="{Binding ElementName=AppMenuButton}">
+                            <MenuItem Header="{DynamicResource AppMenuAbout}" Click="OnAppAboutClick" />
+                            <MenuItem Header="{DynamicResource AppMenuCheckUpdate}" Click="OnAppCheckUpdateClick" />
+                            <Separator />
+                            <MenuItem Header="{DynamicResource AppMenuHideWindow}" Click="OnAppHideWindowClick" />
+                        </ContextMenu>
+                    </Button.ContextMenu>
+                </Button>
+                <TextBlock Text="ClashBarX"
+                           FontSize="12"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource ThemeTextBrush}"
+                           VerticalAlignment="Center"
+                           Margin="6,0,0,0" />
+            </StackPanel>
+        </DockPanel>
+        <DockPanel Margin="12">
         <!-- 底部状态栏：状态+版本 | 速率 | 连接+内存（右对齐；头部状态文本全部下沉至此）。
              须先于 TabControl 声明（dock Bottom）——TabControl 作为最后子元素 Fill 剩余空间；
              声明在 TabControl 之后会被 LastChildFill 拉伸成右侧竖条（真机实测） -->
@@ -64,28 +152,6 @@
                         Click="OnOpenWebUIClick" />
             </StackPanel>
             <StackPanel Orientation="Horizontal">
-                <!-- 左上角 App 图标 → 应用菜单：关于 / 检查更新 / 关闭窗口（收起到托盘，非退出） -->
-                <Button x:Name="AppMenuButton"
-                        Click="OnAppMenuClick"
-                        AutomationProperties.Name="{DynamicResource AppMenuTooltip}"
-                        ToolTip="{DynamicResource AppMenuTooltip}"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        Padding="2"
-                        VerticalAlignment="Center"
-                        Cursor="Hand">
-                    <Image Source="/Assets/tray.ico"
-                           Width="20" Height="20"
-                           RenderOptions.BitmapScalingMode="HighQuality" />
-                    <Button.ContextMenu>
-                        <ContextMenu Placement="Bottom" PlacementTarget="{Binding ElementName=AppMenuButton}">
-                            <MenuItem Header="{DynamicResource AppMenuAbout}" Click="OnAppAboutClick" />
-                            <MenuItem Header="{DynamicResource AppMenuCheckUpdate}" Click="OnAppCheckUpdateClick" />
-                            <Separator />
-                            <MenuItem Header="{DynamicResource AppMenuHideWindow}" Click="OnAppHideWindowClick" />
-                        </ContextMenu>
-                    </Button.ContextMenu>
-                </Button>
                 <!-- 内核状态点（绿=运行+API 正常 / 黄=运行但 API 未就绪 / 灰=未运行；详情悬停） -->
                 <Ellipse x:Name="CoreStatusDot"
                          Width="10" Height="10"
@@ -1260,10 +1326,6 @@
             <TabItem Header="{DynamicResource TabNetwork}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <Grid Margin="4,8,4,4">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
                     <Grid Grid.Row="0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -1474,83 +1536,7 @@
                         </Border>
                         </Grid>
                     </Grid>
-                    <!-- 订阅管理（M2-3 区块挪入网络页；全宽居底；远程目标时整体只读） -->
-                    <Border x:Name="SubscriptionSectionRoot"
-                            Grid.Row="1"
-                            Padding="8"
-                            Margin="0,8,0,0"
-                            BorderBrush="#DDD"
-                            BorderThickness="1"
-                            CornerRadius="4"
-                            Background="#FAFAFA">
-                        <StackPanel>
-                            <DockPanel Margin="0,0,0,6">
-                                <TextBlock x:Name="RemoteReadonlyHint"
-                                           DockPanel.Dock="Right"
-                                           Text="{DynamicResource MachineRemoteReadonly}"
-                                           FontSize="11"
-                                           Foreground="#B45309"
-                                           VerticalAlignment="Center"
-                                           Visibility="Collapsed" />
-                                <TextBlock Text="{DynamicResource NetworkSubscriptionTitle}"
-                                           FontWeight="SemiBold"
-                                           FontSize="12" />
-                            </DockPanel>
-                            <DockPanel Margin="0,0,0,6">
-                                <Button x:Name="ImportLocalButton"
-                                        DockPanel.Dock="Right"
-                                        Content="{DynamicResource NetworkSubscriptionImportLocal}"
-                                        Padding="10,2"
-                                        MinWidth="60"
-                                        Margin="6,0,0,0"
-                                        ToolTip="{DynamicResource NetworkSubscriptionImportLocalHint}"
-                                        Click="OnImportLocalClick" />
-                                <Button x:Name="ImportButton"
-                                        DockPanel.Dock="Right"
-                                        Content="{DynamicResource NetworkSubscriptionImport}"
-                                        Padding="10,2"
-                                        MinWidth="60"
-                                        ToolTip="{DynamicResource NetworkSubscriptionImportHint}"
-                                        Click="OnImportClick" />
-                                <TextBox x:Name="SubscriptionUrlBox"
-                                         VerticalContentAlignment="Center"
-                                         Padding="4,2" />
-                            </DockPanel>
-                            <ListBox x:Name="ConfigFilesBox"
-                                     MinHeight="72"
-                                     MaxHeight="200" />
-                            <!-- 说明与四按钮同一行（定稿——说明左置、按钮组右置） -->
-                            <DockPanel Margin="0,6,0,0">
-                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                                    <!-- 远程订阅更新（源：ProxyTabView 订阅行刷新/更新全部） -->
-                                    <Button Content="{DynamicResource SubscriptionUpdate}"
-                                            Padding="10,2"
-                                            MinWidth="60"
-                                            Margin="0,0,8,0"
-                                            Click="OnRefreshSubscriptionClick" />
-                                    <Button Content="{DynamicResource SubscriptionUpdateAll}"
-                                            Padding="10,2"
-                                            MinWidth="72"
-                                            Margin="0,0,8,0"
-                                            Click="OnRefreshAllSubscriptionsClick" />
-                                    <Button Content="{DynamicResource NetworkSubscriptionEnable}"
-                                            Padding="10,2"
-                                            MinWidth="60"
-                                            Margin="0,0,8,0"
-                                            Click="OnEnableClick" />
-                                    <Button Content="{DynamicResource NetworkSubscriptionRemove}"
-                                            Padding="10,2"
-                                            MinWidth="60"
-                                            Click="OnRemoveClick" />
-                                </StackPanel>
-                                <TextBlock Text="{DynamicResource SubscriptionButtonsHint}"
-                                           FontSize="11"
-                                           Foreground="#5E6B78"
-                                           VerticalAlignment="Center"
-                                           TextWrapping="Wrap" />
-                            </DockPanel>
-                        </StackPanel>
-                    </Border>
+                    
                 </Grid>
                 </ScrollViewer>
             </TabItem>
@@ -1561,6 +1547,7 @@
                 <ScrollViewer x:Name="SettingsRoot" VerticalScrollBarVisibility="Auto" Margin="4,8,4,4">
                     <Grid>
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
@@ -1629,8 +1616,8 @@
                             </DockPanel>
                         </StackPanel>
                         </Border>
-                        <!-- 维护卡（源：SystemTabView 维护区；GEO 热更新 + 内核自升级；
-                             按钮 UniformGrid 3×2 等宽网格整齐排布） -->
+                        <!-- 维护卡（源：SystemTabView 维护区；GEO 热更新 + 内核自升级 + 应用更新检查；
+                             小按钮 WrapPanel 排布；升级/检查反馈走对话框，卡内不留状态行） -->
                         <Border Padding="8"
                                 Margin="0,8,0,0"
                                 BorderBrush="#DDD"
@@ -1642,27 +1629,15 @@
                                            FontWeight="SemiBold"
                                            FontSize="12"
                                            Margin="0,0,0,6" />
-                                <!-- UniformGrid 强制等宽单元格（star 列会被按钮内容宽度顶得不等宽，真机实测参差） -->
-                                <UniformGrid Columns="2" Rows="3">
-                                    <Button
-                                            Padding="10,6"
-                                            Margin="0,0,4,4"
+                                <WrapPanel Orientation="Horizontal">
+                                    <Button Content="{DynamicResource AboutCheckUpdate}"
+                                            Padding="8,2"
+                                            Margin="0,0,6,6"
                                             FontSize="11"
-                                            Command="{Binding UpgradeGeoCommand}">
-                                        <Button.Style>
-                                            <Style TargetType="Button">
-                                                <Setter Property="Content" Value="{DynamicResource MaintenanceUpdateGeo}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsMaintaining}" Value="True">
-                                                        <Setter Property="Content" Value="{DynamicResource CommonProcessing}" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
-                                    <Button
-                                            Padding="10,6"
-                                            Margin="0,0,0,4"
+                                            Command="{Binding CheckUpdateCommand}"
+                                            IsEnabled="{Binding IsCheckingUpdate, Converter={StaticResource InverseBool}}" />
+                                    <Button Padding="8,2"
+                                            Margin="0,0,6,6"
                                             FontSize="11"
                                             Command="{Binding UpgradeCoreCommand}">
                                         <Button.Style>
@@ -1676,41 +1651,37 @@
                                             </Style>
                                         </Button.Style>
                                     </Button>
-                                    <Button
-                                            Padding="10,6"
-                                            Margin="0,0,4,4"
+                                    <Button Padding="8,2"
+                                            Margin="0,0,6,6"
+                                            FontSize="11"
+                                            Command="{Binding UpgradeGeoCommand}">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Content" Value="{DynamicResource MaintenanceUpdateGeo}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsMaintaining}" Value="True">
+                                                        <Setter Property="Content" Value="{DynamicResource CommonProcessing}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Padding="8,2"
+                                            Margin="0,0,6,6"
                                             FontSize="11"
                                             Command="{Binding FlushFakeIPCommand}"
                                             Content="{DynamicResource MaintenanceFlushFakeIP}" />
-                                    <Button
-                                            Padding="10,6"
-                                            Margin="0,0,0,4"
+                                    <Button Padding="8,2"
+                                            Margin="0,0,6,6"
                                             FontSize="11"
                                             Command="{Binding FlushDNSCommand}"
                                             Content="{DynamicResource MaintenanceFlushDNS}" />
-                                    <Button
-                                            Padding="10,6"
-                                            Margin="0,0,4,0"
+                                    <Button Padding="8,2"
+                                            Margin="0,0,0,6"
                                             FontSize="11"
                                             Content="{DynamicResource MaintenanceOpenCoreDir}"
                                             Click="OnOpenCoreDirectoryClick" />
-                                </UniformGrid>
-                                <TextBlock Margin="0,6,0,0"
-                                           FontSize="11"
-                                           TextWrapping="Wrap"
-                                           Text="{Binding MaintenanceStatusText}"
-                                           Visibility="{Binding HasMaintenanceStatus, Converter={StaticResource BoolToVis}}">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="#1B7F3B" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding MaintenanceStatusLevel}" Value="error">
-                                                    <Setter Property="Foreground" Value="#C0392B" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
+                                </WrapPanel>
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -1834,8 +1805,85 @@
                         </Grid>
                     </Grid>
 
+                    <!-- 订阅管理（M2-3：Boss 定稿挪入设置页全宽行；远程目标时整体只读） -->
+                    <Border x:Name="SubscriptionSectionRoot"
+                            Grid.Row="1"
+                            Padding="8"
+                            Margin="0,8,0,0"
+                            BorderBrush="#DDD"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Background="#FAFAFA">
+                        <StackPanel>
+                            <DockPanel Margin="0,0,0,6">
+                                <TextBlock x:Name="RemoteReadonlyHint"
+                                           DockPanel.Dock="Right"
+                                           Text="{DynamicResource MachineRemoteReadonly}"
+                                           FontSize="11"
+                                           Foreground="#B45309"
+                                           VerticalAlignment="Center"
+                                           Visibility="Collapsed" />
+                                <TextBlock Text="{DynamicResource NetworkSubscriptionTitle}"
+                                           FontWeight="SemiBold"
+                                           FontSize="12" />
+                            </DockPanel>
+                            <DockPanel Margin="0,0,0,6">
+                                <Button x:Name="ImportLocalButton"
+                                        DockPanel.Dock="Right"
+                                        Content="{DynamicResource NetworkSubscriptionImportLocal}"
+                                        Padding="10,2"
+                                        MinWidth="60"
+                                        Margin="6,0,0,0"
+                                        ToolTip="{DynamicResource NetworkSubscriptionImportLocalHint}"
+                                        Click="OnImportLocalClick" />
+                                <Button x:Name="ImportButton"
+                                        DockPanel.Dock="Right"
+                                        Content="{DynamicResource NetworkSubscriptionImport}"
+                                        Padding="10,2"
+                                        MinWidth="60"
+                                        ToolTip="{DynamicResource NetworkSubscriptionImportHint}"
+                                        Click="OnImportClick" />
+                                <TextBox x:Name="SubscriptionUrlBox"
+                                         VerticalContentAlignment="Center"
+                                         Padding="4,2" />
+                            </DockPanel>
+                            <ListBox x:Name="ConfigFilesBox"
+                                     MinHeight="72"
+                                     MaxHeight="120" />
+                            <!-- 说明与四按钮同一行（定稿——说明左置、按钮组右置） -->
+                            <DockPanel Margin="0,6,0,0">
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                    <!-- 远程订阅更新（源：ProxyTabView 订阅行刷新/更新全部） -->
+                                    <Button Content="{DynamicResource SubscriptionUpdate}"
+                                            Padding="10,2"
+                                            MinWidth="60"
+                                            Margin="0,0,8,0"
+                                            Click="OnRefreshSubscriptionClick" />
+                                    <Button Content="{DynamicResource SubscriptionUpdateAll}"
+                                            Padding="10,2"
+                                            MinWidth="72"
+                                            Margin="0,0,8,0"
+                                            Click="OnRefreshAllSubscriptionsClick" />
+                                    <Button Content="{DynamicResource NetworkSubscriptionEnable}"
+                                            Padding="10,2"
+                                            MinWidth="60"
+                                            Margin="0,0,8,0"
+                                            Click="OnEnableClick" />
+                                    <Button Content="{DynamicResource NetworkSubscriptionRemove}"
+                                            Padding="10,2"
+                                            MinWidth="60"
+                                            Click="OnRemoveClick" />
+                                </StackPanel>
+                                <TextBlock Text="{DynamicResource SubscriptionButtonsHint}"
+                                           FontSize="11"
+                                           Foreground="#5E6B78"
+                                           VerticalAlignment="Center"
+                                           TextWrapping="Wrap" />
+                            </DockPanel>
+                        </StackPanel>
+                    </Border>
                     <!-- 关于与更新（定稿：移出双列独占全宽；内部应用/内核两块并排 flex 1:1） -->
-                    <Border Grid.Row="1"
+                    <Border Grid.Row="2"
                             Margin="0,8,0,0"
                             Padding="8"
                             BorderBrush="#DDD"
@@ -1849,20 +1897,8 @@
                             </Grid.ColumnDefinitions>
                             <!-- 应用块（源：MenuBarCommonViews footer——版本 + 检查更新 + 发布页链接） -->
                             <StackPanel Grid.Column="0" Margin="0,0,16,0">
-                                <!-- 标题行：Grid 两列（左标识 / 右按钮），避免 DockPanel 行高交互重叠 -->
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Button Grid.Column="1"
-                                            Content="{DynamicResource AboutCheckUpdate}"
-                                            FontSize="11"
-                                            Padding="8,2"
-                                            VerticalAlignment="Center"
-                                            Command="{Binding CheckUpdateCommand}"
-                                            IsEnabled="{Binding IsCheckingUpdate, Converter={StaticResource InverseBool}}" />
-                                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                <!-- 标题行（检查更新入口已移维护卡；升级入口在状态行） -->
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                         <Image Source="/Assets/tray.ico"
                                                Width="24" Height="24"
                                                RenderOptions.BitmapScalingMode="HighQuality" />
@@ -1873,8 +1909,7 @@
                                             <Run Text="ClashBarX " />
                                             <Run Text="{Binding CurrentVersionText, Mode=OneWay}" Foreground="#5E6B78" FontSize="11" FontWeight="Normal" />
                                         </TextBlock>
-                                    </StackPanel>
-                                </Grid>
+                                </StackPanel>
                                 <Grid Margin="0,6,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -1931,32 +1966,8 @@
                                     BorderThickness="1,0,0,0"
                                     Padding="16,0,0,0">
                                 <StackPanel>
-                                    <!-- 标题行：Grid 两列（左标识 / 右按钮），避免 DockPanel 行高交互重叠 -->
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Button Visibility="{Binding HasKernelUpdate, Converter={StaticResource BoolToVis}}"
-                                                    Command="{Binding UpgradeCoreCommand}"
-                                                    FontSize="11"
-                                                    FontWeight="SemiBold"
-                                                    Foreground="#0B6BCB"
-                                                    Padding="8,2"
-                                                    Margin="6,0,0,0">
-                                                <TextBlock>
-                                                    <Run Text="⬇ " />
-                                                    <Run Text="{Binding KernelUpgradeText, Mode=OneWay}" />
-                                                </TextBlock>
-                                            </Button>
-                                            <Button Content="{DynamicResource AboutCheckUpdate}"
-                                                    FontSize="11"
-                                                    Padding="8,2"
-                                                    Command="{Binding CheckKernelUpdateCommand}"
-                                                    IsEnabled="{Binding IsCheckingKernelUpdate, Converter={StaticResource InverseBool}}" />
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <!-- 标题行（检查/升级入口已移维护卡） -->
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                             <Border Width="24" Height="24"
                                                     CornerRadius="5"
                                                     Background="#EEF1F5"
@@ -1973,8 +1984,7 @@
                                                 <Run Text="{DynamicResource AboutKernelTitle}" />
                                                 <Run Text="{Binding KernelVersionText, Mode=OneWay}" Foreground="#5E6B78" FontSize="11" FontWeight="Normal" />
                                             </TextBlock>
-                                        </StackPanel>
-                                    </Grid>
+                                    </StackPanel>
                                     <Grid Margin="0,6,0,0">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
@@ -1997,28 +2007,6 @@
                                                        TextTrimming="CharacterEllipsis"
                                                        Text="{Binding KernelStatusText}"
                                                        Visibility="{Binding HasKernelStatus, Converter={StaticResource BoolToVis}}" />
-                                            <TextBlock Margin="6,0,0,0"
-                                                       FontSize="11"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       Text="{Binding KernelUpdateStatusText}"
-                                                       Visibility="{Binding HasKernelUpdateStatus, Converter={StaticResource BoolToVis}}">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="Foreground" Value="#1B7F3B" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding KernelUpdateCheckFailed}" Value="True">
-                                                                <Setter Property="Foreground" Value="#C0392B" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                            <TextBlock Margin="6,0,0,0"
-                                                       FontSize="11"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="#0B6BCB"
-                                                       Text="{Binding KernelFoundText, Mode=OneWay}"
-                                                       Visibility="{Binding HasKernelUpdate, Converter={StaticResource BoolToVis}}" />
                                         </StackPanel>
                                     </Grid>
                                 </StackPanel>
@@ -2029,5 +2017,7 @@
                 </ScrollViewer>
             </TabItem>
         </TabControl>
+        </DockPanel>
     </DockPanel>
+    </Border>
 </Window>

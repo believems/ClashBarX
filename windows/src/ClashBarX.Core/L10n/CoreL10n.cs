@@ -49,6 +49,7 @@ public static class CoreL10n
         ["update.available"] = "有新版本 {0}",
         ["update.failed"] = "检查更新失败：{0}",
         ["update.up_to_date"] = "✓ 已是最新版本",
+        ["update.dialog_open_release"] = "是否打开发布页下载更新？",
         ["about.kernel_upgrade"] = "升级到 {0}",
         ["about.kernel_found"] = "发现新版本 {0}",
 
@@ -257,6 +258,7 @@ public static class CoreL10n
         ["update.available"] = "Update available: {0}",
         ["update.failed"] = "Update check failed: {0}",
         ["update.up_to_date"] = "✓ Up to date",
+        ["update.dialog_open_release"] = "Open the releases page to download the update?",
         ["about.kernel_upgrade"] = "Upgrade to {0}",
         ["about.kernel_found"] = "New version found: {0}",
 

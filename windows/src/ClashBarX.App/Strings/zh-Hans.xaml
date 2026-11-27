@@ -71,6 +71,9 @@
     <sys:String x:Key="AppMenuAbout">关于 ClashBarX</sys:String>
     <sys:String x:Key="AppMenuCheckUpdate">检查更新</sys:String>
     <sys:String x:Key="AppMenuHideWindow">关闭窗口</sys:String>
+    <sys:String x:Key="TitleBarMinimize">最小化</sys:String>
+    <sys:String x:Key="TitleBarMaximize">最大化 / 还原</sys:String>
+    <sys:String x:Key="TitleBarClose">关闭（收起到托盘）</sys:String>
 
     <sys:String x:Key="ProvidersTitle">订阅源</sys:String>
     <sys:String x:Key="ProvidersUpdateAll">更新全部</sys:String>

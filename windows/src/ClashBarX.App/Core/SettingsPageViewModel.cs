@@ -124,6 +124,12 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
     /// <summary>检查更新委托（App 层注入 fetch + resolve；返回可用更新，null = 已是最新）。</summary>
     public Func<Task<ClashBarX.Core.Updates.AppReleaseInfo?>>? CheckUpdateRequested { get; set; }
 
+    /// <summary>维护动作反馈（对话框通道；参数=反馈文本/是否错误级；与 MaintenanceStatusText 同源）。</summary>
+    public event Action<string, bool>? MaintenanceFeedback;
+
+    /// <summary>应用更新检查完成（对话框通道；参数=反馈文本/是否发现新版本）。</summary>
+    public event Action<string, bool>? UpdateCheckCompleted;
+
     /// <summary>用户请求打开发布页（有更新打开 release 页，否则打开 releases 列表）。</summary>
     public event Action<string>? OpenReleasePageRequested;
 
@@ -359,6 +365,7 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
         finally
         {
             IsCheckingUpdate = false;
+            UpdateCheckCompleted?.Invoke(UpdateStatusText ?? string.Empty, HasAvailableUpdate);
         }
     }
 
@@ -425,11 +432,13 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
             string message = await action();
             MaintenanceStatusText = message;
             MaintenanceStatusLevel = message.StartsWith(ClashBarX.Core.L10n.CoreL10n.T("maintenance.failed").Split(':')[0], StringComparison.Ordinal) ? "error" : "ok";
+            MaintenanceFeedback?.Invoke(message, MaintenanceStatusLevel == "error");
         }
         catch (Exception error)
         {
             MaintenanceStatusText = ClashBarX.Core.L10n.CoreL10n.T("maintenance.failed", error.Message);
             MaintenanceStatusLevel = "error";
+            MaintenanceFeedback?.Invoke(MaintenanceStatusText, true);
         }
         finally
         {

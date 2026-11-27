@@ -164,6 +164,11 @@ public sealed class TrayIconService : IDisposable
         exitItem.Click += (_, _) => ExitRequested?.Invoke();
 
         var menu = new ContextMenu();
+        // 紧凑菜单模板（去默认 Icon/check 大空白槽；Boss 真机反馈）
+        menu.Resources.MergedDictionaries.Add(new System.Windows.ResourceDictionary
+        {
+            Source = new System.Uri("pack://application:,,,/Themes/TrayMenu.xaml", System.UriKind.Absolute),
+        });
         menu.Items.Add(showItem);
         menu.Items.Add(new Separator());
         menu.Items.Add(_proxyItem);
