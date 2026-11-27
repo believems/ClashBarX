@@ -56,6 +56,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         MainTabs.SelectionChanged += (_, _) => TabSelectionChanged?.Invoke(this, EventArgs.Empty);
+        MainTabs.SelectionChanged += (_, _) => ApplyTabWindowHeight();
         ConfigFilesBox.SelectionChanged += (_, _) => RefreshSubscriptionActionState();
         SubscriptionUrlBox.TextChanged += (_, _) => RefreshImportActionState();
         RefreshImportActionState();
@@ -129,6 +130,29 @@ public partial class MainWindow : Window
 
     /// <summary>切换到网络页（订阅区 2026-11-27 起在此页；「去导入」引导的落点）。</summary>
     public void SelectNetworkTab() => MainTabs.SelectedIndex = 4;
+
+    /// <summary>设置页窗高（真机实测 2026-11-27，200% DPI）：内容自然高 + 全自绘chrome 恰好收尾；
+    /// 内容长高（如 SSID 绑定增多）时走页内滚动，不出留白。</summary>
+    private const double SettingsTabWindowHeight = 402;
+
+    /// <summary>其余页窗高：列表类页面靠内部滚动填满视口，固定不收。
+    /// 479 = 绕过列表双列化 + 右列端口/内边距极限收紧后网络页内容实测收口高（2026-11-27 真机）。</summary>
+    private const double DefaultWindowHeight = 479;
+
+    /// <summary>
+    /// 窗高按页切换（BOSS 拍板 2026-11-27「按页自动调窗高」）：设置页内容比网络页矮约 120 逻辑像素，
+    /// 统一窗高下这份结构性剩余只能变成留白（BOSS 两度截图圈出）；进设置页收高到实测值，
+    /// 切回其余页恢复 520。顶边不动、底边收放。
+    /// 注：SizeToContent=Height 与 WindowChrome 全自绘标题栏组合测量不准（实测少算约 98 逻辑像素
+    /// 导致裁切），故用实测常量而非自动测量。
+    /// </summary>
+    private void ApplyTabWindowHeight()
+    {
+        double height = MainTabs.SelectedIndex == 5 ? SettingsTabWindowHeight : DefaultWindowHeight;
+        Height = height;
+        MinHeight = height;
+        MaxHeight = height;
+    }
 
     /// <summary>
     /// 切到设置页并滚动到维护卡（应用菜单「检查更新」的落点）：维护卡常在首屏之外，

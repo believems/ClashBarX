@@ -7,8 +7,8 @@
         xmlns:core="clr-namespace:ClashBarX.App.Core"
         xmlns:overrides="clr-namespace:ClashBarX.Core.Overrides;assembly=ClashBarX.Core"
         mc:Ignorable="d"
-        Title="ClashBarX" Height="520" Width="760"
-        MinWidth="760" MaxWidth="760" MinHeight="520" MaxHeight="520"
+        Title="ClashBarX" Height="479" Width="760"
+        MinWidth="760" MaxWidth="760" MinHeight="479" MaxHeight="479"
         ResizeMode="CanMinimize"
         WindowStyle="None"
         Background="{DynamicResource ThemeWindowBrush}"
@@ -16,9 +16,11 @@
     <!-- 面板类应用固定尺寸：Min=Max + CanMinimize（禁最大化/缩放，仅保留最小化）——
          自由缩放会让各页布局变形（代理端口框、日志过滤栏、维护卡等）；
          CaptionHeight=0 全自绘标题栏。
-         高度 660→520（BOSS 定稿 2026-11-27，截图标注：订阅卡与状态栏间的空带「不要」）：
-         网络页双栏压紧、守护按钮同行、订阅区从设置页挪来后按实测内容高重定；
-         约束页为网络页（双栏卡 + 订阅卡），真机复测零越界零空带 -->
+         高度 660→497（BOSS 定稿 2026-11-27，截图标注：订阅卡与状态栏间的空带「不要」）：
+         网络页双栏压紧、守护按钮同行、绕过列表双列化（卡内无滚动条）、订阅区从设置页
+         挪来后按实测内容高收口；约束页为网络页（双栏卡 + 订阅卡），真机复测零越界零空带。
+         设置页例外：进页收高到实测 402（BOSS 拍板 2026-11-27「按页自动调窗高」），
+         见 code-behind ApplyTabWindowHeight -->
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="0"
                       ResizeBorderThickness="0"
@@ -63,7 +65,7 @@
         <Style x:Key="PortFieldStyle" TargetType="TextBox">
             <Setter Property="Width" Value="80" />
             <Setter Property="MaxLength" Value="5" />
-            <Setter Property="Padding" Value="6,2" />
+            <Setter Property="Padding" Value="4,1" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="HorizontalAlignment" Value="Right" />
@@ -1358,19 +1360,23 @@
                                                         ToolTip="{DynamicResource NetworkBypassHint}" />
                                     </StackPanel>
                                 </DockPanel>
-                                <!-- 绕过列表：MaxHeight=125 为真机实测值（2026-11-27，200% DPI 下三轮复测）——
-                                     结果行零高后右列变矮，125 恰好让左卡自然高与右列（守护+端口）对齐、
-                                     卡下无空白（BOSS 截图标注「删掉/高出来一块」）；守护/端口卡内容变化时需重测。
-                                     新增行固定卡底，条目超出卡内滚 -->
+                                <!-- 绕过列表：双列排布（BOSS 定稿 2026-11-27：系统代理卡变矮、卡内不出滚动条——
+                                     默认 8 条 4 行全显示，对齐 1.0.0 无内滚的观感）；超过 16 条才卡内滚。
+                                     双列后左卡自然高与右列（守护+端口）重新配平，卡下无空白 -->
                                 <ScrollViewer Grid.Row="1"
                                               VerticalScrollBarVisibility="Auto"
                                               MinHeight="44"
-                                              MaxHeight="125"
+                                              MaxHeight="224"
                                               Margin="16,4,0,0">
                                     <ItemsControl ItemsSource="{Binding Exceptions}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <UniformGrid Columns="2" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <DockPanel Margin="0,1">
+                                            <DockPanel Margin="0,2,6,2">
                                                 <Button DockPanel.Dock="Right"
                                                         Content="✕"
                                                         Padding="5,0"
@@ -1420,12 +1426,12 @@
                         <!-- 自动代理守护（M3-3 区块挪入网络页；开关 + 周期 + 立即检查 + 结果反馈行） -->
                         <Border x:Name="GuardSettingsRoot"
                                 Grid.Row="0"
-                                Padding="8"
+                                Padding="4"
                                 BorderBrush="#DDD"
                                 BorderThickness="1"
                                 CornerRadius="4"
                                 Background="#FAFAFA"
-                                Margin="0,0,0,6">
+                                Margin="0,0,0,4">
                             <StackPanel>
                                 <!-- 标题括号说明与关闭态说明收进 info 图标 ToolTip；
                                      内容换成容器后勾选框不再有文字名，显式补自动化名称供读屏识别 -->
@@ -1454,7 +1460,7 @@
                                     </StackPanel.Style>
                                     <!-- 探测周期与「立即检查」同一行（BOSS 截图标注 2026-11-27）：
                                          按钮靠右落进卡片右侧空位，守护卡不再为按钮单独占一行 -->
-                                    <DockPanel Margin="0,4">
+                                    <DockPanel Margin="0">
                                         <Button DockPanel.Dock="Right"
                                                 Padding="10,2"
                                                 MinWidth="96"
@@ -1502,14 +1508,14 @@
                              750ms 防抖自动保存；单列右值；DataContext 经 code-behind 注入 CoreSettings） -->
                         <Border x:Name="ProxyPortsRoot"
                                 Grid.Row="1"
-                                Padding="8"
+                                Padding="4"
                                 BorderBrush="#DDD"
                                 BorderThickness="1"
                                 CornerRadius="4"
                                 Background="#FAFAFA">
                             <StackPanel>
                                 <!-- 标题后缀说明（修改后自动保存）收进 info 图标 ToolTip -->
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <StackPanel Orientation="Horizontal" Margin="0">
                                     <TextBlock Text="{DynamicResource SettingsProxyPorts}"
                                                FontWeight="SemiBold"
                                                FontSize="12"
@@ -1529,15 +1535,15 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
-                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource SettingsMixedPort}" FontSize="12" VerticalAlignment="Center" Margin="0,2,0,2" />
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource SettingsMixedPort}" FontSize="12" VerticalAlignment="Center" Margin="0" />
                                     <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource PortFieldStyle}" Text="{Binding MixedPortText, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource SettingsHttpPort}" FontSize="12" VerticalAlignment="Center" Margin="0,2,0,2" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource SettingsHttpPort}" FontSize="12" VerticalAlignment="Center" Margin="0" />
                                     <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource PortFieldStyle}" Text="{Binding PortText, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource SettingsSocksPort}" FontSize="12" VerticalAlignment="Center" Margin="0,2,0,2" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource SettingsSocksPort}" FontSize="12" VerticalAlignment="Center" Margin="0" />
                                     <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource PortFieldStyle}" Text="{Binding SocksPortText, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="{DynamicResource SettingsRedirPort}" FontSize="12" VerticalAlignment="Center" Margin="0,2,0,2" />
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="{DynamicResource SettingsRedirPort}" FontSize="12" VerticalAlignment="Center" Margin="0" />
                                     <TextBox Grid.Row="3" Grid.Column="1" Style="{StaticResource PortFieldStyle}" Text="{Binding RedirPortText, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="{DynamicResource SettingsTproxyPort}" FontSize="12" VerticalAlignment="Center" Margin="0,2,0,2" />
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="{DynamicResource SettingsTproxyPort}" FontSize="12" VerticalAlignment="Center" Margin="0" />
                                     <TextBox Grid.Row="4" Grid.Column="1" Style="{StaticResource PortFieldStyle}" Text="{Binding TproxyPortText, UpdateSourceTrigger=PropertyChanged}" />
                                 </Grid>
                             </StackPanel>
@@ -1829,11 +1835,12 @@
                             </StackPanel>
                         </Border>
                     </StackPanel>
-                        <!-- 右列：核心设置卡 + SSID 策略卡（高度配平左列；PATCH /configs 即时生效） -->
+                        <!-- 右列：核心设置卡 + SSID 策略卡（均自然高；窗口进设置页时按内容自动收高，
+                             不再拉伸配平——拉伸会把留白藏进卡内，BOSS 截图圈过） -->
                         <Grid Grid.Column="1" Margin="6,0,0,0">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                         <Border Grid.Row="0"
                                 Padding="8"
