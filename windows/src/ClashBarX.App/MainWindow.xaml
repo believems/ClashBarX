@@ -1588,14 +1588,10 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                        <!-- 左列：常规卡（自然高）+ 维护卡（填充剩余高，与右列底边对齐） -->
-                        <Grid Grid.Column="0" Margin="0,0,6,0">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
-                            </Grid.RowDefinitions>
-                        <Border Grid.Row="0"
-                                Padding="8"
+                        <!-- 左列：常规卡 + 维护卡（均自然高——真机反馈：拉伸维护卡凑底边对齐会留大片空白，
+                             宁可两列底边略有参差也不在卡内留白） -->
+                        <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                        <Border Padding="8"
                                 BorderBrush="#DDD"
                                 BorderThickness="1"
                                 CornerRadius="4"
@@ -1653,9 +1649,8 @@
                         </StackPanel>
                         </Border>
                         <!-- 维护卡（源：SystemTabView 维护区；GEO 热更新 + 内核自升级；
-                             填充左列剩余高与右列底边对齐；按钮 3×2 等宽网格整齐排布） -->
-                        <Border Grid.Row="1"
-                                Padding="8"
+                             按钮 UniformGrid 3×2 等宽网格整齐排布） -->
+                        <Border Padding="8"
                                 Margin="0,8,0,0"
                                 BorderBrush="#DDD"
                                 BorderThickness="1"
@@ -1737,8 +1732,8 @@
                                 </TextBlock>
                             </StackPanel>
                         </Border>
-                        </Grid>
-                        <!-- 右列：核心设置卡（含端口；PATCH /configs 即时生效）拉满列高 -->
+                    </StackPanel>
+                        <!-- 右列：核心设置卡（含端口；PATCH /configs 即时生效） -->
                         <Border Padding="8"
                                 Grid.Column="1"
                                 Margin="6,0,0,0"
