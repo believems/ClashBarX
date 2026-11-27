@@ -162,6 +162,10 @@ public partial class MainWindow : Window
     public void SetSystemProxySection(SystemProxySectionViewModel viewModel) =>
         SystemProxySectionRoot.DataContext = viewModel;
 
+    /// <summary>注入网络页代理端口卡模型（核心设置 VM 跨页共享；调用方负责 UI 线程编组）。</summary>
+    public void SetProxyPortsSection(CoreSettingsViewModel viewModel) =>
+        ProxyPortsRoot.DataContext = viewModel;
+
     /// <summary>注入代理页 TUN 快捷区模型。调用方负责 UI 线程编组。</summary>
     public void SetTunSection(TunSectionViewModel viewModel) =>
         TunSectionRoot.DataContext = viewModel;

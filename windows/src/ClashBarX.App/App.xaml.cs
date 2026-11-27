@@ -358,6 +358,7 @@ public partial class App : Application
         AppearanceManager.ApplyTheme(appearance);   // 启动应用持久化外观
         AppearanceManager.ApplyLanguage(language);   // 启动应用持久化语言
         _mainWindow!.SetSettingsPage(_settingsPage);
+        _mainWindow.SetProxyPortsSection(_settingsPage.CoreSettings);   // 网络页端口卡跨页共享核心设置 VM
     }
 
     /// <summary>切换内核日志等级（日志页快捷入口；PATCH /configs log-level）。</summary>

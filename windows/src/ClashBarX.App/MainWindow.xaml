@@ -1254,12 +1254,13 @@
                     </Border>
                 </DockPanel>
             </TabItem>
-            <!-- 网络（M4-2）：双列紧凑（左=系统代理拉满 tab 高，右=守护+SSID 自然高度顶对齐），
-                 订阅全宽居底（源：定稿 net-grid 语义——绕过列表卡内滚动、新增行固定卡底） -->
+            <!-- 网络（M4-2）：双列自然高（左=系统代理含绕过列表卡内滚动，右=守护+代理端口），
+                 订阅全宽居底；外层滚动容忍任意窗口高度（真机教训：无外滚时超高内容会被后绘卡片盖住） -->
             <TabItem Header="{DynamicResource TabNetwork}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <Grid Margin="4,8,4,4">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <Grid Grid.Row="0">
@@ -1300,10 +1301,12 @@
                                            Foreground="#5E6B78"
                                            Margin="0,6,0,0"
                                            TextWrapping="Wrap" />
-                                <!-- 绕过列表：卡内滚动吃满剩余高（定稿——新增行固定卡底） -->
+                                <!-- 绕过列表：卡内滚动（MaxHeight 控自然高，双列自然高对齐的前提；
+                                     新增行固定卡底） -->
                                 <ScrollViewer Grid.Row="2"
                                               VerticalScrollBarVisibility="Auto"
                                               MinHeight="60"
+                                              MaxHeight="224"
                                               Margin="16,4,0,0">
                                     <ItemsControl ItemsSource="{Binding Exceptions}">
                                     <ItemsControl.ItemTemplate>
@@ -1349,8 +1352,7 @@
                                 </StackPanel>
                             </Grid>
                         </Border>
-                        <!-- 右列：守护自然高度 + SSID 卡填充剩余高（真机反馈：双列底边需对齐，
-                             右列整体高度与左列系统代理卡拉齐） -->
+                        <!-- 右列：守护 + 代理端口卡（Mac systemTab 语义归位；自然高与左列配平） -->
                         <Grid Grid.Column="1" Margin="4,0,0,0">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
@@ -1430,9 +1432,9 @@
                                 </TextBlock>
                             </StackPanel>
                         </Border>
-                        <!-- SSID 策略（M5-3：源 ProxyTabView 的 ssidStrategy 快捷项——开关 + 当前 SSID + 绑定管理；
-                             填充右列剩余高度使双列底边对齐） -->
-                        <Border x:Name="SsidStrategyRoot"
+                        <!-- 代理端口独立卡（源：Mac systemTabView 的 proxy_ports section；
+                             750ms 防抖自动保存；单列右值；DataContext 经 code-behind 注入 CoreSettings） -->
+                        <Border x:Name="ProxyPortsRoot"
                                 Grid.Row="1"
                                 Padding="8"
                                 BorderBrush="#DDD"
@@ -1440,63 +1442,33 @@
                                 CornerRadius="4"
                                 Background="#FAFAFA">
                             <StackPanel>
-                                <DockPanel>
-                                    <CheckBox DockPanel.Dock="Right"
-                                              Content="{DynamicResource SsidStrategyToggle}"
-                                              FontSize="12"
-                                              IsChecked="{Binding IsEnabled}" />
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{DynamicResource SsidStrategyTitle}"
-                                                   FontWeight="SemiBold"
-                                                   FontSize="12"
-                                                   VerticalAlignment="Center" />
-                                        <TextBlock Text="{Binding CurrentSsidText}"
-                                                   FontSize="11"
-                                                   Foreground="#5E6B78"
-                                                   Margin="10,0,0,0"
-                                                   VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </DockPanel>
-                                <TextBlock Text="{DynamicResource SsidStrategyHint}"
-                                           FontSize="11"
-                                           Foreground="#5E6B78"
-                                           Margin="0,8,0,0"
-                                           TextWrapping="Wrap" />
-                                <!-- 空态占位行（无绑定时给出引导提示，兼作卡片内容充实度） -->
-                                <TextBlock Text="{DynamicResource SsidEmptyHint}"
-                                           FontSize="11"
-                                           Foreground="#8A93A0"
-                                           Margin="0,10,0,0"
-                                           TextWrapping="Wrap"
-                                           Visibility="{Binding HasBindings, Converter={StaticResource InverseBoolToVis}}" />
-                                <ItemsControl ItemsSource="{Binding Bindings}" Margin="0,6,0,0">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <DockPanel Margin="0,3">
-                                                <Button DockPanel.Dock="Right"
-                                                        Content="✕"
-                                                        Padding="5,0"
-                                                        FontSize="11"
-                                                        ToolTip="{DynamicResource SsidStrategyUnbind}"
-                                                        Click="OnSsidUnbindClick" />
-                                                <TextBlock FontSize="11"
-                                                           VerticalAlignment="Center"
-                                                           Foreground="#5E6B78">
-                                                    <Run Text="{Binding Ssid}" FontWeight="SemiBold" />
-                                                    <Run Text=" → " />
-                                                    <Run Text="{Binding ConfigFileName}" />
-                                                </TextBlock>
-                                            </DockPanel>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                                <Button Content="{DynamicResource SsidStrategyBindCurrent}"
-                                        FontSize="11"
-                                        Padding="10,4"
-                                        Margin="0,10,0,0"
-                                        HorizontalAlignment="Left"
-                                        IsEnabled="{Binding IsEnabled}"
-                                        Click="OnSsidBindCurrentClick" />
+                                <TextBlock Text="{DynamicResource SettingsProxyPorts}"
+                                           FontWeight="SemiBold"
+                                           FontSize="12"
+                                           Margin="0,0,0,6" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="90" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource SettingsMixedPort}" FontSize="12" VerticalAlignment="Center" Margin="0,6,0,6" />
+                                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding MixedPortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" VerticalContentAlignment="Center" HorizontalAlignment="Right" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource SettingsHttpPort}" FontSize="12" VerticalAlignment="Center" Margin="0,6,0,6" />
+                                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding PortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" VerticalContentAlignment="Center" HorizontalAlignment="Right" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource SettingsSocksPort}" FontSize="12" VerticalAlignment="Center" Margin="0,6,0,6" />
+                                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding SocksPortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" VerticalContentAlignment="Center" HorizontalAlignment="Right" />
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="{DynamicResource SettingsRedirPort}" FontSize="12" VerticalAlignment="Center" Margin="0,6,0,6" />
+                                    <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding RedirPortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" VerticalContentAlignment="Center" HorizontalAlignment="Right" />
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="{DynamicResource SettingsTproxyPort}" FontSize="12" VerticalAlignment="Center" Margin="0,6,0,6" />
+                                    <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding TproxyPortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" VerticalContentAlignment="Center" HorizontalAlignment="Right" />
+                                </Grid>
                             </StackPanel>
                         </Border>
                         </Grid>
@@ -1579,6 +1551,7 @@
                         </StackPanel>
                     </Border>
                 </Grid>
+                </ScrollViewer>
             </TabItem>
 
             <!-- 设置（M4-3）：双列（左=常规+维护，右=核心设置含端口，两列等高）；
@@ -1740,8 +1713,7 @@
                             </StackPanel>
                         </Border>
                     </StackPanel>
-                        <!-- 右列：核心设置卡 + 代理端口独立卡（源：Mac systemTabView 的
-                             core_settings 与 proxy_ports 两个平级 section；PATCH /configs 即时生效） -->
+                        <!-- 右列：核心设置卡 + SSID 策略卡（高度配平左列；PATCH /configs 即时生效） -->
                         <Grid Grid.Column="1" Margin="6,0,0,0">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
@@ -1788,44 +1760,73 @@
 
                             </StackPanel>
                         </Border>
-                        <!-- 代理端口独立卡（源：Mac systemTabView 的 proxy_ports section；
-                             750ms 防抖自动保存；单列右值） -->
-                        <Border Grid.Row="1"
+                        <!-- SSID 策略（M5-3：源 ProxyTabView 的 ssidStrategy 快捷项——开关 + 当前 SSID + 绑定管理；
+                             设置页右列第二卡——Mac 的 ssidStrategy 设置语义归位） -->
+                        <Border x:Name="SsidStrategyRoot"
                                 Padding="8"
                                 Margin="0,8,0,0"
                                 BorderBrush="#DDD"
                                 BorderThickness="1"
                                 CornerRadius="4"
-                                Background="#FAFAFA"
-                                DataContext="{Binding CoreSettings}">
+                                Background="#FAFAFA">
                             <StackPanel>
-                                <TextBlock Text="{DynamicResource SettingsProxyPorts}"
-                                           FontWeight="SemiBold"
-                                           FontSize="12"
-                                           Margin="0,0,0,6" />
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="90" />
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource SettingsMixedPort}" FontSize="12" VerticalAlignment="Center" Margin="0,3,0,3" />
-                                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding MixedPortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" VerticalContentAlignment="Center" HorizontalAlignment="Right" />
-                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource SettingsHttpPort}" FontSize="12" VerticalAlignment="Center" Margin="0,3,0,3" />
-                                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding PortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" VerticalContentAlignment="Center" HorizontalAlignment="Right" />
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource SettingsSocksPort}" FontSize="12" VerticalAlignment="Center" Margin="0,3,0,3" />
-                                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding SocksPortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" VerticalContentAlignment="Center" HorizontalAlignment="Right" />
-                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="{DynamicResource SettingsRedirPort}" FontSize="12" VerticalAlignment="Center" Margin="0,3,0,3" />
-                                    <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding RedirPortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" VerticalContentAlignment="Center" HorizontalAlignment="Right" />
-                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="{DynamicResource SettingsTproxyPort}" FontSize="12" VerticalAlignment="Center" Margin="0,3,0,3" />
-                                    <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding TproxyPortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" VerticalContentAlignment="Center" HorizontalAlignment="Right" />
-                                </Grid>
+                                <DockPanel>
+                                    <CheckBox DockPanel.Dock="Right"
+                                              Content="{DynamicResource SsidStrategyToggle}"
+                                              FontSize="12"
+                                              IsChecked="{Binding IsEnabled}" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{DynamicResource SsidStrategyTitle}"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding CurrentSsidText}"
+                                                   FontSize="11"
+                                                   Foreground="#5E6B78"
+                                                   Margin="10,0,0,0"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </DockPanel>
+                                <TextBlock Text="{DynamicResource SsidStrategyHint}"
+                                           FontSize="11"
+                                           Foreground="#5E6B78"
+                                           Margin="0,8,0,0"
+                                           TextWrapping="Wrap" />
+                                <!-- 空态占位行（无绑定时给出引导提示，兼作卡片内容充实度） -->
+                                <TextBlock Text="{DynamicResource SsidEmptyHint}"
+                                           FontSize="11"
+                                           Foreground="#8A93A0"
+                                           Margin="0,10,0,0"
+                                           TextWrapping="Wrap"
+                                           Visibility="{Binding HasBindings, Converter={StaticResource InverseBoolToVis}}" />
+                                <ItemsControl ItemsSource="{Binding Bindings}" Margin="0,6,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <DockPanel Margin="0,3">
+                                                <Button DockPanel.Dock="Right"
+                                                        Content="✕"
+                                                        Padding="5,0"
+                                                        FontSize="11"
+                                                        ToolTip="{DynamicResource SsidStrategyUnbind}"
+                                                        Click="OnSsidUnbindClick" />
+                                                <TextBlock FontSize="11"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="#5E6B78">
+                                                    <Run Text="{Binding Ssid}" FontWeight="SemiBold" />
+                                                    <Run Text=" → " />
+                                                    <Run Text="{Binding ConfigFileName}" />
+                                                </TextBlock>
+                                            </DockPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <Button Content="{DynamicResource SsidStrategyBindCurrent}"
+                                        FontSize="11"
+                                        Padding="10,4"
+                                        Margin="0,10,0,0"
+                                        HorizontalAlignment="Left"
+                                        IsEnabled="{Binding IsEnabled}"
+                                        Click="OnSsidBindCurrentClick" />
                             </StackPanel>
                         </Border>
                         </Grid>
