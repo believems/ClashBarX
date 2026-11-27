@@ -7,8 +7,8 @@
         xmlns:core="clr-namespace:ClashBarX.App.Core"
         xmlns:overrides="clr-namespace:ClashBarX.Core.Overrides;assembly=ClashBarX.Core"
         mc:Ignorable="d"
-        Title="ClashBarX" Height="600" Width="760"
-        MinWidth="760" MaxWidth="760" MinHeight="600" MaxHeight="600"
+        Title="ClashBarX" Height="520" Width="760"
+        MinWidth="760" MaxWidth="760" MinHeight="520" MaxHeight="520"
         ResizeMode="CanMinimize"
         WindowStyle="None"
         Background="{DynamicResource ThemeWindowBrush}"
@@ -16,8 +16,9 @@
     <!-- 面板类应用固定尺寸：Min=Max + CanMinimize（禁最大化/缩放，仅保留最小化）——
          自由缩放会让各页布局变形（代理端口框、日志过滤栏、维护卡等）；
          CaptionHeight=0 全自绘标题栏。
-         高度 660→600（BOSS 定稿 2026-11-27）：网络页双栏压紧、订阅区从设置页挪来后，
-         按各页实测内容高重定；约束页为网络页（双栏卡 + 订阅卡） -->
+         高度 660→520（BOSS 定稿 2026-11-27，截图标注：订阅卡与状态栏间的空带「不要」）：
+         网络页双栏压紧、守护按钮同行、订阅区从设置页挪来后按实测内容高重定；
+         约束页为网络页（双栏卡 + 订阅卡），真机复测零越界零空带 -->
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="0"
                       ResizeBorderThickness="0"
@@ -1313,7 +1314,8 @@
                  订阅全宽居底；外层滚动容忍任意窗口高度（真机教训：无外滚时超高内容会被后绘卡片盖住） -->
             <TabItem Header="{DynamicResource TabNetwork}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <Grid Margin="4,8,4,4">
+                <!-- 外边距收到 4/4/4/2（BOSS 截图标注 2026-11-27：整页不要滚动条） -->
+                <Grid Margin="4,4,4,2">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -1340,7 +1342,6 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <DockPanel Grid.Row="0">
                                     <CheckBox DockPanel.Dock="Right"
@@ -1357,12 +1358,14 @@
                                                         ToolTip="{DynamicResource NetworkBypassHint}" />
                                     </StackPanel>
                                 </DockPanel>
-                                <!-- 绕过列表：卡内滚动（MaxHeight 控自然高，双列自然高对齐的前提；
-                                     新增行固定卡底）。224→104：网络页要塞下订阅区，列表多时在卡内滚 -->
-                                <ScrollViewer Grid.Row="2"
+                                <!-- 绕过列表：MaxHeight=125 为真机实测值（2026-11-27，200% DPI 下三轮复测）——
+                                     结果行零高后右列变矮，125 恰好让左卡自然高与右列（守护+端口）对齐、
+                                     卡下无空白（BOSS 截图标注「删掉/高出来一块」）；守护/端口卡内容变化时需重测。
+                                     新增行固定卡底，条目超出卡内滚 -->
+                                <ScrollViewer Grid.Row="1"
                                               VerticalScrollBarVisibility="Auto"
                                               MinHeight="44"
-                                              MaxHeight="104"
+                                              MaxHeight="125"
                                               Margin="16,4,0,0">
                                     <ItemsControl ItemsSource="{Binding Exceptions}">
                                     <ItemsControl.ItemTemplate>
@@ -1383,7 +1386,7 @@
                                     </ItemsControl.ItemTemplate>
                                     </ItemsControl>
                                 </ScrollViewer>
-                                <DockPanel Grid.Row="3" Margin="16,4,0,0">
+                                <DockPanel Grid.Row="2" Margin="16,4,0,0">
                                     <Button DockPanel.Dock="Right"
                                             Content="{DynamicResource NetworkBypassAdd}"
                                             Padding="8,1"
@@ -1394,7 +1397,7 @@
                                              VerticalContentAlignment="Center"
                                              Padding="4,2" />
                                 </DockPanel>
-                                <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="16,6,0,0">
+                                <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="16,6,0,0">
                                     <Button Content="{DynamicResource NetworkBypassReset}"
                                             Padding="10,2"
                                             FontSize="11"
@@ -1449,34 +1452,37 @@
                                             </Style.Triggers>
                                         </Style>
                                     </StackPanel.Style>
-                                    <StackPanel Orientation="Horizontal" Margin="0,4">
-                                        <TextBlock Text="{DynamicResource NetworkGuardInterval}" VerticalAlignment="Center" FontSize="12" />
-                                        <TextBox Text="{Binding IntervalText}"
-                                                 Width="64"
-                                                 Margin="8,0,0,0"
-                                                 Padding="4,2"
-                                                 VerticalContentAlignment="Center" />
-                                    </StackPanel>
-                                    <Button Margin="0,6,0,0"
-                                            Padding="10,2"
-                                            MinWidth="96"
-                                            HorizontalAlignment="Left"
-                                            Command="{Binding CheckNowCommand}">
-                                        <Button.Style>
-                                            <Style TargetType="Button">
-                                                <Setter Property="Content" Value="{DynamicResource GuardCheckNow}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsProbing}" Value="True">
-                                                        <Setter Property="Content" Value="{DynamicResource CommonChecking}" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
-                                    <!-- 结果行常驻占位（无结果时留空一行）：结果到达或开关切换时块高都不跳 -->
-                                    <TextBlock Margin="0,6,0,0"
+                                    <!-- 探测周期与「立即检查」同一行（BOSS 截图标注 2026-11-27）：
+                                         按钮靠右落进卡片右侧空位，守护卡不再为按钮单独占一行 -->
+                                    <DockPanel Margin="0,4">
+                                        <Button DockPanel.Dock="Right"
+                                                Padding="10,2"
+                                                MinWidth="96"
+                                                Command="{Binding CheckNowCommand}">
+                                            <Button.Style>
+                                                <Style TargetType="Button">
+                                                    <Setter Property="Content" Value="{DynamicResource GuardCheckNow}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsProbing}" Value="True">
+                                                            <Setter Property="Content" Value="{DynamicResource CommonChecking}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{DynamicResource NetworkGuardInterval}" VerticalAlignment="Center" FontSize="12" />
+                                            <TextBox Text="{Binding IntervalText}"
+                                                     Width="64"
+                                                     Margin="8,0,0,0"
+                                                     Padding="4,2"
+                                                     VerticalContentAlignment="Center" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                    <!-- 结果行：无结果时零高度（BOSS 截图标注 2026-11-27：预留空行删掉）；
+                                         结果到达时卡片长高一行的跳动换取整页紧凑 -->
+                                    <TextBlock Margin="0"
                                                FontSize="12"
-                                               MinHeight="16"
                                                Text="{Binding OutcomeText}">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
@@ -1545,7 +1551,7 @@
                     <Border x:Name="SubscriptionSectionRoot"
                             Grid.Row="1"
                             Padding="8"
-                            Margin="0,8,0,0"
+                            Margin="0,6,0,0"
                             BorderBrush="#DDD"
                             BorderThickness="1"
                             CornerRadius="4"
