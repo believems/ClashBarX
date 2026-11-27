@@ -12,6 +12,13 @@
 #ifndef PublishDir
   #define PublishDir "publish"
 #endif
+; 轻量安装包变体：命令行 /DLite 开启（build-installer.ps1 -Lite 传入）——
+; 发布目录换为框架依赖产物，输出文件名加 -lite 后缀；其余安装逻辑与自包含版完全一致
+#ifdef Lite
+  #define SetupSuffix "-lite"
+#else
+  #define SetupSuffix ""
+#endif
 #define Publisher "ClashBarX"
 
 [Setup]
@@ -25,7 +32,7 @@ DefaultGroupName=ClashBarX
 UninstallDisplayName=ClashBarX
 UninstallDisplayIcon={app}\ClashBarX.App.exe
 OutputDir=dist
-OutputBaseFilename=ClashBarX-{#Version}-setup
+OutputBaseFilename=ClashBarX-{#Version}-setup{#SetupSuffix}
 SetupIconFile=app.ico
 Compression=lzma2/max
 SolidCompression=yes
@@ -36,7 +43,8 @@ ArchitecturesAllowed=x64compatible
 DisableProgramGroupPage=yes
 
 [Files]
-; self-contained 发布目录（含 .NET 运行时，用户无需另装 runtime）
+; publish 发布目录：自包含版含 .NET 运行时（用户无需另装 runtime）；
+; lite 版（/DLite）为框架依赖产物，不含运行时，用户需自备 .NET 8 Desktop Runtime
 Source: "{#PublishDir}\ClashBarX.App.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
