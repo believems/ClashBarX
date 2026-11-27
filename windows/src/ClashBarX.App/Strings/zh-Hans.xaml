@@ -16,7 +16,8 @@
     <sys:String x:Key="NetworkBypassRemove">移除</sys:String>
     <sys:String x:Key="NetworkBypassReset">恢复默认</sys:String>
     <sys:String x:Key="NetworkBypassSave">保存</sys:String>
-    <sys:String x:Key="NetworkGuardTitle">自动代理守护（自动切换可用节点）</sys:String>
+    <sys:String x:Key="NetworkGuardTitle">自动代理守护</sys:String>
+    <sys:String x:Key="NetworkGuardHint">自动切换可用节点：开启后周期探测连通性，故障时切换组内可用节点并自愈订阅</sys:String>
     <sys:String x:Key="NetworkGuardInterval">探测周期（秒）</sys:String>
     <sys:String x:Key="NetworkGuardCheckNow">立即检查</sys:String>
     <sys:String x:Key="NetworkGuardChecking">检查中…</sys:String>
@@ -128,7 +129,8 @@
     <sys:String x:Key="SettingsTcpConcurrent">TCP 并发（tcp-concurrent）</sys:String>
     <sys:String x:Key="SettingsCloseConnections">切换节点时关闭旧连接</sys:String>
     <sys:String x:Key="SettingsLogLevel">日志等级</sys:String>
-    <sys:String x:Key="SettingsProxyPorts">代理端口（修改后自动保存）</sys:String>
+    <sys:String x:Key="SettingsProxyPorts">代理端口</sys:String>
+    <sys:String x:Key="SettingsProxyPortsHint">修改后自动保存（750ms 防抖；填 0 表示关闭该端口）</sys:String>
     <sys:String x:Key="SettingsMixedPort">混合端口</sys:String>
     <sys:String x:Key="SettingsHttpPort">HTTP 代理端口</sys:String>
     <sys:String x:Key="SettingsSocksPort">SOCKS5 端口</sys:String>
@@ -147,6 +149,7 @@
     <sys:String x:Key="OverrideCountSets"> 个</sys:String>
     <sys:String x:Key="OverrideApplyNow">立即应用</sys:String>
     <sys:String x:Key="CommonProcessing">执行中…</sys:String>
+    <sys:String x:Key="CommonEnable">启用</sys:String>
     <sys:String x:Key="GuardCheckNow">立即检查</sys:String>
     <sys:String x:Key="CommonChecking">检查中…</sys:String>
     <sys:String x:Key="MaintenanceUpdateGeo">更新 GEO 数据</sys:String>

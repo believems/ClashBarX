@@ -63,6 +63,31 @@
             <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="HorizontalAlignment" Value="Right" />
         </Style>
+        <!-- 说明文字统一收进「info 小图标 + ToolTip」（页面更紧凑）。矢量绘制（圆圈 + i），不依赖图标字体；
+             用法：<ContentControl Style="{StaticResource InfoHintStyle}" ToolTip="{DynamicResource …}" /> -->
+        <Style x:Key="InfoHintStyle" TargetType="ContentControl">
+            <Setter Property="Width" Value="14" />
+            <Setter Property="Height" Value="14" />
+            <Setter Property="Margin" Value="6,0,0,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource ThemeMutedTextBrush}" />
+            <Setter Property="Cursor" Value="Help" />
+            <Setter Property="ToolTipService.InitialShowDelay" Value="0" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContentControl">
+                        <Grid>
+                            <Ellipse Stroke="{TemplateBinding Foreground}" StrokeThickness="1.2" />
+                            <Ellipse Width="2" Height="2" Fill="{TemplateBinding Foreground}"
+                                     VerticalAlignment="Top" Margin="0,3,0,0" />
+                            <Rectangle Width="2" Height="5.5" RadiusX="1" RadiusY="1" Fill="{TemplateBinding Foreground}"
+                                       VerticalAlignment="Bottom" Margin="0,0,0,2.5" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
     <Border BorderBrush="{DynamicResource ThemeBorderBrush}" BorderThickness="1">
     <DockPanel>
@@ -1371,17 +1396,16 @@
                                               Content="{DynamicResource NetworkSystemProxyEnable}"
                                               FontSize="12"
                                               IsChecked="{Binding IsEnabled}" />
-                                    <TextBlock Text="{DynamicResource NetworkSystemProxyTitle}"
-                                               FontWeight="SemiBold"
-                                               FontSize="12"
-                                               VerticalAlignment="Center" />
+                                    <!-- 绕过列表说明（原标题下方文字）收进 info 图标 ToolTip -->
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{DynamicResource NetworkSystemProxyTitle}"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center" />
+                                        <ContentControl Style="{StaticResource InfoHintStyle}"
+                                                        ToolTip="{DynamicResource NetworkBypassHint}" />
+                                    </StackPanel>
                                 </DockPanel>
-                                <TextBlock Grid.Row="1"
-                                           Text="{DynamicResource NetworkBypassHint}"
-                                           FontSize="11"
-                                           Foreground="#5E6B78"
-                                           Margin="0,6,0,0"
-                                           TextWrapping="Wrap" />
                                 <!-- 绕过列表：卡内滚动（MaxHeight 控自然高，双列自然高对齐的前提；
                                      新增行固定卡底） -->
                                 <ScrollViewer Grid.Row="2"
@@ -1449,10 +1473,16 @@
                                 Background="#FAFAFA"
                                 Margin="0,0,0,8">
                             <StackPanel>
+                                <!-- 标题括号说明与关闭态说明收进 info 图标 ToolTip -->
                                 <CheckBox IsChecked="{Binding IsGuardEnabled}"
-                                          Content="{DynamicResource NetworkGuardTitle}"
                                           FontWeight="SemiBold"
-                                          FontSize="12" />
+                                          FontSize="12">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{DynamicResource NetworkGuardTitle}" VerticalAlignment="Center" />
+                                        <ContentControl Style="{StaticResource InfoHintStyle}"
+                                                        ToolTip="{DynamicResource NetworkGuardHint}" />
+                                    </StackPanel>
+                                </CheckBox>
                                 <StackPanel Margin="16,8,0,0"
                                             Visibility="{Binding IsGuardEnabled, Converter={StaticResource BoolToVis}}">
                                     <StackPanel Orientation="Horizontal" Margin="0,8">
@@ -1523,10 +1553,15 @@
                                 CornerRadius="4"
                                 Background="#FAFAFA">
                             <StackPanel>
-                                <TextBlock Text="{DynamicResource SettingsProxyPorts}"
-                                           FontWeight="SemiBold"
-                                           FontSize="12"
-                                           Margin="0,0,0,6" />
+                                <!-- 标题后缀说明（修改后自动保存）收进 info 图标 ToolTip -->
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                    <TextBlock Text="{DynamicResource SettingsProxyPorts}"
+                                               FontWeight="SemiBold"
+                                               FontSize="12"
+                                               VerticalAlignment="Center" />
+                                    <ContentControl Style="{StaticResource InfoHintStyle}"
+                                                    ToolTip="{DynamicResource SettingsProxyPortsHint}" />
+                                </StackPanel>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -1608,14 +1643,17 @@
                                            FontSize="12"
                                            VerticalAlignment="Center" />
                             </DockPanel>
+                            <!-- 开机自启说明文字收进 info 图标 ToolTip；勾选框文案统一为「启用」 -->
                             <DockPanel Margin="0,8">
                                 <CheckBox DockPanel.Dock="Right"
-                                          Content="{DynamicResource SettingsLaunchAtLoginHint}"
-                                          FontSize="11"
+                                          Content="{DynamicResource CommonEnable}"
+                                          FontSize="12"
                                           IsChecked="{Binding LaunchAtLogin}" />
-                                <TextBlock Text="{DynamicResource SettingsLaunchAtLoginTitle}"
-                                           FontSize="12"
-                                           VerticalAlignment="Center" />
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="{DynamicResource SettingsLaunchAtLoginTitle}" FontSize="12" />
+                                    <ContentControl Style="{StaticResource InfoHintStyle}"
+                                                    ToolTip="{DynamicResource SettingsLaunchAtLoginHint}" />
+                                </StackPanel>
                             </DockPanel>
                             <TextBlock Text="{DynamicResource SettingsLaunchAtLoginFailed}"
                                        FontSize="11"
@@ -1772,11 +1810,14 @@
                                               Content="{DynamicResource SsidStrategyToggle}"
                                               FontSize="12"
                                               IsChecked="{Binding IsEnabled}" />
+                                    <!-- SSID 自动切换说明文字收进 info 图标 ToolTip -->
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{DynamicResource SsidStrategyTitle}"
                                                    FontWeight="SemiBold"
                                                    FontSize="12"
                                                    VerticalAlignment="Center" />
+                                        <ContentControl Style="{StaticResource InfoHintStyle}"
+                                                        ToolTip="{DynamicResource SsidStrategyHint}" />
                                         <TextBlock Text="{Binding CurrentSsidText}"
                                                    FontSize="11"
                                                    Foreground="#5E6B78"
@@ -1784,12 +1825,7 @@
                                                    VerticalAlignment="Center" />
                                     </StackPanel>
                                 </DockPanel>
-                                <TextBlock Text="{DynamicResource SsidStrategyHint}"
-                                           FontSize="11"
-                                           Foreground="#5E6B78"
-                                           Margin="0,10,0,0"
-                                           TextWrapping="Wrap" />
-                                <ItemsControl ItemsSource="{Binding Bindings}" Margin="0,6,0,0">
+                                <ItemsControl ItemsSource="{Binding Bindings}" Margin="0,10,0,0">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <DockPanel Margin="0,3">
