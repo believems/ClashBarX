@@ -81,8 +81,9 @@
     <!-- 无内核安装引导对话框（源：app.core.setup_required.*） -->
     <sys:String x:Key="GuideCoreTitle">安装 Mihomo 内核</sys:String>
     <sys:String x:Key="GuideCoreIntro">ClashBarX 不内置代理内核（no-core 策略）。首次使用前，请手动放入 mihomo 内核：</sys:String>
-    <sys:String x:Key="GuideCoreStep1">1. 打开发布页 github.com/MetaCubeX/mihomo/releases，下载文件名含 mihomo-windows-amd64 的 zip（例如 mihomo-windows-amd64-v1.19.x.zip）。</sys:String>
-    <sys:String x:Key="GuideCoreStep2">2. 解压出 mihomo.exe，放入下面的目录（点「打开内核目录」会自动创建并打开它）：</sys:String>
+    <!-- 文件名取自真机核对：官方 zip 里是 mihomo-windows-amd64.exe，必须重命名为 mihomo.exe 才会被识别 -->
+    <sys:String x:Key="GuideCoreStep1">1. 打开发布页 github.com/MetaCubeX/mihomo/releases，下载名为 mihomo-windows-amd64-vX.Y.Z.zip 的文件（例如 mihomo-windows-amd64-v1.19.34.zip；名字里带 compatible、v2、v3、go1xx 的是其它构建，不用选）。</sys:String>
+    <sys:String x:Key="GuideCoreStep2">2. 解压得到 mihomo-windows-amd64.exe，把它重命名为 mihomo.exe，放入下面的目录（点「打开内核目录」会自动创建并打开它）：</sys:String>
     <sys:String x:Key="GuideCoreStep3">3. 回到 ClashBarX 点「启动内核」。如果还没导入订阅，请先到「设置 → 订阅」导入。</sys:String>
     <sys:String x:Key="GuideCoreOpenReleasePage">打开发布页</sys:String>
     <sys:String x:Key="GuideCoreOpenDirectory">打开内核目录</sys:String>
