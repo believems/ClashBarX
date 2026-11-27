@@ -19,16 +19,14 @@ public enum TrayIconKind
 /// 托盘常驻服务：品牌图标、提示文本、右键菜单（显示主窗 / 退出）与单击唤起主窗。
 /// 图标直接以 System.Drawing.Icon 赋给基类 Icon 属性（同步注册，不走
 /// IconSource 的异步转换链——该链在部分环境下静默失败，图标不出现在托盘）。
+/// H.NotifyIcon 取得所赋图标的所有权：Icon 属性一变就 Dispose 旧值（OnIconChanged），
+/// 所以每次切换都从内嵌资源新加载一份，不能把缓存实例反复赋回去（第二次用到时它已被释放）。
 /// 无窗应用（实例不挂视觉树）必须显式 ForceCreate 才会注册托盘图标。
 /// 退出仅发出事件，由 App 层执行内核终止与关停（保持职责分离）。
 /// </summary>
 public sealed class TrayIconService : IDisposable
 {
     private readonly H.NotifyIcon.TaskbarIcon _taskbarIcon;
-    private readonly System.Drawing.Icon _logoIcon;
-    private readonly System.Drawing.Icon _runningIcon;
-    private readonly System.Drawing.Icon _sleepingIcon;
-    private readonly System.Drawing.Icon _tunIcon;
     private TrayIconKind _kind;
 
     /// <summary>用户请求显示主窗（托盘单击或菜单）。</summary>
@@ -179,18 +177,13 @@ public sealed class TrayIconService : IDisposable
         menu.Items.Add(_coreRestartItem);
         menu.Items.Add(exitItem);
 
-        _logoIcon = LoadEmbeddedIcon("tray.ico");
-        _runningIcon = LoadEmbeddedIcon("tray-run.ico");
-        _sleepingIcon = LoadEmbeddedIcon("tray-sleep.ico");
-        _tunIcon = LoadEmbeddedIcon("tray-tun.ico");
-
         _taskbarIcon = new H.NotifyIcon.TaskbarIcon
         {
             ToolTipText = "ClashBarX",
-            Icon = _logoIcon,
             ContextMenu = menu,
         };
         _taskbarIcon.TrayLeftMouseUp += (_, _) => ShowMainWindowRequested?.Invoke();
+        _taskbarIcon.Icon = LoadEmbeddedIcon(IconResourceName(TrayIconKind.Logo));
         _kind = TrayIconKind.Logo;
 
         // 无窗应用（StartupUri 移除、实例不挂视觉树）必须显式 ForceCreate 才会注册托盘图标
@@ -237,7 +230,10 @@ public sealed class TrayIconService : IDisposable
     private System.Threading.Timer? _tooltipResetTimer;
     private string _lastStatusToolTip = "ClashBarX";
 
-    /// <summary>切换托盘状态图标（内核运行中 / 已停止），与 macOS 菜单栏状态语义对齐。</summary>
+    /// <summary>
+    /// 切换托盘状态图标（内核运行中 / 已停止），与 macOS 菜单栏状态语义对齐。
+    /// 每次新加载一份图标（H.NotifyIcon 取得所有权并在替换时释放旧值）。
+    /// </summary>
     public void SetKind(TrayIconKind kind)
     {
         if (kind == _kind)
@@ -245,15 +241,19 @@ public sealed class TrayIconService : IDisposable
             return;
         }
 
+        System.Drawing.Icon icon = LoadEmbeddedIcon(IconResourceName(kind));
+        _taskbarIcon.Icon = icon;
         _kind = kind;
-        _taskbarIcon.Icon = kind switch
-        {
-            TrayIconKind.Running => _runningIcon,
-            TrayIconKind.Sleeping => _sleepingIcon,
-            TrayIconKind.Tun => _tunIcon,
-            _ => _logoIcon,
-        };
     }
+
+    /// <summary>各形态对应的内嵌 ICO 资源名（csproj Resource）。</summary>
+    private static string IconResourceName(TrayIconKind kind) => kind switch
+    {
+        TrayIconKind.Running => "tray-run.ico",
+        TrayIconKind.Sleeping => "tray-sleep.ico",
+        TrayIconKind.Tun => "tray-tun.ico",
+        _ => "tray.ico",
+    };
 
     /// <summary>程序化同步系统代理菜单勾选态（不回环触发事件）。</summary>
     public void SetSystemProxyChecked(bool isChecked)
@@ -365,10 +365,7 @@ public sealed class TrayIconService : IDisposable
     public void Dispose()
     {
         _taskbarIcon.Dispose();
-        _logoIcon.Dispose();
-        _runningIcon.Dispose();
-        _sleepingIcon.Dispose();
-        _tunIcon.Dispose();
+        _taskbarIcon.Icon?.Dispose();   // 当前这一份归我们收尾（Dispose 幂等，控件若已释放则无影响）
     }
 
     /// <summary>从程序集内嵌资源（csproj Resource）加载 ICO。</summary>
