@@ -29,7 +29,8 @@
                       UseAeroCaptionButtons="False" />
     </WindowChrome.WindowChrome>
     <Window.Resources>
-        <!-- 自绘标题栏窗控按钮（扁平、悬停浅灰底） -->
+        <!-- 自绘标题栏窗控按钮（扁平、悬停浅灰底）；
+             菜单模板（TrayMenu.xaml）在 code-behind 构造里合并，见「菜单模板与托盘共用」注释 -->
         <Style x:Key="TitleBarButtonStyle" TargetType="Button">
             <Setter Property="Width" Value="46" />
             <Setter Property="Height" Value="34" />

@@ -70,6 +70,27 @@
         </ControlTemplate.Triggers>
     </ControlTemplate>
 
+    <!-- ContextMenu 外壳：默认模板自带图标列分隔竖线（BOSS 截图 2026-11-28 圈出的「分割线」），
+         换干净 Border + ItemsPresenter，与二级子菜单弹层同款边框 -->
+    <Style TargetType="ContextMenu">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContextMenu">
+                    <Border Background="#FFFFFF"
+                            BorderBrush="#C3C9D1"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="2">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle"
+                                            SnapsToDevicePixels="True" />
+                        </ScrollViewer>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- 隐式样式：作用于 ContextMenu 内全部 MenuItem（含二级） -->
     <Style TargetType="MenuItem">
         <Setter Property="Foreground" Value="#2B2F36" />

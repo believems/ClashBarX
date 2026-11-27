@@ -54,6 +54,14 @@ public partial class MainWindow : Window
 
     public MainWindow()
     {
+        // 菜单模板与托盘共用（TrayMenu.xaml：无图标列竖线的 ContextMenu/MenuItem/Separator）——
+        // 左上角应用菜单同享干净外观（BOSS 截图 2026-11-28 圈出默认模板的图标列分隔竖线）。
+        // XAML 隐式 Window.Resources 挂不了 MergedDictionaries 属性元素（MC3074），故在此合并；
+        // 须在 InitializeComponent 前，供 XAML 内 StaticResource 解析可见。
+        Resources.MergedDictionaries.Add(new System.Windows.ResourceDictionary
+        {
+            Source = new System.Uri("pack://application:,,,/Themes/TrayMenu.xaml", System.UriKind.Absolute),
+        });
         InitializeComponent();
         MainTabs.SelectionChanged += (_, _) => TabSelectionChanged?.Invoke(this, EventArgs.Empty);
         MainTabs.SelectionChanged += (_, _) => ApplyTabWindowHeight();
