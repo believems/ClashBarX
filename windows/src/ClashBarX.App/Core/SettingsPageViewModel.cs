@@ -210,6 +210,130 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
         }
     }
 
+    // ---- 内核块（定稿：关于卡右半——mihomo 版本 / 检查更新 / 发现新版后才显示升级按钮 + 发布页） ----
+
+    /// <summary>内核更新检查委托（App 层注入 mihomo releases fetch + resolve；null = 已是最新）。</summary>
+    public Func<Task<ClashBarX.Core.Updates.AppReleaseInfo?>>? CheckKernelUpdateRequested { get; set; }
+
+    /// <summary>mihomo 发布页（源：内核块「发布页 ↗」固定链接）。</summary>
+    public const string KernelReleasesUrl = "https://github.com/MetaCubeX/mihomo/releases";
+
+    private string _kernelVersionText = "—";
+    private string? _kernelStatusText;
+    private ClashBarX.Core.Updates.AppReleaseInfo? _availableKernelUpdate;
+    private bool _isCheckingKernelUpdate;
+    private string? _kernelUpdateStatusText;
+    private bool _kernelUpdateCheckFailed;
+
+    /// <summary>内核版本（App 层喂 API version；未知时「—」）。</summary>
+    public string KernelVersionText
+    {
+        get => _kernelVersionText;
+        set => SetProperty(ref _kernelVersionText, value);
+    }
+
+    /// <summary>内核运行状态（运行中 pid / 未运行；App 层随 RefreshPresentationState 刷新）。</summary>
+    public string? KernelStatusText
+    {
+        get => _kernelStatusText;
+        set
+        {
+            if (SetProperty(ref _kernelStatusText, value))
+            {
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasKernelStatus)));
+            }
+        }
+    }
+
+    public bool HasKernelStatus => KernelStatusText is { Length: > 0 };
+
+    /// <summary>内核可用更新（null = 无；发现后才显示「升级内核」按钮）。</summary>
+    public ClashBarX.Core.Updates.AppReleaseInfo? AvailableKernelUpdate
+    {
+        get => _availableKernelUpdate;
+        private set
+        {
+            if (SetProperty(ref _availableKernelUpdate, value))
+            {
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasKernelUpdate)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(KernelUpgradeText)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(KernelFoundText)));
+            }
+        }
+    }
+
+    public bool HasKernelUpdate => AvailableKernelUpdate is not null;
+
+    /// <summary>升级按钮文案（「升级到 vX」；按钮隐藏时不用）。</summary>
+    public string KernelUpgradeText => AvailableKernelUpdate is { } update
+        ? ClashBarX.Core.L10n.CoreL10n.T("about.kernel_upgrade", update.DisplayVersion)
+        : string.Empty;
+
+    /// <summary>发现新版提示（「发现新版本 vX」）。</summary>
+    public string KernelFoundText => AvailableKernelUpdate is { } update
+        ? ClashBarX.Core.L10n.CoreL10n.T("about.kernel_found", update.DisplayVersion)
+        : string.Empty;
+
+    public bool IsCheckingKernelUpdate
+    {
+        get => _isCheckingKernelUpdate;
+        private set => SetProperty(ref _isCheckingKernelUpdate, value);
+    }
+
+    /// <summary>内核更新检查反馈行（null = 隐藏）。</summary>
+    public string? KernelUpdateStatusText
+    {
+        get => _kernelUpdateStatusText;
+        set
+        {
+            if (SetProperty(ref _kernelUpdateStatusText, value))
+            {
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasKernelUpdateStatus)));
+            }
+        }
+    }
+
+    public bool HasKernelUpdateStatus => KernelUpdateStatusText is { Length: > 0 };
+
+    public bool KernelUpdateCheckFailed
+    {
+        get => _kernelUpdateCheckFailed;
+        private set => SetProperty(ref _kernelUpdateCheckFailed, value);
+    }
+
+    public System.Windows.Input.ICommand CheckKernelUpdateCommand { get; }
+
+    public void OpenKernelReleasePage() => OpenReleasePageRequested?.Invoke(KernelReleasesUrl);
+
+    private async Task RunKernelUpdateCheckAsync()
+    {
+        if (IsCheckingKernelUpdate || CheckKernelUpdateRequested is null)
+        {
+            return;
+        }
+
+        IsCheckingKernelUpdate = true;
+        try
+        {
+            ClashBarX.Core.Updates.AppReleaseInfo? update = await CheckKernelUpdateRequested();
+            AvailableKernelUpdate = update;
+            KernelUpdateStatusText = update is null
+                ? ClashBarX.Core.L10n.CoreL10n.T("update.up_to_date")
+                : ClashBarX.Core.L10n.CoreL10n.T("about.kernel_found", update.DisplayVersion);
+            KernelUpdateCheckFailed = false;
+        }
+        catch (Exception error)
+        {
+            AvailableKernelUpdate = null;
+            KernelUpdateStatusText = ClashBarX.Core.L10n.CoreL10n.T("update.failed", error.Message);
+            KernelUpdateCheckFailed = true;
+        }
+        finally
+        {
+            IsCheckingKernelUpdate = false;
+        }
+    }
+
     private async Task RunUpdateCheckAsync()
     {
         if (IsCheckingUpdate || CheckUpdateRequested is null)
@@ -284,6 +408,7 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
         FlushFakeIPCommand = new RelayCommand(_ => RunMaintenanceAsync(FlushFakeIPRequested));
         FlushDNSCommand = new RelayCommand(_ => RunMaintenanceAsync(FlushDNSRequested));
         CheckUpdateCommand = new RelayCommand(_ => RunUpdateCheckAsync());
+        CheckKernelUpdateCommand = new RelayCommand(_ => RunKernelUpdateCheckAsync());
     }
 
     /// <summary>执行维护动作并反馈结果（进行中禁用按钮；源：维护区交互）。</summary>

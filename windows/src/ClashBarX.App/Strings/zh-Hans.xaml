@@ -32,6 +32,10 @@
     <sys:String x:Key="SettingsTrafficOverviewTitle">流量概览</sys:String>
     <sys:String x:Key="SettingsTrafficOverviewHint">在代理页顶部显示实时速率与连接摘要</sys:String>
     <sys:String x:Key="SettingsBasicSection">基础设置</sys:String>
+    <sys:String x:Key="SettingsGeneralTitle">常规</sys:String>
+    <sys:String x:Key="SettingsTrafficOverviewShort">代理页顶部实时速率</sys:String>
+    <sys:String x:Key="AboutOpenRelease">发布页 ↗</sys:String>
+    <sys:String x:Key="AboutKernelTitle">mihomo 内核 </sys:String>
 
     <sys:String x:Key="ProxyTunMode">TUN 模式</sys:String>
     <sys:String x:Key="ProxyTunToggle">启用</sys:String>
@@ -61,12 +65,20 @@
     <sys:String x:Key="AboutVersionTooltip">查看发布页</sys:String>
     <sys:String x:Key="AboutCheckUpdate">检查更新</sys:String>
 
+    <!-- 左上角 App 图标应用菜单（源：titlebar appmenu——关于/检查更新/关闭窗口） -->
+    <sys:String x:Key="AppMenuTooltip">应用菜单</sys:String>
+    <sys:String x:Key="AppMenuAbout">关于 ClashBarX</sys:String>
+    <sys:String x:Key="AppMenuCheckUpdate">检查更新</sys:String>
+    <sys:String x:Key="AppMenuHideWindow">关闭窗口</sys:String>
+
     <sys:String x:Key="ProvidersTitle">订阅源</sys:String>
     <sys:String x:Key="ProvidersUpdateAll">更新全部</sys:String>
     <sys:String x:Key="ProvidersHealthcheck">健康检查（测速全部节点）</sys:String>
     <sys:String x:Key="ProvidersRefresh">更新此订阅源</sys:String>
 
     <sys:String x:Key="GroupsTestAllTooltip">测全部可见分组的延迟</sys:String>
+    <sys:String x:Key="GroupsTitle">分组</sys:String>
+    <sys:String x:Key="GroupsCollapseTooltip">折叠 / 展开分组区</sys:String>
     <sys:String x:Key="GroupsSortByLatency">延迟排序</sys:String>
     <sys:String x:Key="GroupsLatencyHistory">延迟历史</sys:String>
     <sys:String x:Key="GroupsShowHidden">显示隐藏分组</sys:String>
@@ -101,6 +113,10 @@
     <sys:String x:Key="LogsLevelError">错误</sys:String>
     <sys:String x:Key="LogsLevelWarning">警告</sys:String>
     <sys:String x:Key="LogsLevelInfo">信息</sys:String>
+    <sys:String x:Key="LogsColTime">时间</sys:String>
+    <sys:String x:Key="LogsColSource">来源</sys:String>
+    <sys:String x:Key="LogsColLevel">等级</sys:String>
+    <sys:String x:Key="LogsColMessage">消息</sys:String>
     <sys:String x:Key="SubscriptionUpdate">更新</sys:String>
     <sys:String x:Key="SubscriptionUpdateAll">更新全部</sys:String>
     <sys:String x:Key="SettingsLaunchAtLoginHint">登录 Windows 时自动启动 ClashBarX</sys:String>
@@ -140,5 +156,6 @@
     <sys:String x:Key="SubscriptionUpdateHint">重新下载当前选中的订阅（选中项即列表中高亮的配置）</sys:String>
     <sys:String x:Key="SubscriptionUpdateAllHint">重新下载全部订阅</sys:String>
     <sys:String x:Key="NetworkSubscriptionEnableHint">启用列表中选中的配置（切换生效配置）</sys:String>
+    <sys:String x:Key="SubscriptionButtonsHint">按钮作用于列表选中行：更新=重下载 · 启用=切换生效 · 删除=删除文件</sys:String>
     <sys:String x:Key="NetworkSubscriptionRemoveHint">删除列表中选中的配置文件</sys:String>
 </ResourceDictionary>

@@ -21,6 +21,15 @@ public static class CoreL10n
         ["proxy.traffic.connections"] = "连接 {0}",
         ["proxy.traffic.memory"] = "内存 {0}",
 
+        // 规则页下拉（源：ui.rules.filter.type.* / policyOptions）
+        ["rules.filter.all"] = "全部",
+        ["rules.filter.domain"] = "域名",
+        ["rules.filter.ip"] = "IP",
+        ["rules.filter.ruleset"] = "规则集",
+        ["rules.filter.other"] = "其他",
+        ["rules.policy.all"] = "全部策略",
+        ["rules.stats.summary"] = "规则 {0} · 规则集 {1}",
+
         // TUN
         ["tun.mips_requires_upgrade"] = "需内核 {0}+",
 
@@ -39,6 +48,9 @@ public static class CoreL10n
         ["update.latest"] = "已是最新版本",
         ["update.available"] = "有新版本 {0}",
         ["update.failed"] = "检查更新失败：{0}",
+        ["update.up_to_date"] = "✓ 已是最新版本",
+        ["about.kernel_upgrade"] = "升级到 {0}",
+        ["about.kernel_found"] = "发现新版本 {0}",
 
         // Provider 展示
         ["provider.relative.minutes"] = "{0} 分钟前",
@@ -129,6 +141,7 @@ public static class CoreL10n
         ["log.override.runtime_generated"] = "运行时配置已生成：{0}（前置 {1} · 追加 {2} · 规则集 {3}）",
         ["log.core.not_running"] = "内核未在运行",
         ["tray.core_status.stopped"] = "内核未运行",
+        ["tray.core_status.stopped_with_version"] = "内核未运行 · {0}",
         ["tray.core_status.running_healthy"] = "内核运行中（pid={0}）· API 正常{1}",
         ["tray.core_status.running_degraded"] = "内核运行中（pid={0}）· API 未就绪",
         ["tray.core_status.running_waiting"] = "内核运行中（pid={0}）· 等待 API 响应",
@@ -140,6 +153,11 @@ public static class CoreL10n
         ["tray.menu.mode_direct"] = "直连",
         ["tray.menu.exit"] = "退出(_X)",
         ["tray.menu.copy_proxy_command"] = "复制代理命令(_C)",
+        ["tray.menu.tun"] = "TUN 模式(_T)",
+        ["tray.menu.tun_off"] = "关闭 TUN",
+        ["tray.menu.core_start"] = "启动内核",
+        ["tray.menu.core_stop"] = "停止内核",
+        ["tray.menu.core_restart"] = "重启内核",
         ["log.tun.mips_unsupported"] = "{0}，当前版本不支持",
         ["log.tun.mips_requires"] = "mips stack 需要内核 {0}+",
         ["log.tun.auth_cancelled"] = "已取消管理员授权，TUN 未开启",
@@ -178,6 +196,9 @@ public static class CoreL10n
         ["log.subscription.invalid_url"] = "地址无效，需要完整的 http(s) 链接",
         ["log.subscription.imported"] = "已导入并启用 {0}",
         ["log.subscription.import_failed"] = "导入失败：{0}",
+        ["log.subscription.local_imported"] = "本地配置已导入并启用 {0}",
+        ["log.subscription.local_import_failed"] = "导入本地文件失败：{0}",
+        ["network.import_local.dialog_title"] = "选择要导入的配置文件",
         ["log.subscription.not_found"] = "未找到订阅记录：{0}",
         ["log.subscription.updated"] = "已更新 {0}",
         ["log.subscription.update_failed"] = "更新 {0} 失败：{1}",
@@ -212,6 +233,15 @@ public static class CoreL10n
         ["proxy.traffic.connections"] = "Conn {0}",
         ["proxy.traffic.memory"] = "Mem {0}",
 
+        // Rules page dropdowns (source: ui.rules.filter.type.* / policyOptions)
+        ["rules.filter.all"] = "All",
+        ["rules.filter.domain"] = "Domain",
+        ["rules.filter.ip"] = "IP",
+        ["rules.filter.ruleset"] = "Rule set",
+        ["rules.filter.other"] = "Other",
+        ["rules.policy.all"] = "All policies",
+        ["rules.stats.summary"] = "Rules {0} · Rule sets {1}",
+
         ["tun.mips_requires_upgrade"] = "requires core {0}+",
 
         ["machine.editor.add_title"] = "Add Machine",
@@ -226,6 +256,9 @@ public static class CoreL10n
         ["update.latest"] = "Up to date",
         ["update.available"] = "Update available: {0}",
         ["update.failed"] = "Update check failed: {0}",
+        ["update.up_to_date"] = "✓ Up to date",
+        ["about.kernel_upgrade"] = "Upgrade to {0}",
+        ["about.kernel_found"] = "New version found: {0}",
 
         ["provider.relative.minutes"] = "{0} min ago",
         ["provider.relative.hours"] = "{0} h ago",
@@ -314,6 +347,7 @@ public static class CoreL10n
         ["log.override.runtime_generated"] = "Runtime config generated: {0} (prepend {1} · append {2} · rule sets {3})",
         ["log.core.not_running"] = "Core is not running",
         ["tray.core_status.stopped"] = "Core stopped",
+        ["tray.core_status.stopped_with_version"] = "Core stopped · {0}",
         ["tray.core_status.running_healthy"] = "Core running (pid={0}) · API healthy{1}",
         ["tray.core_status.running_degraded"] = "Core running (pid={0}) · API not ready",
         ["tray.core_status.running_waiting"] = "Core running (pid={0}) · waiting for API",
@@ -325,6 +359,11 @@ public static class CoreL10n
         ["tray.menu.mode_direct"] = "Direct",
         ["tray.menu.exit"] = "Exit(_X)",
         ["tray.menu.copy_proxy_command"] = "Copy Proxy Command(_C)",
+        ["tray.menu.tun"] = "TUN Mode(_T)",
+        ["tray.menu.tun_off"] = "Turn off TUN",
+        ["tray.menu.core_start"] = "Start Core",
+        ["tray.menu.core_stop"] = "Stop Core",
+        ["tray.menu.core_restart"] = "Restart Core",
         ["log.tun.mips_unsupported"] = "{0}, not supported by the current version",
         ["log.tun.mips_requires"] = "mips stack requires core {0}+",
         ["log.tun.auth_cancelled"] = "Administrator authorization cancelled; TUN not enabled",
@@ -363,6 +402,9 @@ public static class CoreL10n
         ["log.subscription.invalid_url"] = "Invalid URL; a full http(s) link is required",
         ["log.subscription.imported"] = "Imported and activated {0}",
         ["log.subscription.import_failed"] = "Import failed: {0}",
+        ["log.subscription.local_imported"] = "Local config imported and activated {0}",
+        ["log.subscription.local_import_failed"] = "Import local file failed: {0}",
+        ["network.import_local.dialog_title"] = "Choose a config file to import",
         ["log.subscription.not_found"] = "Subscription record not found: {0}",
         ["log.subscription.updated"] = "Updated {0}",
         ["log.subscription.update_failed"] = "Update {0} failed: {1}",

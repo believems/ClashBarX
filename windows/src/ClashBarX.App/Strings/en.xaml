@@ -32,6 +32,10 @@
     <sys:String x:Key="SettingsTrafficOverviewTitle">Traffic overview</sys:String>
     <sys:String x:Key="SettingsTrafficOverviewHint">Show live rates and connection summary at the top of the proxy page</sys:String>
     <sys:String x:Key="SettingsBasicSection">Basics</sys:String>
+    <sys:String x:Key="SettingsGeneralTitle">General</sys:String>
+    <sys:String x:Key="SettingsTrafficOverviewShort">Live rate on the proxy tab</sys:String>
+    <sys:String x:Key="AboutOpenRelease">Releases ↗</sys:String>
+    <sys:String x:Key="AboutKernelTitle">mihomo kernel </sys:String>
 
     <sys:String x:Key="ProxyTunMode">TUN Mode</sys:String>
     <sys:String x:Key="ProxyTunToggle">Enable</sys:String>
@@ -61,12 +65,20 @@
     <sys:String x:Key="AboutVersionTooltip">Open the releases page</sys:String>
     <sys:String x:Key="AboutCheckUpdate">Check for updates</sys:String>
 
+    <!-- App icon menu (source: titlebar appmenu) -->
+    <sys:String x:Key="AppMenuTooltip">App menu</sys:String>
+    <sys:String x:Key="AppMenuAbout">About ClashBarX</sys:String>
+    <sys:String x:Key="AppMenuCheckUpdate">Check for updates</sys:String>
+    <sys:String x:Key="AppMenuHideWindow">Close window</sys:String>
+
     <sys:String x:Key="ProvidersTitle">Providers</sys:String>
     <sys:String x:Key="ProvidersUpdateAll">Update All</sys:String>
     <sys:String x:Key="ProvidersHealthcheck">Health check (test all nodes)</sys:String>
     <sys:String x:Key="ProvidersRefresh">Update this provider</sys:String>
 
     <sys:String x:Key="GroupsTestAllTooltip">Test latency of all visible groups</sys:String>
+    <sys:String x:Key="GroupsTitle">Groups</sys:String>
+    <sys:String x:Key="GroupsCollapseTooltip">Collapse / expand the group list</sys:String>
     <sys:String x:Key="GroupsSortByLatency">Sort by latency</sys:String>
     <sys:String x:Key="GroupsLatencyHistory">Latency history</sys:String>
     <sys:String x:Key="GroupsShowHidden">Show hidden</sys:String>
@@ -101,6 +113,10 @@
     <sys:String x:Key="LogsLevelError">Error</sys:String>
     <sys:String x:Key="LogsLevelWarning">Warning</sys:String>
     <sys:String x:Key="LogsLevelInfo">Info</sys:String>
+    <sys:String x:Key="LogsColTime">Time</sys:String>
+    <sys:String x:Key="LogsColSource">Source</sys:String>
+    <sys:String x:Key="LogsColLevel">Level</sys:String>
+    <sys:String x:Key="LogsColMessage">Message</sys:String>
     <sys:String x:Key="SubscriptionUpdate">Update</sys:String>
     <sys:String x:Key="SubscriptionUpdateAll">Update All</sys:String>
     <sys:String x:Key="SettingsLaunchAtLoginHint">Start ClashBarX automatically when signing in to Windows</sys:String>
@@ -140,5 +156,6 @@
     <sys:String x:Key="SubscriptionUpdateHint">Re-download the selected subscription (the highlighted row)</sys:String>
     <sys:String x:Key="SubscriptionUpdateAllHint">Re-download all subscriptions</sys:String>
     <sys:String x:Key="NetworkSubscriptionEnableHint">Activate the selected config row</sys:String>
+    <sys:String x:Key="SubscriptionButtonsHint">Buttons act on the selected row: Update = re-download · Enable = activate · Delete = remove file</sys:String>
     <sys:String x:Key="NetworkSubscriptionRemoveHint">Delete the selected config file</sys:String>
 </ResourceDictionary>

@@ -119,7 +119,9 @@ public class RulesPageViewModelTests
         }));
 
         Assert.Equal(3, harness.ViewModel.PolicyOptions.Count);   // 全部 + DIRECT + Demo
-        harness.ViewModel.PolicyFilter = "DIRECT";
+        // 经对象级选中项驱动（与 UI 下拉绑定同路径；PolicyFilter 为只读派生态）
+        harness.ViewModel.PolicySelection =
+            harness.ViewModel.PolicyOptions.First(option => option.Value == "DIRECT");
         Assert.Single(harness.ViewModel.Rows);
 
         // 选中策略从新数据消失时自动回落「全部」

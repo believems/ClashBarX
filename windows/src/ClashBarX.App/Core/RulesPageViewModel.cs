@@ -28,7 +28,7 @@ public sealed class RulesPageViewModel : INotifyPropertyChanged
     private string? _policyFilter;
     private bool _groupByPolicy;
     private bool _isRefreshing;
-    private string _statsText = "规则 0 · 规则集 0";
+    private string _statsText = ClashBarX.Core.L10n.CoreL10n.T("rules.stats.summary", 0, 0);
     private string _countText = "0/0";
 
     private IReadOnlyList<RuleItem> _rules = Array.Empty<RuleItem>();
@@ -62,15 +62,19 @@ public sealed class RulesPageViewModel : INotifyPropertyChanged
     /// <summary>类型过滤下拉选项（源：ui.rules.filter.type.*）。</summary>
     public IReadOnlyList<EnumOption<RulesTypeFilter>> TypeFilterOptions { get; } = new[]
     {
-        new EnumOption<RulesTypeFilter>("全部", RulesTypeFilter.All),
-        new EnumOption<RulesTypeFilter>("域名", RulesTypeFilter.Domain),
-        new EnumOption<RulesTypeFilter>("IP", RulesTypeFilter.Ip),
-        new EnumOption<RulesTypeFilter>("规则集", RulesTypeFilter.RuleSet),
-        new EnumOption<RulesTypeFilter>("其他", RulesTypeFilter.Other),
+        new EnumOption<RulesTypeFilter>(ClashBarX.Core.L10n.CoreL10n.T("rules.filter.all"), RulesTypeFilter.All),
+        new EnumOption<RulesTypeFilter>(ClashBarX.Core.L10n.CoreL10n.T("rules.filter.domain"), RulesTypeFilter.Domain),
+        new EnumOption<RulesTypeFilter>(ClashBarX.Core.L10n.CoreL10n.T("rules.filter.ip"), RulesTypeFilter.Ip),
+        new EnumOption<RulesTypeFilter>(ClashBarX.Core.L10n.CoreL10n.T("rules.filter.ruleset"), RulesTypeFilter.RuleSet),
+        new EnumOption<RulesTypeFilter>(ClashBarX.Core.L10n.CoreL10n.T("rules.filter.other"), RulesTypeFilter.Other),
     };
 
-    /// <summary>策略下拉选项（全部 + 去重排序的 proxy 名；源：policyOptions）。</summary>
-    public ObservableCollection<PolicyOption> PolicyOptions { get; } = new();
+    /// <summary>策略下拉选项（全部 + 去重排序的 proxy 名；源：policyOptions）。
+    /// 构造时预置「全部策略」占位，避免空态下拉空白（规则集未加载时）。</summary>
+    public ObservableCollection<PolicyOption> PolicyOptions { get; } = new()
+    {
+        new PolicyOption(ClashBarX.Core.L10n.CoreL10n.T("rules.policy.all"), null),
+    };
 
     public string FilterText
     {
@@ -184,7 +188,7 @@ public sealed class RulesPageViewModel : INotifyPropertyChanged
         }
 
         RebuildPolicyOptions();
-        StatsText = $"规则 {board.RulesCount} · 规则集 {board.ProviderRuleCount}";
+        StatsText = ClashBarX.Core.L10n.CoreL10n.T("rules.stats.summary", board.RulesCount, board.ProviderRuleCount);
         RebuildRows();
     }
 
@@ -216,7 +220,7 @@ public sealed class RulesPageViewModel : INotifyPropertyChanged
     {
         string? current = PolicyFilter;
         PolicyOptions.Clear();
-        PolicyOptions.Add(new PolicyOption("全部", null));
+        PolicyOptions.Add(new PolicyOption(ClashBarX.Core.L10n.CoreL10n.T("rules.policy.all"), null));
         foreach (string policy in _rules
                      .Select(rule => rule.Proxy)
                      .OfType<string>()
@@ -226,10 +230,15 @@ public sealed class RulesPageViewModel : INotifyPropertyChanged
             PolicyOptions.Add(new PolicyOption(policy, policy));
         }
 
-        // 选中项按值恢复（对象更替不丢选中；规则集为空时回落「全部」显示占位）
-        _policySelection = PolicyOptions.FirstOrDefault(option => option.Value == current)
+        // 选中项按值恢复（对象更替不丢选中；选中策略从新数据消失时回落「全部」）
+        PolicyOption? selection = PolicyOptions.FirstOrDefault(option => option.Value == current)
             ?? PolicyOptions.FirstOrDefault(option => option.Value is null);
+        _policySelection = selection;
         Raise(nameof(PolicySelection));
+        if (selection?.Value != current)
+        {
+            PolicyFilter = null;   // 经 setter 触发行重建（回落全量）
+        }
     }
 
     private void RebuildRows()

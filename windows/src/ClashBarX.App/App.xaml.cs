@@ -67,6 +67,7 @@ public partial class App : Application
     /// <summary>SSID 策略日志指纹去重（源：ssidStrategyLastLogFingerprint）。</summary>
     private string? _ssidStrategyLastLogFingerprint;
     private AppReleaseService? _releaseService;
+    private AppReleaseService? _mihomoReleaseService;
     /// <summary>WebUI 入口地址（源：controllerUIURL——随配置快照与切换目标刷新）。</summary>
     private string _controllerUiUrl = ControllerWebUiUrl.Build(
         DefaultController, null, externalUiConfigured: false, externalUiName: null);
@@ -160,6 +161,7 @@ public partial class App : Application
 
         _mainWindow = new MainWindow();
         _mainWindow.SubscriptionImportRequested += OnSubscriptionImportRequested;
+        _mainWindow.LocalImportRequested += OnLocalImportRequested;
         _mainWindow.ConfigActivateRequested += OnConfigActivateRequested;
         _mainWindow.ConfigRemoveRequested += OnConfigRemoveRequested;
         _mainWindow.CoreStartRequested += () => _ = StartCoreManualAsync();
@@ -167,16 +169,30 @@ public partial class App : Application
         _mainWindow.CoreRestartRequested += () => _ = RestartCoreManualAsync();
         _mainWindow.SubscriptionRefreshRequested += OnSubscriptionRefreshRequested;
         _mainWindow.SubscriptionRefreshAllRequested += OnSubscriptionRefreshAllRequested;
-        _mainWindow.CopyProxyCommandRequested += () => _ = OnCopyProxyCommandRequestedAsync("bash");
-        _tray!.CopyProxyCommandRequested += shell => _ = OnCopyProxyCommandRequestedAsync(shell);
+        _mainWindow.CopyProxyCommandRequested += shell => _ = OnCopyProxyCommandRequestedAsync(shell);
         _mainWindow.MachineTargetSwitchRequested += machineId => _ = SwitchMachineTargetAsync(machineId);
         _mainWindow.ManageMachinesRequested += OpenRemoteMachineManager;
         _mainWindow.OpenWebUIRequested += OpenControllerWebUI;
+        // 应用菜单（左上角 App 图标）：关于=定位设置页关于卡；检查更新=设置页检查命令
+        _mainWindow.AppAboutRequested += () => Dispatcher.BeginInvoke(() => _mainWindow.SelectSettingsTab());
+        _mainWindow.AppCheckUpdateRequested += () => Dispatcher.BeginInvoke(() =>
+        {
+            _mainWindow.SelectSettingsTab();
+            _settingsPage?.CheckUpdateCommand.Execute(null);
+        });
 
         _tray = new TrayIconService();
         _tray.ShowMainWindowRequested += ShowMainWindow;
         _tray.ExitRequested += ExitFromTray;
         _tray.SystemProxyToggled += OnSystemProxyToggled;
+        _tray.CopyProxyCommandRequested += shell => _ = OnCopyProxyCommandRequestedAsync(shell);
+        // 托盘内核操作组（定稿：与主窗互斥按钮同链路）
+        _tray.CoreStartRequested += () => _ = StartCoreManualAsync();
+        _tray.CoreStopRequested += () => _ = StopCoreManualAsync();
+        _tray.CoreRestartRequested += () => _ = RestartCoreManualAsync();
+        // 托盘 TUN 二级菜单（定稿：关 TUN / 选 stack=开启并切换，走与主窗同链路含 UAC 引导）
+        _tray.TunOffRequested += () => Dispatcher.BeginInvoke(() => _ = OnTunToggleRequestedAsync(false));
+        _tray.TunStackSelected += stack => Dispatcher.BeginInvoke(() => _ = OnTunStackSelectedAsync(stack));
         // 托盘分流模式子菜单：经代理页 VM 走统一 PATCH 链路（UI radio 同步）
         _tray.ModeChanged += mode => Dispatcher.BeginInvoke(() =>
         {
@@ -307,6 +323,15 @@ public partial class App : Application
         _settingsPage.CheckUpdateRequested = async () =>
             AppReleaseService.ResolveAvailableUpdate(
                 await _releaseService!.FetchLatestReleaseAsync(currentVersion), currentVersion);
+        // 内核块更新检查（定稿：mihomo releases latest 对比当前内核版本；发现新版后才显示升级按钮）
+        _mihomoReleaseService = new AppReleaseService(
+            latestReleaseUrl: "https://api.github.com/repos/MetaCubeX/mihomo/releases/latest");
+        _settingsPage.CheckKernelUpdateRequested = async () =>
+        {
+            string kernelVersion = _lastKnownCoreVersion is { Length: > 0 } known ? known : "0.0.0";
+            return AppReleaseService.ResolveAvailableUpdate(
+                await _mihomoReleaseService.FetchLatestReleaseAsync(kernelVersion), kernelVersion);
+        };
         _settingsPage.OpenReleasePageRequested += url =>
         {
             try
@@ -404,6 +429,7 @@ public partial class App : Application
         _rulesRefreshTimer?.Dispose();
         _ssidMonitor?.Dispose();
         _releaseService?.Dispose();
+        _mihomoReleaseService?.Dispose();
         _configWatcher?.Dispose();
         _configRootWatcher?.Dispose();
         _configDebounceTimer?.Dispose();
@@ -686,6 +712,7 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
                                 snapshot.Up, snapshot.Down, snapshot.UpTotal, snapshot.DownTotal);
                             _trayTraffic = _proxyPage?.TrafficSummary ?? string.Empty;
                             UpdateTrayToolTip();
+                            _mainWindow?.SetStatusRate(_proxyPage?.StatusRateText ?? "—");
                         });
                     }
                 }
@@ -784,8 +811,12 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
     }
 
     /// <summary>远程目标的只读联动（订阅/守护/覆写/内核动作禁用 + 提示条）。</summary>
-    private void ApplyRemoteReadonlyState() =>
-        _mainWindow?.SetRemoteReadonly(_remoteStore?.IsRemoteTarget == true);
+    private void ApplyRemoteReadonlyState()
+    {
+        bool isRemote = _remoteStore?.IsRemoteTarget == true;
+        _mainWindow?.SetRemoteReadonly(isRemote);
+        _tray?.SetRemoteDisabled(isRemote);   // 定稿：远程目标下托盘内核操作组整组置灰
+    }
 
     /// <summary>
     /// 切换机器目标（源：switchToMachineTarget——远程先连通验证，失败不切换；
@@ -1167,12 +1198,25 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
         _tunSection.ToggleRequested += enable => _ = OnTunToggleRequestedAsync(enable);
         _tunSection.StackSelected += stack => _ = OnTunStackSelectedAsync(stack);
         _mainWindow!.SetTunSection(_tunSection);
+        // 托盘 TUN 二级菜单随开关/stack 变化同步（勾选态 + 当前项 + mips 门槛）
+        _tunSection.PropertyChanged += (_, _) => Dispatcher.BeginInvoke(SyncTrayTunState);
+        SyncTrayTunState();
         RefreshTunMipsSupport();
     }
 
+    /// <summary>托盘 TUN 二级菜单同步（勾选/单选/mips 门槛随内核版本）。</summary>
+    private void SyncTrayTunState() =>
+        _tray?.SetTunMenuState(
+            _tunSection?.IsTunEnabled == true,
+            _tunSection?.SelectedStack,
+            TunControlService.IsMipsStackSupported(_poller?.Version));
+
     /// <summary>mips stack 门槛随内核版本刷新（源：isMipsStackSupported；版本未知时不支持）。</summary>
-    private void RefreshTunMipsSupport() =>
+    private void RefreshTunMipsSupport()
+    {
         _tunSection?.SetMipsSupport(TunControlService.IsMipsStackSupported(_poller?.Version));
+        SyncTrayTunState();
+    }
 
     /// <summary>开关请求（源：toggleTunMode——防重入、PATCH、GET 验证、状态回填与日志）。</summary>
     private async Task OnTunToggleRequestedAsync(bool enable)
@@ -1786,7 +1830,11 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
                         payload.Span, JsonSharedOptions.Json);
                     if (snapshot != null)
                     {
-                        await Dispatcher.BeginInvoke(() => _proxyPage?.UpdateMemory(snapshot.Inuse));
+                        await Dispatcher.BeginInvoke(() =>
+                        {
+                            _proxyPage?.UpdateMemory(snapshot.Inuse);
+                            _mainWindow?.SetStatusMisc(_proxyPage?.StatusMiscText ?? string.Empty);
+                        });
                     }
                 }
                 catch (JsonException)
@@ -1849,6 +1897,7 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
                     {
                         _connectionsPage?.IngestSnapshot(update);
                         _proxyPage?.UpdateConnectionsCount(update.TotalCount);   // 概览连接数
+                        _mainWindow?.SetStatusMisc(_proxyPage?.StatusMiscText ?? string.Empty);
                     });
                 }
                 catch (JsonException)
@@ -2185,6 +2234,39 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
         finally
         {
             _mainWindow?.SetImportBusy(false);
+        }
+    }
+
+    /// <summary>导入本地配置文件（源：订阅「导入本地文件」——拷贝进 configs 目录并启用）。</summary>
+    private async void OnLocalImportRequested(string sourcePath)
+    {
+        if (_remoteStore?.IsRemoteTarget == true)
+        {
+            return;   // 远程目标配置管理只读（UI 已禁用，此处兜底）
+        }
+
+        try
+        {
+            string fileName = Path.GetFileName(sourcePath);
+            string configsDirectory = Path.Combine(ClashBarXPaths.AppDataRoot(), "configs");
+            Directory.CreateDirectory(configsDirectory);
+            string destination = Path.Combine(configsDirectory, fileName);
+            if (!string.Equals(
+                    Path.GetFullPath(sourcePath),
+                    Path.GetFullPath(destination),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                File.Copy(sourcePath, destination, overwrite: true);
+            }
+
+            _subscriptions!.Select(fileName);
+            _mainWindow?.AppendLog(L("log.subscription.local_imported", fileName));
+            RefreshConfigList();
+            await ApplySelectedConfigAsync();
+        }
+        catch (Exception error)
+        {
+            _mainWindow?.AppendLog(L("log.subscription.local_import_failed", error.Message));
         }
     }
 
@@ -2527,6 +2609,9 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
     private string _trayCoreStatus = ClashBarX.Core.L10n.CoreL10n.T("tray.core_status.stopped");
     private string _trayTraffic = string.Empty;
 
+    /// <summary>最近一次已知的内核版本（内核停止后 API 不可查，缓存以保证状态栏版本号常显）。</summary>
+    private string? _lastKnownCoreVersion;
+
     /// <summary>托盘 tooltip 状态化（内核状态 + 实时速率；源：状态栏双行速率语义的 Windows 对应物）。</summary>
     private void UpdateTrayToolTip() =>
         _tray?.SetToolTip(_trayTraffic.Length > 0
@@ -2538,6 +2623,10 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
     {
         bool coreRunning = _processManager?.IsRunning == true;
         ApiHealth apiHealth = _poller?.Status ?? ApiHealth.Unknown;
+        if (_poller?.Version is { Length: > 0 } version)
+        {
+            _lastKnownCoreVersion = version;
+        }
 
         // TUN 开启时用 TUN 品牌图（源：StatusItemContentView 的 tunBrandStatusIconImage 分支）
         _tray?.SetKind(coreRunning
@@ -2545,21 +2634,48 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
                 ? _tunSection?.IsTunEnabled == true ? TrayIconKind.Tun : TrayIconKind.Running
                 : TrayIconKind.Logo
             : TrayIconKind.Sleeping);
+        // 托盘内核操作组互斥（定稿：与主窗互斥按钮同语义）
+        _tray?.SetCoreMenuState(coreRunning);
 
         if (_mainWindow == null)
         {
             return;
         }
 
+        // 头部状态点（绿=运行+API 正常 / 黄=运行但 API 未就绪 / 灰=未运行）与互斥内核按钮
+        _mainWindow.SetCoreRunning(coreRunning);
+        _mainWindow.SetCoreStatusDot(!coreRunning
+            ? "#B0B7C0"
+            : apiHealth == ApiHealth.Healthy ? "#34A853" : "#B45309");
+
+        // 设置页关于卡内核块（版本 + 运行状态；源：kernel status 行）
+        if (_settingsPage is not null)
+        {
+            _settingsPage.KernelVersionText = _lastKnownCoreVersion is { Length: > 0 } kernelVersion
+                ? kernelVersion
+                : "—";
+            _settingsPage.KernelStatusText = coreRunning
+                ? _processManager?.RunningProcessId is { } pid
+                    ? L("tray.core_status.running_healthy", pid, string.Empty)
+                    : null
+                : L("tray.core_status.stopped");
+        }
+
         if (!coreRunning)
         {
-            _trayCoreStatus = L("tray.core_status.stopped");
+            // 版本号始终展示（源：状态栏 stopped_with_version 语义）
+            _trayCoreStatus = _lastKnownCoreVersion is { Length: > 0 } stoppedVersion
+                ? L("tray.core_status.stopped_with_version", stoppedVersion)
+                : L("tray.core_status.stopped");
             _mainWindow.SetCoreStatus(_trayCoreStatus);
+            _mainWindow.SetStatusRate("—");
+            _mainWindow.SetStatusMisc(
+                ClashBarX.Core.L10n.CoreL10n.T("proxy.traffic.connections", 0));
         }
         else if (apiHealth == ApiHealth.Healthy)
         {
-            string version = _poller?.Version is string v ? $" · {v}" : string.Empty;
-            _trayCoreStatus = L("tray.core_status.running_healthy", _processManager!.RunningProcessId, version);
+            string healthyVersion = _poller?.Version is string v ? $" · {v}" : string.Empty;
+            _trayCoreStatus = L("tray.core_status.running_healthy", _processManager!.RunningProcessId, healthyVersion);
             _mainWindow.SetCoreStatus(_trayCoreStatus);
         }
         else if (apiHealth == ApiHealth.Degraded)

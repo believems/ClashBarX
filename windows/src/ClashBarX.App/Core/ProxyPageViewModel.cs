@@ -310,12 +310,44 @@ public sealed class ProxyPageViewModel : INotifyPropertyChanged
         private set => SetProperty(ref _trafficSummary, value);
     }
 
+    /// <summary>底部状态栏速率段（↑/↓ 实时速率；App 层经 traffic WS 回调读取）。</summary>
+    public string StatusRateText => $"↑ {FormatRate(_upRate)}  ↓ {FormatRate(_downRate)}";
+
+    /// <summary>底部状态栏连接+内存段（App 层经 connections/memory WS 回调读取）。</summary>
+    public string StatusMiscText
+    {
+        get
+        {
+            var parts = new List<string>();
+            if (_connectionsCount is { } connections)
+            {
+                parts.Add(ClashBarX.Core.L10n.CoreL10n.T("proxy.traffic.connections", connections));
+            }
+
+            if (_memoryInuse is { } memory)
+            {
+                parts.Add(ClashBarX.Core.L10n.CoreL10n.T("proxy.traffic.memory", FormatBytes(memory)));
+            }
+
+            return string.Join(" · ", parts);
+        }
+    }
+
     /// <summary>流量概览显隐（源：clashbar.proxy.traffic_overview.visible，默认 true）。</summary>
     public bool ShowTrafficOverview
     {
         get => _showTrafficOverview;
         set => SetProperty(ref _showTrafficOverview, value);
     }
+
+    /// <summary>分组区折叠态（源：compactGroupList 折叠钮——▲▼ 切换分组卡列表显隐）。</summary>
+    public bool IsGroupsCollapsed
+    {
+        get => _isGroupsCollapsed;
+        set => SetProperty(ref _isGroupsCollapsed, value);
+    }
+
+    private bool _isGroupsCollapsed;
 
     /// <summary>内核分流模式变化（App 层 PATCH /configs {"mode"}；源：rule/global/direct 切换）。</summary>
     public event Action<string>? ModeChanged;

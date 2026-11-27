@@ -43,8 +43,21 @@ public sealed class TrayIconService : IDisposable
     /// <summary>用户切换分流模式（托盘菜单子项，参数为 rule/global/direct）。</summary>
     public event Action<string>? ModeChanged;
 
-    /// <summary>用户请求复制代理命令（托盘二级菜单；参数 cmd / powershell）。</summary>
+    /// <summary>用户请求复制代理命令（托盘二级菜单；参数 cmd / powershell / bash）。</summary>
     public event Action<string>? CopyProxyCommandRequested;
+
+    /// <summary>手动内核生命周期（托盘内核操作组；与主窗互斥按钮同语义）。</summary>
+    public event Action? CoreStartRequested;
+
+    public event Action? CoreStopRequested;
+
+    public event Action? CoreRestartRequested;
+
+    /// <summary>用户请求关闭 TUN（托盘二级菜单「关闭 TUN」）。</summary>
+    public event Action? TunOffRequested;
+
+    /// <summary>用户选择 TUN stack（= 开启并切换；走与主窗同链路）。</summary>
+    public event Action<string>? TunStackSelected;
 
     /// <summary>当前托盘图标形态。</summary>
     public TrayIconKind CurrentKind => _kind;
@@ -53,8 +66,18 @@ public sealed class TrayIconService : IDisposable
     private readonly MenuItem _modeRuleItem;
     private readonly MenuItem _modeGlobalItem;
     private readonly MenuItem _modeDirectItem;
+    private readonly MenuItem _coreStartItem;
+    private readonly MenuItem _coreStopItem;
+    private readonly MenuItem _coreRestartItem;
+    private readonly MenuItem _tunOffItem;
+    private readonly MenuItem _tunSystemItem;
+    private readonly MenuItem _tunGvisorItem;
+    private readonly MenuItem _tunMixedItem;
+    private readonly MenuItem _tunMipsItem;
     private bool _suppressProxyItemEvents;
     private bool _suppressModeItemEvents;
+    private bool _suppressCoreItemEvents;
+    private bool _suppressTunItemEvents;
 
     public TrayIconService()
     {
@@ -72,6 +95,23 @@ public sealed class TrayIconService : IDisposable
             SystemProxyToggled?.Invoke(_proxyItem.IsChecked);
         };
 
+        // TUN 二级菜单（定稿）：「关闭 TUN」+ 四种 stack 单选（选 stack=开启并切换）；
+        // mips 不满足内核版本门槛时置灰并附提示（源：isMipsStackSupported）
+        var tunMenu = new MenuItem { Header = ClashBarX.Core.L10n.CoreL10n.T("tray.menu.tun") };
+        _tunOffItem = MakeTunItem(ClashBarX.Core.L10n.CoreL10n.T("tray.menu.tun_off"), () => TunOffRequested?.Invoke());
+        _tunSystemItem = MakeTunItem("system", () => TunStackSelected?.Invoke("system"));
+        _tunGvisorItem = MakeTunItem("gvisor", () => TunStackSelected?.Invoke("gvisor"));
+        _tunMixedItem = MakeTunItem("mixed", () => TunStackSelected?.Invoke("mixed"));
+        _tunMipsItem = MakeTunItem(
+            $"mips · {ClashBarX.Core.L10n.CoreL10n.T("tun.mips_requires_upgrade", ClashBarX.Core.Tun.TunControlService.MipsStackMinimumCoreVersion)}",
+            () => TunStackSelected?.Invoke("mips"));
+        tunMenu.Items.Add(_tunOffItem);
+        tunMenu.Items.Add(new Separator());
+        tunMenu.Items.Add(_tunSystemItem);
+        tunMenu.Items.Add(_tunGvisorItem);
+        tunMenu.Items.Add(_tunMixedItem);
+        tunMenu.Items.Add(_tunMipsItem);
+
         // 分流模式子菜单（不打开主窗即可切换；源：菜单栏 mode 菜单语义）
         var modeMenu = new MenuItem { Header = ClashBarX.Core.L10n.CoreL10n.T("tray.menu.mode") };
         _modeRuleItem = MakeModeItem(ClashBarX.Core.L10n.CoreL10n.T("tray.menu.mode_rule"), "rule");
@@ -81,23 +121,57 @@ public sealed class TrayIconService : IDisposable
         modeMenu.Items.Add(_modeGlobalItem);
         modeMenu.Items.Add(_modeDirectItem);
 
-        // 复制代理命令（二级菜单：CMD / PowerShell——右键免开主窗即可取命令）
+        // 复制代理命令（二级菜单：CMD / PowerShell / Bash——右键免开主窗即可取命令，与代理页三按钮同格式）
         var copyMenu = new MenuItem { Header = ClashBarX.Core.L10n.CoreL10n.T("tray.menu.copy_proxy_command") };
         var cmdItem = new MenuItem { Header = "CMD" };
         cmdItem.Click += (_, _) => CopyProxyCommandRequested?.Invoke("cmd");
         var powerShellItem = new MenuItem { Header = "PowerShell" };
         powerShellItem.Click += (_, _) => CopyProxyCommandRequested?.Invoke("powershell");
+        var bashItem = new MenuItem { Header = "Bash" };
+        bashItem.Click += (_, _) => CopyProxyCommandRequested?.Invoke("bash");
         copyMenu.Items.Add(cmdItem);
         copyMenu.Items.Add(powerShellItem);
+        copyMenu.Items.Add(bashItem);
+
+        // 内核操作组（定稿：状态感知互斥——未运行=启动单项；运行中=停止+重启；远程目标整组置灰）
+        _coreStartItem = new MenuItem { Header = ClashBarX.Core.L10n.CoreL10n.T("tray.menu.core_start") };
+        _coreStartItem.Click += (_, _) =>
+        {
+            if (!_suppressCoreItemEvents)
+            {
+                CoreStartRequested?.Invoke();
+            }
+        };
+        _coreStopItem = new MenuItem { Header = ClashBarX.Core.L10n.CoreL10n.T("tray.menu.core_stop") };
+        _coreStopItem.Click += (_, _) =>
+        {
+            if (!_suppressCoreItemEvents)
+            {
+                CoreStopRequested?.Invoke();
+            }
+        };
+        _coreRestartItem = new MenuItem { Header = ClashBarX.Core.L10n.CoreL10n.T("tray.menu.core_restart") };
+        _coreRestartItem.Click += (_, _) =>
+        {
+            if (!_suppressCoreItemEvents)
+            {
+                CoreRestartRequested?.Invoke();
+            }
+        };
 
         var exitItem = new MenuItem { Header = ClashBarX.Core.L10n.CoreL10n.T("tray.menu.exit") };
         exitItem.Click += (_, _) => ExitRequested?.Invoke();
 
         var menu = new ContextMenu();
         menu.Items.Add(showItem);
+        menu.Items.Add(new Separator());
         menu.Items.Add(_proxyItem);
+        menu.Items.Add(tunMenu);
         menu.Items.Add(modeMenu);
         menu.Items.Add(copyMenu);
+        menu.Items.Add(_coreStartItem);
+        menu.Items.Add(_coreStopItem);
+        menu.Items.Add(_coreRestartItem);
         menu.Items.Add(new Separator());
         menu.Items.Add(exitItem);
 
@@ -220,6 +294,68 @@ public sealed class TrayIconService : IDisposable
             ModeChanged?.Invoke(mode);
         };
         return item;
+    }
+
+    private MenuItem MakeTunItem(string header, Action activate)
+    {
+        var item = new MenuItem { Header = header, IsCheckable = true };
+        item.Click += (_, _) =>
+        {
+            if (_suppressTunItemEvents)
+            {
+                return;
+            }
+
+            activate();
+        };
+        return item;
+    }
+
+    /// <summary>
+    /// 内核操作组互斥（定稿：未运行=「启动内核」单项；运行中=「停止内核」+「重启内核」；
+    /// 与主窗互斥按钮同语义）。
+    /// </summary>
+    public void SetCoreMenuState(bool coreRunning)
+    {
+        _coreStartItem.Visibility = coreRunning
+            ? System.Windows.Visibility.Collapsed
+            : System.Windows.Visibility.Visible;
+        _coreStopItem.Visibility = coreRunning
+            ? System.Windows.Visibility.Visible
+            : System.Windows.Visibility.Collapsed;
+        _coreRestartItem.Visibility = coreRunning
+            ? System.Windows.Visibility.Visible
+            : System.Windows.Visibility.Collapsed;
+    }
+
+    /// <summary>远程目标下内核操作组整组置灰（定稿：远程不可操控本机内核）。</summary>
+    public void SetRemoteDisabled(bool isRemote)
+    {
+        _coreStartItem.IsEnabled = !isRemote;
+        _coreStopItem.IsEnabled = !isRemote;
+        _coreRestartItem.IsEnabled = !isRemote;
+    }
+
+    /// <summary>
+    /// TUN 二级菜单同步（勾选态 + 当前 stack 单选 + mips 门槛置灰）。
+    /// currentStack 为 null 时不选任何 stack 项。
+    /// </summary>
+    public void SetTunMenuState(bool tunEnabled, string? currentStack, bool mipsSupported)
+    {
+        _suppressTunItemEvents = true;
+        try
+        {
+            _tunOffItem.IsChecked = !tunEnabled;
+            _tunSystemItem.IsChecked = tunEnabled && currentStack == "system";
+            _tunGvisorItem.IsChecked = tunEnabled && currentStack == "gvisor";
+            _tunMixedItem.IsChecked = tunEnabled && currentStack == "mixed";
+            _tunMipsItem.IsChecked = tunEnabled && currentStack == "mips";
+            _tunMipsItem.IsEnabled = mipsSupported;
+        }
+        finally
+        {
+            _suppressTunItemEvents = false;
+        }
     }
 
     public void Dispose()

@@ -15,6 +15,9 @@ public partial class MainWindow : Window
     /// <summary>请求导入订阅（参数为 URL 文本）。</summary>
     public event Action<string>? SubscriptionImportRequested;
 
+    /// <summary>请求导入本地配置文件（参数为源文件全路径；App 层拷贝进 configs 并启用）。</summary>
+    public event Action<string>? LocalImportRequested;
+
     /// <summary>请求启用列表中选中的配置（参数为文件名）。</summary>
     public event Action<string>? ConfigActivateRequested;
 
@@ -33,8 +36,8 @@ public partial class MainWindow : Window
 
     public event Action? SubscriptionRefreshAllRequested;
 
-    /// <summary>请求复制终端代理命令。</summary>
-    public event Action? CopyProxyCommandRequested;
+    /// <summary>请求复制终端代理命令（参数 cmd / powershell / bash）。</summary>
+    public event Action<string>? CopyProxyCommandRequested;
 
     /// <summary>用户请求切换机器目标（null = 本机；远程需 App 层验证连通性后生效）。</summary>
     public event Action<Guid?>? MachineTargetSwitchRequested;
@@ -56,7 +59,58 @@ public partial class MainWindow : Window
     /// <summary>主 tab 选择变化（App 层在 UI 线程上缓存各页可见性，供后台流线程读取）。</summary>
     public event EventHandler? TabSelectionChanged;
 
-    public void SetCoreStatus(string status) => CoreStatusText.Text = status;
+    /// <summary>请求打开「关于」内容（应用菜单；App 层定位到设置页关于卡）。</summary>
+    public event Action? AppAboutRequested;
+
+    /// <summary>请求检查应用更新（应用菜单；App 层触发设置页检查命令）。</summary>
+    public event Action? AppCheckUpdateRequested;
+
+    public void SetCoreStatus(string status)
+    {
+        // 头部长文本已下沉底部状态栏；状态点只留颜色与悬停详情
+        StatusStripText.Text = status;
+        CoreStatusDot.ToolTip = status;
+    }
+
+    /// <summary>互斥内核按钮（未运行=启动单项；运行中=停止+重启；源：primaryCoreAction）。</summary>
+    public void SetCoreRunning(bool running)
+    {
+        StartCoreButton.Visibility = running ? Visibility.Collapsed : Visibility.Visible;
+        StopCoreButton.Visibility = running ? Visibility.Visible : Visibility.Collapsed;
+        RestartCoreButton.Visibility = running ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>内核状态点颜色（绿=运行+API 正常 / 黄=API 未就绪 / 灰=未运行）。</summary>
+    public void SetCoreStatusDot(string colorHex)
+    {
+        var brush = new System.Windows.Media.SolidColorBrush(
+            (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(colorHex));
+        brush.Freeze();
+        CoreStatusDot.Fill = brush;
+    }
+
+    /// <summary>底部状态栏速率段（traffic WS 流）。</summary>
+    public void SetStatusRate(string text) => StatusStripRate.Text = text;
+
+    /// <summary>底部状态栏连接+内存段（connections/memory WS 流）。</summary>
+    public void SetStatusMisc(string text) => StatusStripMisc.Text = text;
+
+    private void OnAppMenuClick(object sender, RoutedEventArgs e)
+    {
+        // 图标点击在按钮下方弹出应用菜单（ContextMenu 显式 IsOpen；关闭窗口=收起到托盘）
+        ContextMenu menu = AppMenuButton.ContextMenu;
+        menu.PlacementTarget = AppMenuButton;
+        menu.IsOpen = true;
+    }
+
+    private void OnAppAboutClick(object sender, RoutedEventArgs e) => AppAboutRequested?.Invoke();
+
+    private void OnAppCheckUpdateClick(object sender, RoutedEventArgs e) => AppCheckUpdateRequested?.Invoke();
+
+    private void OnAppHideWindowClick(object sender, RoutedEventArgs e) => Hide();
+
+    /// <summary>切换到设置页（应用菜单「关于/检查更新」的落点）。</summary>
+    public void SelectSettingsTab() => MainTabs.SelectedIndex = 5;
 
     /// <summary>刷新配置列表与选中标记。调用方负责 UI 线程编组。</summary>
     public void SetConfigFiles(IReadOnlyList<string> fileNames, string? selected)
@@ -149,6 +203,10 @@ public partial class MainWindow : Window
     /// <summary>打开发布页（有更新 → release 页；否则 → releases 列表；源：footer 链接语义）。</summary>
     private void OnOpenReleasePageClick(object sender, RoutedEventArgs e) =>
         _settingsPage?.OpenReleasePage();
+
+    /// <summary>打开 mihomo 内核发布页（关于卡内核块固定链接）。</summary>
+    private void OnOpenKernelReleasePageClick(object sender, RoutedEventArgs e) =>
+        _settingsPage?.OpenKernelReleasePage();
 
     public void SetConnectionsPage(ConnectionsPageViewModel viewModel)
     {
@@ -304,8 +362,14 @@ public partial class MainWindow : Window
     private void OnRefreshAllSubscriptionsClick(object sender, RoutedEventArgs e) =>
         SubscriptionRefreshAllRequested?.Invoke();
 
-    private void OnCopyProxyCommandClick(object sender, RoutedEventArgs e) =>
-        CopyProxyCommandRequested?.Invoke();
+    private void OnCopyProxyCommandCmdClick(object sender, RoutedEventArgs e) =>
+        CopyProxyCommandRequested?.Invoke("cmd");
+
+    private void OnCopyProxyCommandPowerShellClick(object sender, RoutedEventArgs e) =>
+        CopyProxyCommandRequested?.Invoke("powershell");
+
+    private void OnCopyProxyCommandBashClick(object sender, RoutedEventArgs e) =>
+        CopyProxyCommandRequested?.Invoke("bash");
 
     /// <summary>打开内核目录（源：维护区「打开内核目录」）。</summary>
     private void OnOpenCoreDirectoryClick(object sender, RoutedEventArgs e)
@@ -332,6 +396,20 @@ public partial class MainWindow : Window
         }
 
         SubscriptionImportRequested?.Invoke(url);
+    }
+
+    /// <summary>导入本地文件（源：订阅导入本地——选择 YAML 后拷贝进 configs 并启用）。</summary>
+    private void OnImportLocalClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = ClashBarX.Core.L10n.CoreL10n.T("network.import_local.dialog_title"),
+            Filter = "YAML (*.yaml;*.yml)|*.yaml;*.yml|All files (*.*)|*.*",
+        };
+        if (dialog.ShowDialog(this) == true)
+        {
+            LocalImportRequested?.Invoke(dialog.FileName);
+        }
     }
 
     private void OnEnableClick(object sender, RoutedEventArgs e)
