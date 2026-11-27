@@ -469,8 +469,8 @@ public partial class App : Application
         if (!IsCoreBinaryPresent())
         {
             _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory(), ClashBarXPaths.DefaultConfigPath()));
-            // 延后到启动流程收尾再弹：模态对话框的嵌套消息循环不能卡在 OnStartup 中间
-            Dispatcher.BeginInvoke(
+            // 延后到启动流程收尾再弹：模态对话框的嵌套消息循环不能卡在 OnStartup 中间（显式丢弃返回值，不发 CS4014）
+            _ = Dispatcher.BeginInvoke(
                 DispatcherPriority.ApplicationIdle,
                 new Action(() => ShowCoreSetupGuide(CoreSetupGuideTrigger.Startup)));
             return;
