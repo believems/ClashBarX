@@ -1483,8 +1483,19 @@
                                                         ToolTip="{DynamicResource NetworkGuardHint}" />
                                     </StackPanel>
                                 </CheckBox>
+                                <!-- 配置区常驻：开关关闭时整体置灰（IsEnabled 绑定 + 降低不透明度）而非折叠——
+                                     块高不随开关跳动，与左列的底边对齐保持稳定；说明文字在标题 info 图标的 ToolTip -->
                                 <StackPanel Margin="16,8,0,0"
-                                            Visibility="{Binding IsGuardEnabled, Converter={StaticResource BoolToVis}}">
+                                            IsEnabled="{Binding IsGuardEnabled}">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Style.Triggers>
+                                                <Trigger Property="IsEnabled" Value="False">
+                                                    <Setter Property="Opacity" Value="0.45" />
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
                                     <StackPanel Orientation="Horizontal" Margin="0,8">
                                         <TextBlock Text="{DynamicResource NetworkGuardInterval}" VerticalAlignment="Center" FontSize="12" />
                                         <TextBox Text="{Binding IntervalText}"
@@ -1509,10 +1520,11 @@
                                             </Style>
                                         </Button.Style>
                                     </Button>
+                                    <!-- 结果行常驻占位（无结果时留空一行）：结果到达或开关切换时块高都不跳 -->
                                     <TextBlock Margin="0,10,0,0"
                                                FontSize="12"
-                                               Text="{Binding OutcomeText}"
-                                               Visibility="{Binding HasOutcome, Converter={StaticResource BoolToVis}}">
+                                               MinHeight="16"
+                                               Text="{Binding OutcomeText}">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="Foreground" Value="#1B7F3B" />
@@ -1525,22 +1537,6 @@
                                         </TextBlock.Style>
                                     </TextBlock>
                                 </StackPanel>
-                                <TextBlock Text="{Binding DisabledHint}"
-                                           Foreground="#5E6B78"
-                                           FontSize="11"
-                                           Margin="16,8,0,0"
-                                           TextWrapping="Wrap">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsGuardEnabled}" Value="True">
-                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
                             </StackPanel>
                         </Border>
                         <!-- 代理端口独立卡（源：Mac systemTabView 的 proxy_ports section；

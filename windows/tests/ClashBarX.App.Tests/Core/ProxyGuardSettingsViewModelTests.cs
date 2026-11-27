@@ -53,7 +53,7 @@ public class ProxyGuardSettingsViewModelTests
         harness.ViewModel.ApplyProbeState(new ProxyGuardProbeState(ProxyGuardProbeOutcome.Reachable, 0));
         Assert.Equal("网络连通正常", harness.ViewModel.OutcomeText);
 
-        harness.ViewModel.IsGuardEnabled = false;   // 关 → 反馈行收起（源：区块折叠）
+        harness.ViewModel.IsGuardEnabled = false;   // 关 → 清反馈文案（配置区常驻置灰，结果行留空占位、不折叠）
         Assert.Null(harness.ViewModel.OutcomeText);
         Assert.False(harness.ViewModel.HasOutcome);
     }
