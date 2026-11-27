@@ -136,7 +136,8 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
     private string _currentVersionText = "1.0.0";
     private ClashBarX.Core.Updates.AppReleaseInfo? _availableUpdate;
     private bool _isCheckingUpdate;
-    private string? _updateStatusText;
+    private string? _updateStatusText = ClashBarX.Core.L10n.CoreL10n.T("update.hint_idle");
+    private string _updateStatusLevel = "info";
     private bool _updateCheckFailed;
 
     /// <summary>当前应用版本（源：currentAppVersionText；装配层注入程序集版本）。</summary>
@@ -184,6 +185,13 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
     }
 
     public bool HasUpdateStatus => UpdateStatusText is { Length: > 0 };
+
+    /// <summary>更新状态行级别（info=灰提示 / ok=绿 / error=红）。</summary>
+    public string UpdateStatusLevel
+    {
+        get => _updateStatusLevel;
+        private set => SetProperty(ref _updateStatusLevel, value);
+    }
 
     /// <summary>检查失败（错误着色；源：fetch 失败静默——手动检查给出反馈）。</summary>
     public bool UpdateCheckFailed
@@ -353,6 +361,7 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
             ClashBarX.Core.Updates.AppReleaseInfo? update = await CheckUpdateRequested();
             AvailableUpdate = update;
             UpdateCheckFailed = false;
+            UpdateStatusLevel = "ok";
             UpdateStatusText = update is null
                 ? ClashBarX.Core.L10n.CoreL10n.T("update.latest")
                 : ClashBarX.Core.L10n.CoreL10n.T("update.available", update.DisplayVersion);
@@ -360,6 +369,7 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
         catch (Exception error)
         {
             UpdateCheckFailed = true;
+            UpdateStatusLevel = "error";
             UpdateStatusText = ClashBarX.Core.L10n.CoreL10n.T("update.failed", error.Message);
         }
         finally

@@ -20,7 +20,7 @@ public class SettingsUpdateSectionTests
         };
 
         viewModel.CheckUpdateCommand.Execute(null);
-        await WaitUntilAsync(() => viewModel.UpdateStatusText is { Length: > 0 });
+        await WaitUntilAsync(() => viewModel.UpdateStatusLevel != "info");   // 初始为灰字提示，等检查完成改级别
 
         Assert.False(viewModel.HasAvailableUpdate);
         Assert.Equal("已是最新版本", viewModel.UpdateStatusText);
@@ -37,7 +37,7 @@ public class SettingsUpdateSectionTests
         };
 
         viewModel.CheckUpdateCommand.Execute(null);
-        await WaitUntilAsync(() => viewModel.UpdateStatusText is { Length: > 0 });
+        await WaitUntilAsync(() => viewModel.UpdateStatusLevel != "info");   // 初始为灰字提示，等检查完成改级别
 
         Assert.True(viewModel.HasAvailableUpdate);
         Assert.Equal("1.1.0", viewModel.AvailableUpdateVersionText);
@@ -54,7 +54,7 @@ public class SettingsUpdateSectionTests
         };
 
         viewModel.CheckUpdateCommand.Execute(null);
-        await WaitUntilAsync(() => viewModel.UpdateStatusText is { Length: > 0 });
+        await WaitUntilAsync(() => viewModel.UpdateStatusLevel != "info");   // 初始为灰字提示，等检查完成改级别
 
         Assert.True(viewModel.UpdateCheckFailed);
         Assert.Contains("offline", viewModel.UpdateStatusText);

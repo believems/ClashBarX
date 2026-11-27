@@ -1369,7 +1369,6 @@
                                 <ScrollViewer Grid.Row="2"
                                               VerticalScrollBarVisibility="Auto"
                                               MinHeight="60"
-                                              MaxHeight="224"
                                               Margin="16,4,0,0">
                                     <ItemsControl ItemsSource="{Binding Exceptions}">
                                     <ItemsControl.ItemTemplate>
@@ -1569,7 +1568,7 @@
                                        FontWeight="SemiBold"
                                        FontSize="12"
                                        Margin="0,0,0,6" />
-                            <DockPanel Margin="0,7">
+                            <DockPanel Margin="0,8">
                                 <ComboBox DockPanel.Dock="Right"
                                           Width="150"
                                           ItemsSource="{Binding AppearanceOptions}"
@@ -1580,7 +1579,7 @@
                                            FontSize="12"
                                            VerticalAlignment="Center" />
                             </DockPanel>
-                            <DockPanel Margin="0,7">
+                            <DockPanel Margin="0,8">
                                 <ComboBox DockPanel.Dock="Right"
                                           Width="150"
                                           ItemsSource="{Binding LanguageOptions}"
@@ -1591,7 +1590,7 @@
                                            FontSize="12"
                                            VerticalAlignment="Center" />
                             </DockPanel>
-                            <DockPanel Margin="0,7">
+                            <DockPanel Margin="0,8">
                                 <CheckBox DockPanel.Dock="Right"
                                           Content="{DynamicResource SettingsLaunchAtLoginHint}"
                                           FontSize="11"
@@ -1605,7 +1604,7 @@
                                        Foreground="#C0392B"
                                        Margin="0,2,0,0"
                                        Visibility="{Binding LaunchAtLoginFailed, Converter={StaticResource BoolToVis}}" />
-                            <DockPanel Margin="0,7">
+                            <DockPanel Margin="0,8">
                                 <CheckBox DockPanel.Dock="Right"
                                           Content="{DynamicResource SettingsTrafficOverviewShort}"
                                           FontSize="11"
@@ -1619,7 +1618,7 @@
                         <!-- 维护卡（源：SystemTabView 维护区；GEO 热更新 + 内核自升级 + 应用更新检查；
                              小按钮 WrapPanel 排布；升级/检查反馈走对话框，卡内不留状态行） -->
                         <Border Padding="8"
-                                Margin="0,8,0,0"
+                                Margin="0,10,0,0"
                                 BorderBrush="#DDD"
                                 BorderThickness="1"
                                 CornerRadius="4"
@@ -1632,12 +1631,12 @@
                                 <WrapPanel Orientation="Horizontal">
                                     <Button Content="{DynamicResource AboutCheckUpdate}"
                                             Padding="8,2"
-                                            Margin="0,0,6,6"
+                                            Margin="0,0,6,10"
                                             FontSize="11"
                                             Command="{Binding CheckUpdateCommand}"
                                             IsEnabled="{Binding IsCheckingUpdate, Converter={StaticResource InverseBool}}" />
                                     <Button Padding="8,2"
-                                            Margin="0,0,6,6"
+                                            Margin="0,0,6,10"
                                             FontSize="11"
                                             Command="{Binding UpgradeCoreCommand}">
                                         <Button.Style>
@@ -1652,7 +1651,7 @@
                                         </Button.Style>
                                     </Button>
                                     <Button Padding="8,2"
-                                            Margin="0,0,6,6"
+                                            Margin="0,0,6,10"
                                             FontSize="11"
                                             Command="{Binding UpgradeGeoCommand}">
                                         <Button.Style>
@@ -1667,17 +1666,17 @@
                                         </Button.Style>
                                     </Button>
                                     <Button Padding="8,2"
-                                            Margin="0,0,6,6"
+                                            Margin="0,0,6,10"
                                             FontSize="11"
                                             Command="{Binding FlushFakeIPCommand}"
                                             Content="{DynamicResource MaintenanceFlushFakeIP}" />
                                     <Button Padding="8,2"
-                                            Margin="0,0,6,6"
+                                            Margin="0,0,6,10"
                                             FontSize="11"
                                             Command="{Binding FlushDNSCommand}"
                                             Content="{DynamicResource MaintenanceFlushDNS}" />
                                     <Button Padding="8,2"
-                                            Margin="0,0,0,6"
+                                            Margin="0,0,0,10"
                                             FontSize="11"
                                             Content="{DynamicResource MaintenanceOpenCoreDir}"
                                             Click="OnOpenCoreDirectoryClick" />
@@ -1765,13 +1764,6 @@
                                            Foreground="#5E6B78"
                                            Margin="0,10,0,0"
                                            TextWrapping="Wrap" />
-                                <!-- 空态占位行（无绑定时给出引导提示，兼作卡片内容充实度） -->
-                                <TextBlock Text="{DynamicResource SsidEmptyHint}"
-                                           FontSize="11"
-                                           Foreground="#8A93A0"
-                                           Margin="0,12,0,0"
-                                           TextWrapping="Wrap"
-                                           Visibility="{Binding HasBindings, Converter={StaticResource InverseBoolToVis}}" />
                                 <ItemsControl ItemsSource="{Binding Bindings}" Margin="0,6,0,0">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
@@ -1796,6 +1788,7 @@
                                 <Button Content="{DynamicResource SsidStrategyBindCurrent}"
                                         FontSize="11"
                                         Padding="10,4"
+                                        ToolTip="{DynamicResource SsidEmptyHint}"
                                         Margin="0,14,0,0"
                                         HorizontalAlignment="Left"
                                         IsEnabled="{Binding IsEnabled}"
@@ -1950,6 +1943,9 @@
                                                 <Style TargetType="TextBlock">
                                                     <Setter Property="Foreground" Value="#1B7F3B" />
                                                     <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding UpdateStatusLevel}" Value="info">
+                                                            <Setter Property="Foreground" Value="#8A93A0" />
+                                                        </DataTrigger>
                                                         <DataTrigger Binding="{Binding UpdateCheckFailed}" Value="True">
                                                             <Setter Property="Foreground" Value="#C0392B" />
                                                         </DataTrigger>
