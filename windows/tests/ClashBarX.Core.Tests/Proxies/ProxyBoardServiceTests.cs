@@ -184,4 +184,33 @@ public class ProxyBoardServiceTests
             "http://127.0.0.1:9090/proxies/hk-02/delay",
             handler.Requests[^1].Url.Split('?')[0]);
     }
+
+    // ---- 真订阅源判定（源：macOS shouldIncludeProxyProvider；mihomo 把内置 default 与每个分组
+    //      都作为 vehicleType=Compatible 的伪 provider 回传，真机实测 BOSS 配置回 13 条仅 1 条真） ----
+
+    [Theory]
+    [InlineData("default", "HTTP", false)]          // 内置 default 一律不展示
+    [InlineData("Default", "Compatible", false)]    // 大小写不敏感
+    [InlineData("GOOGLE", "Compatible", false)]     // 分组伪 provider
+    [InlineData("jf_link", "HTTP", true)]
+    [InlineData("local", "File", true)]
+    [InlineData("x", null, true)]                   // 无 vehicleType 不按 Compatible 排除
+    public void 真订阅源判定按Mac规格(string key, string? vehicleType, bool expected)
+    {
+        var detail = new ProviderDetail(
+            Name: key, VehicleType: vehicleType, TestUrl: null, Timeout: null,
+            UpdatedAt: null, RuleCount: null, SubscriptionInfo: null, Proxies: null);
+
+        Assert.Equal(expected, ProxyBoardService.ShouldIncludeProxyProvider(key, detail));
+    }
+
+    [Fact]
+    public void 名称回退键名判定default()
+    {
+        var detail = new ProviderDetail(
+            Name: "  ", VehicleType: "HTTP", TestUrl: null, Timeout: null,
+            UpdatedAt: null, RuleCount: null, SubscriptionInfo: null, Proxies: null);
+
+        Assert.False(ProxyBoardService.ShouldIncludeProxyProvider("default", detail));
+    }
 }

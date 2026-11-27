@@ -21,6 +21,12 @@ public static class ProviderFormatting
             return CoreL10n.T("provider.expiry.unknown");
         }
 
+        // mihomo 对无更新时间的条目回零值 0001-01-01，不兜底会显示「739946 天前」（真机实测）
+        if (date.Year <= 1)
+        {
+            return CoreL10n.T("provider.expiry.unknown");
+        }
+
         double interval = Math.Max(0, (now - date).TotalSeconds);
         int minutes = (int)(interval / 60);
         if (minutes < 60)
