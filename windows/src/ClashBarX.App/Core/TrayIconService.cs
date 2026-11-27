@@ -120,13 +120,14 @@ public sealed class TrayIconService : IDisposable
         modeMenu.Items.Add(_modeDirectItem);
 
         // 复制代理命令（二级菜单：CMD / PowerShell / Bash——右键免开主窗即可取命令，与代理页三按钮同格式）。
-        // 动作项非选择项：不加 IsCheckable（无 ✓ 槽），用 ⧉ 前缀图标与 TUN/分流的选择型二级区分
+        // 动作项非选择项：不加 IsCheckable（模板勾选列自动收窄，无留白）；
+        // 标题不带图标前缀——⧉ 等生僻字形在部分字体下渲染成缺字符方框（BOSS 截图 2026-11-28）
         var copyMenu = new MenuItem { Header = ClashBarX.Core.L10n.CoreL10n.T("tray.menu.copy_proxy_command") };
-        var cmdItem = new MenuItem { Header = "⧉ CMD" };
+        var cmdItem = new MenuItem { Header = "CMD" };
         cmdItem.Click += (_, _) => CopyProxyCommandRequested?.Invoke("cmd");
-        var powerShellItem = new MenuItem { Header = "⧉ PowerShell" };
+        var powerShellItem = new MenuItem { Header = "PowerShell" };
         powerShellItem.Click += (_, _) => CopyProxyCommandRequested?.Invoke("powershell");
-        var bashItem = new MenuItem { Header = "⧉ Bash" };
+        var bashItem = new MenuItem { Header = "Bash" };
         bashItem.Click += (_, _) => CopyProxyCommandRequested?.Invoke("bash");
         copyMenu.Items.Add(cmdItem);
         copyMenu.Items.Add(powerShellItem);

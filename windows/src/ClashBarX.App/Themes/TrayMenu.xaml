@@ -6,18 +6,21 @@
         <Border x:Name="Bd" Background="Transparent" SnapsToDevicePixels="True">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="18" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock x:Name="CheckMark"
-                           Grid.Column="0"
-                           Text="✓"
-                           FontSize="11"
-                           Foreground="#2563EB"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           Visibility="Collapsed" />
+                <!-- 勾选列：仅可勾选项保留 18px 放 ✓；不可勾选项（如复制代理命令二级菜单）
+                     收成 6px，避免大片留白（BOSS 截图 2026-11-28） -->
+                <Border x:Name="CheckCol" Width="18" Grid.Column="0">
+                    <TextBlock x:Name="CheckMark"
+                               Text="✓"
+                               FontSize="11"
+                               Foreground="#2563EB"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Visibility="Collapsed" />
+                </Border>
                 <ContentPresenter Grid.Column="1"
                                   ContentSource="Header"
                                   Margin="4,6,10,6"
@@ -56,6 +59,9 @@
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Foreground" Value="#B0B7C0" />
+            </Trigger>
+            <Trigger Property="IsCheckable" Value="False">
+                <Setter TargetName="CheckCol" Property="Width" Value="6" />
             </Trigger>
             <Trigger Property="Role" Value="SubmenuHeader">
                 <Setter TargetName="SubmenuArrow" Property="Visibility" Value="Visible" />
