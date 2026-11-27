@@ -113,28 +113,14 @@ public partial class MainWindow : Window
 
     private void OnAppHideWindowClick(object sender, RoutedEventArgs e) => Hide();
 
-    // ---- 自绘标题栏窗控（WindowStyle=None：拖动/双击最大化/最小化/最大化/关闭） ----
+    // ---- 自绘标题栏窗控（WindowStyle=None：拖动移窗/最小化/关闭；窗口固定尺寸，不提供最大化） ----
 
-    private void OnTitleBarMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
-    {
-        if (e.ClickCount == 2)
-        {
-            ToggleMaxRestore();
-        }
-        else
-        {
-            DragMove();
-        }
-    }
+    private void OnTitleBarMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) =>
+        DragMove();
 
     private void OnMinimizeClick(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
 
-    private void OnMaximizeClick(object sender, RoutedEventArgs e) => ToggleMaxRestore();
-
     private void OnCloseClick(object sender, RoutedEventArgs e) => Close();   // OnClosing 取消并隐藏（托盘常驻）
-
-    private void ToggleMaxRestore() =>
-        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
 
     /// <summary>切换到设置页（应用菜单「关于/检查更新」的落点）。</summary>
     public void SelectSettingsTab() => MainTabs.SelectedIndex = 5;

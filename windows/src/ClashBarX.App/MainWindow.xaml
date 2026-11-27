@@ -8,14 +8,17 @@
         xmlns:overrides="clr-namespace:ClashBarX.Core.Overrides;assembly=ClashBarX.Core"
         mc:Ignorable="d"
         Title="ClashBarX" Height="660" Width="760"
+        MinWidth="760" MaxWidth="760" MinHeight="660" MaxHeight="660"
+        ResizeMode="CanMinimize"
         WindowStyle="None"
         Background="{DynamicResource ThemeWindowBrush}"
         WindowStartupLocation="CenterScreen">
-    <!-- 自绘标题栏（原型 titlebar 语义：LOGO→应用菜单 + 应用名 + 窗控按钮）；
-         CaptionHeight=0 全自绘，ResizeBorderThickness 保留边缘缩放 -->
+    <!-- 面板类应用固定尺寸：Min=Max + CanMinimize（禁最大化/缩放，仅保留最小化）——
+         自由缩放会让各页布局变形（代理端口框、日志过滤栏、维护卡等）；
+         CaptionHeight=0 全自绘标题栏 -->
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="0"
-                      ResizeBorderThickness="6"
+                      ResizeBorderThickness="0"
                       CornerRadius="0"
                       GlassFrameThickness="0"
                       UseAeroCaptionButtons="False" />
@@ -54,7 +57,7 @@
     </Window.Resources>
     <Border BorderBrush="{DynamicResource ThemeBorderBrush}" BorderThickness="1">
     <DockPanel>
-        <!-- 自绘标题栏：LOGO（应用菜单）+ 应用名 | 最小化/最大化/关闭；拖动移窗、双击最大化/还原 -->
+        <!-- 自绘标题栏：LOGO（应用菜单）+ 应用名 | 最小化/关闭；拖动移窗（窗口固定尺寸，无最大化） -->
         <DockPanel x:Name="TitleBarRoot"
                    DockPanel.Dock="Top"
                    Height="34"
@@ -65,10 +68,6 @@
                         Style="{StaticResource TitleBarButtonStyle}"
                         ToolTip="{DynamicResource TitleBarMinimize}"
                         Click="OnMinimizeClick" />
-                <Button Content="▢"
-                        Style="{StaticResource TitleBarButtonStyle}"
-                        ToolTip="{DynamicResource TitleBarMaximize}"
-                        Click="OnMaximizeClick" />
                 <Button Content="✕"
                         Style="{StaticResource TitleBarButtonStyle}"
                         ToolTip="{DynamicResource TitleBarClose}"
