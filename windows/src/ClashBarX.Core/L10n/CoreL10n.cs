@@ -470,6 +470,20 @@ public static class CoreL10n
         return table.TryGetValue(key, out string? value) ? value : key;
     }
 
+    /// <summary>
+    /// 按指定语言查文案、不改全局语言状态。供「生成时即定、切换语言后需重建」的选项列表使用
+    /// （如外观选项）：这类列表不能依赖全局语言恰好在重建前被切换。
+    /// </summary>
+    public static string T(CoreLanguage language, string key)
+    {
+        IReadOnlyDictionary<string, string> table = language == CoreLanguage.English ? English : Chinese;
+        return table.TryGetValue(key, out string? value) ? value : key;
+    }
+
+    /// <summary>某语言的全部文案键（测试用：校验中英文字典键集合一致）。</summary>
+    internal static IReadOnlyCollection<string> Keys(CoreLanguage language) =>
+        (language == CoreLanguage.English ? English : Chinese).Keys.ToArray();
+
     /// <summary>格式化文案（参数插值）。</summary>
     public static string T(string key, params object?[] args) =>
         string.Format(System.Globalization.CultureInfo.InvariantCulture, T(key), args);

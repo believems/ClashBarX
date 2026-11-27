@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using ClashBarX.Core.L10n;
 
 namespace ClashBarX.App.Core;
 
@@ -71,6 +72,8 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
         {
             if (SetProperty(ref _language, value))
             {
+                // 先按新语言重建选项文案，再通知 App 层切换字典（不依赖事件处理顺序）
+                ReloadLocalizedOptions(ToCoreLanguage(value));
                 LanguageChanged?.Invoke(value);
             }
         }
@@ -109,11 +112,30 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
         }
     }
 
-    public IReadOnlyList<EnumOption<AppAppearanceMode>> AppearanceOptions { get; } = new[]
+    private IReadOnlyList<EnumOption<AppAppearanceMode>> _appearanceOptions = CreateAppearanceOptions(CoreL10n.Language);
+
+    /// <summary>
+    /// 外观选项（文案随界面语言）。选项文案在生成时即定，不会自己跟随语言变化：
+    /// 切换语言（Language setter）与恢复持久化语言（Restore）时都按目标语言重建。
+    /// </summary>
+    public IReadOnlyList<EnumOption<AppAppearanceMode>> AppearanceOptions
     {
-        new EnumOption<AppAppearanceMode>(ClashBarX.Core.L10n.CoreL10n.T("settings.appearance.system"), AppAppearanceMode.System),
-        new EnumOption<AppAppearanceMode>(ClashBarX.Core.L10n.CoreL10n.T("settings.appearance.light"), AppAppearanceMode.Light),
-        new EnumOption<AppAppearanceMode>(ClashBarX.Core.L10n.CoreL10n.T("settings.appearance.dark"), AppAppearanceMode.Dark),
+        get => _appearanceOptions;
+        private set => SetProperty(ref _appearanceOptions, value);
+    }
+
+    /// <summary>按界面语言重建外观选项文案（选中值由绑定保持，不在此处改动）。</summary>
+    public void ReloadLocalizedOptions(CoreLanguage language) =>
+        AppearanceOptions = CreateAppearanceOptions(language);
+
+    private static CoreLanguage ToCoreLanguage(AppLanguage language) =>
+        language == AppLanguage.English ? CoreLanguage.English : CoreLanguage.ChineseSimplified;
+
+    private static IReadOnlyList<EnumOption<AppAppearanceMode>> CreateAppearanceOptions(CoreLanguage language) => new[]
+    {
+        new EnumOption<AppAppearanceMode>(CoreL10n.T(language, "settings.appearance.system"), AppAppearanceMode.System),
+        new EnumOption<AppAppearanceMode>(CoreL10n.T(language, "settings.appearance.light"), AppAppearanceMode.Light),
+        new EnumOption<AppAppearanceMode>(CoreL10n.T(language, "settings.appearance.dark"), AppAppearanceMode.Dark),
     };
 
     /// <summary>核心设置子模型（allow-lan/ipv6/tcp-concurrent/日志等级/端口；经 PATCH /configs）。</summary>
@@ -532,6 +554,8 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
         _language = language;
         _launchAtLogin = launchAtLogin;
         _showTrafficOverview = showTrafficOverview;
+        // 选项文案按保存的语言重建（此刻 App 层尚未切换全局字典，不能用全局语言）
+        ReloadLocalizedOptions(ToCoreLanguage(language));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(AppearanceMode)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Language)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LaunchAtLogin)));

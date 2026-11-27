@@ -1,4 +1,5 @@
 using ClashBarX.App.Core;
+using ClashBarX.Core.L10n;
 
 namespace ClashBarX.App.Tests.Core;
 
@@ -82,6 +83,51 @@ public class SettingsPageViewModelTests
         harness.ViewModel.ShowTrafficOverview = false;
 
         Assert.Equal(new[] { false }, harness.TrafficOverviews);
+    }
+
+    // ---- 外观选项文案随语言重建（修复前：英文模式下选项仍是中文——文案在构造时按默认语言固化） ----
+
+    [Fact]
+    public void 外观选项文案按指定语言重建且值不变()
+    {
+        var viewModel = new SettingsPageViewModel();
+
+        viewModel.ReloadLocalizedOptions(CoreLanguage.English);
+        Assert.Equal(
+            new[] { "Follow system", "Light", "Dark" },
+            viewModel.AppearanceOptions.Select(option => option.Label));
+        Assert.Equal(
+            new[] { AppAppearanceMode.System, AppAppearanceMode.Light, AppAppearanceMode.Dark },
+            viewModel.AppearanceOptions.Select(option => option.Value));
+
+        viewModel.ReloadLocalizedOptions(CoreLanguage.ChineseSimplified);
+        Assert.Equal(
+            new[] { "跟随系统", "浅色", "深色" },
+            viewModel.AppearanceOptions.Select(option => option.Label));
+    }
+
+    [Fact]
+    public void 切换语言时外观选项跟随新语言重建()
+    {
+        var viewModel = new SettingsPageViewModel();
+
+        viewModel.Language = AppLanguage.English;
+        Assert.Equal(new[] { "Follow system", "Light", "Dark" }, viewModel.AppearanceOptions.Select(option => option.Label));
+
+        viewModel.Language = AppLanguage.ChineseSimplified;
+        Assert.Equal("跟随系统", viewModel.AppearanceOptions[0].Label);
+    }
+
+    [Fact]
+    public void Restore按保存的语言重建外观选项且不触发语言事件()
+    {
+        var harness = new Harness();
+
+        harness.ViewModel.Restore(
+            AppAppearanceMode.Light, AppLanguage.English, launchAtLogin: false, showTrafficOverview: true);
+
+        Assert.Equal(new[] { "Follow system", "Light", "Dark" }, harness.ViewModel.AppearanceOptions.Select(option => option.Label));
+        Assert.Empty(harness.Languages);
     }
 
     [Fact]
