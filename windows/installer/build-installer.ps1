@@ -1,4 +1,4 @@
-# ClashBarX 安装器构建（M4-4）
+﻿# ClashBarX 安装器构建（M4-4）
 # 用法：powershell -File build-installer.ps1 [-Version 1.0.0] [-IsccPath <ISCC.exe 路径>]
 # 产出：windows/dist/ClashBarX-<版本>-setup.exe（Inno Setup；自包含发布，用户无需 .NET 运行时）
 param(

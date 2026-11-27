@@ -1,4 +1,4 @@
-# ClashBarX 绿色便携版构建（M4-4）
+﻿# ClashBarX 绿色便携版构建（M4-4）
 # 用法：powershell -File build-portable.ps1 [-Version 1.0.0]
 # 产出：windows/dist/ClashBarX-<版本>-portable-win-x64.zip（自包含 .NET，解压即用、免安装免管理员）
 param(
