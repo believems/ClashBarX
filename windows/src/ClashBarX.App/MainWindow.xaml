@@ -208,11 +208,13 @@
                                                     </StackPanel>
                                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12" />
-                                                        <TextBlock><Run Text="{Binding NodeCount, Mode=OneWay}" /><Run Text="{DynamicResource ProvidersNodeCount}" /></TextBlock>
-                                                                   FontSize="11"
+                                                        <TextBlock FontSize="11"
                                                                    Foreground="#5E6B78"
                                                                    Margin="8,0,0,0"
-                                                                   VerticalAlignment="Center" />
+                                                                   VerticalAlignment="Center">
+                                                            <Run Text="{Binding NodeCount, Mode=OneWay}" />
+                                                            <Run Text="{DynamicResource ProvidersNodeCount}" />
+                                                        </TextBlock>
                                                         <TextBlock Text="{Binding UpdatedText}"
                                                                    FontSize="11"
                                                                    Foreground="#8A93A0"
@@ -249,7 +251,7 @@
                                                                  Margin="0,4,0,0"
                                                                  Maximum="1"
                                                                  Minimum="0"
-                                                                 Value="{Binding UsedRatio, TargetNullValue=0}">
+                                                                 Value="{Binding UsedRatio, Mode=OneWay, TargetNullValue=0}">
                                                         <ProgressBar.Style>
                                                             <Style TargetType="ProgressBar">
                                                                 <Setter Property="Foreground" Value="#5E6B78" />

@@ -109,6 +109,28 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // 未处理异常兜底：写文件留栈（否则 WinExe 崩溃无任何现场，真机排障无从下手）
+        DispatcherUnhandledException += (_, args) =>
+        {
+            File.WriteAllText(
+                Path.Combine(ClashBarXPaths.AppDataRoot(), "crash-ui.log"),
+                $"[UI {DateTime.Now:O}] {args.Exception}");
+            args.Handled = true;
+        };
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+        {
+            File.WriteAllText(
+                Path.Combine(ClashBarXPaths.AppDataRoot(), "crash.log"),
+                $"[{DateTime.Now:O}] {args.ExceptionObject}");
+        };
+        TaskScheduler.UnobservedTaskException += (_, args) =>
+        {
+            File.WriteAllText(
+                Path.Combine(ClashBarXPaths.AppDataRoot(), "crash-task.log"),
+                $"[task {DateTime.Now:O}] {args.Exception}");
+            args.SetObserved();
+        };
+
         // CLI 触发（源：--proxy-guard——已有实例时通知其立即探测后本进程退出
         //（ProxyGuardCLI 的 exit(0) 语义）；本实例为首个实例时随启动触发）
         _cliProxyGuardTrigger = Environment.GetCommandLineArgs()

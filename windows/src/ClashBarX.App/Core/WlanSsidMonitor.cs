@@ -5,6 +5,9 @@ namespace ClashBarX.App.Core;
 /// <summary>
 /// WLAN SSID 监听（源：SSIDMonitorService.swift 的 CoreWLAN 对应物；P/Invoke 隔离在 App 层）。
 /// 事件源：WLANRegisterNotification（ACM 全量通知）→ 500ms 防抖后重查 SSID，变化才上抛。
+/// 兼容回退：本机 WLAN 服务只协商 v1 句柄时（Vista+ 接口不可用，实测 Win11 24H2 部分
+/// 驱动栈如此），注册失败自动降级为 netsh 解析 + 2s 轮询（源 CWEventDelegate 事件驱动的
+/// Windows 回退对应物；netsh 字段名不本地化，可稳定解析）。
 /// Windows 读 SSID 无定位授权门槛（macOS 的 authorizationStatus 语义不适用，恒为可用）。
 /// </summary>
 public sealed class WlanSsidMonitor : IDisposable
@@ -12,10 +15,16 @@ public sealed class WlanSsidMonitor : IDisposable
     /// <summary>事件通知后的防抖（连接完成瞬间查询可能拿不到 SSID，稍候重查）。</summary>
     private static readonly TimeSpan NotificationDebounce = TimeSpan.FromMilliseconds(500);
 
+    /// <summary>netsh 回退轮询间隔（事件驱动不可用时的替代）。</summary>
+    private static readonly TimeSpan PollingInterval = TimeSpan.FromSeconds(2);
+
     private IntPtr _clientHandle;
     private bool _registered;
+    /// <summary>netsh 轮询模式（WLAN API 不可用时的回退）。</summary>
+    private bool _pollingMode;
     private readonly WlanNotificationCallbackDelegate _notificationCallback;
     private System.Threading.Timer? _debounceTimer;
+    private System.Threading.Timer? _pollingTimer;
     private string? _lastSsid;
     private readonly object _gate = new();
 
@@ -43,21 +52,29 @@ public sealed class WlanSsidMonitor : IDisposable
                 return;
             }
 
-            if (WlanRegisterNotification(
+            int registerResult = WlanRegisterNotification(
                     _clientHandle,
                     unchecked((int)0xFFFFFFFF),   // WLAN_NOTIFICATION_SOURCE_ALL
                     true,                         // 忽略重复通知
                     _notificationCallback,
                     IntPtr.Zero,
                     IntPtr.Zero,
-                    out _) != 0)
+                    out _);
+            Diag($"WlanRegisterNotification rc={registerResult}");
+            if (registerResult != 0)
             {
+                // WLAN API 不可用（v1 句柄环境）：降级 netsh 轮询（备案：事件驱动的回退对应物）
                 WlanCloseHandle(_clientHandle, IntPtr.Zero);
                 _clientHandle = IntPtr.Zero;
-                return;
+                _pollingMode = true;
+                _registered = true;
+                _pollingTimer = new System.Threading.Timer(
+                    _ => PublishCurrentSsid(), null, PollingInterval, PollingInterval);
             }
-
-            _registered = true;
+            else
+            {
+                _registered = true;
+            }
         }
 
         PublishCurrentSsid();
@@ -77,8 +94,18 @@ public sealed class WlanSsidMonitor : IDisposable
             _registered = false;
             staleTimer = _debounceTimer;
             _debounceTimer = null;
-            WlanRegisterNotification(_clientHandle, 0, true, _notificationCallback, IntPtr.Zero, IntPtr.Zero, out _);
-            WlanCloseHandle(_clientHandle, IntPtr.Zero);
+            if (_pollingMode)
+            {
+                _pollingTimer?.Dispose();
+                _pollingTimer = null;
+                _pollingMode = false;
+            }
+            else
+            {
+                WlanRegisterNotification(_clientHandle, 0, true, _notificationCallback, IntPtr.Zero, IntPtr.Zero, out _);
+                WlanCloseHandle(_clientHandle, IntPtr.Zero);
+            }
+
             _clientHandle = IntPtr.Zero;
         }
 
@@ -94,12 +121,18 @@ public sealed class WlanSsidMonitor : IDisposable
             {
                 return null;
             }
+
+            if (_pollingMode)
+            {
+                return QueryCurrentSsidViaNetsh();
+            }
         }
 
         IntPtr interfaceList = IntPtr.Zero;
         try
         {
             int result = WlanEnumInterfaces(_clientHandle, IntPtr.Zero, out interfaceList);
+            Diag($"WlanEnumInterfaces rc={result}");
             if (result != 0)
             {
                 return null;
@@ -156,6 +189,14 @@ public sealed class WlanSsidMonitor : IDisposable
         }
     }
 
+    /// <summary>P/Invoke 返回码诊断（验收排障；写入 AppData\ClashBarX\wlan-diag.log）。</summary>
+    private static void Diag(string message) => System.IO.File.AppendAllText(
+        System.IO.Path.Combine(
+            System.IO.Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ClashBarX"),
+            "wlan-diag.log"),
+        $"[{DateTime.Now:HH:mm:ss.fff}] {message}" + Environment.NewLine);
+
     private void OnWlanNotification(ref WlanNotificationData data, IntPtr context)
     {
         // 任何 WLAN 通知后防抖重查（连接完成瞬间状态可能未就绪）。
@@ -187,7 +228,8 @@ public sealed class WlanSsidMonitor : IDisposable
             return true;
         }
 
-        int result = WlanOpenHandle(2, IntPtr.Zero, out IntPtr handle, out _);
+        int result = WlanOpenHandle(2, IntPtr.Zero, out IntPtr handle, out int negotiated);
+        Diag($"WlanOpenHandle rc={result} negotiated={negotiated}");
         if (result != 0)
         {
             return false;   // WLAN 服务不可用（源：servicesDisabled 的对应物）
@@ -216,6 +258,7 @@ public sealed class WlanSsidMonitor : IDisposable
                 IntPtr.Zero);
             if (result != 0 || dataSize < Marshal.SizeOf<WlanConnectionAttributes>())
             {
+                Diag($"WlanQueryInterface rc={result} dataSize={dataSize} need={Marshal.SizeOf<WlanConnectionAttributes>()}");
                 return false;
             }
 
@@ -241,6 +284,50 @@ public sealed class WlanSsidMonitor : IDisposable
     public void Dispose()
     {
         Stop();
+    }
+
+    /// <summary>netsh 解析当前 SSID（`netsh wlan show interfaces` 的 SSID 行；字段名不本地化）。</summary>
+    internal static string? QueryCurrentSsidViaNetsh()
+    {
+        try
+        {
+            using var process = new System.Diagnostics.Process();
+            process.StartInfo = new System.Diagnostics.ProcessStartInfo("netsh", "wlan show interfaces")
+            {
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                CreateNoWindow = true,
+                StandardOutputEncoding = System.Text.Encoding.UTF8,
+            };
+            process.Start();
+            string output = process.StandardOutput.ReadToEnd();
+            if (!process.WaitForExit(3000))
+            {
+                process.Kill();
+                return null;
+            }
+
+            foreach (string line in output.Split('\n'))
+            {
+                string trimmed = line.TrimEnd('\r').Trim();
+                // 「SSID : xxx」（跳过 BSSID——前缀锚定）
+                if (trimmed.StartsWith("SSID", StringComparison.Ordinal) && !trimmed.StartsWith("BSSID", StringComparison.Ordinal))
+                {
+                    int colon = trimmed.IndexOf(':');
+                    if (colon > 0)
+                    {
+                        string value = trimmed[(colon + 1)..].Trim();
+                        return value.Length > 0 ? value : null;
+                    }
+                }
+            }
+
+            return null;
+        }
+        catch (Exception)
+        {
+            return null;   // netsh 不可用按未连接处理
+        }
     }
 
     // ---- wlanapi.dll 互操作（P/Invoke 一律隔离在 App 层） ----
