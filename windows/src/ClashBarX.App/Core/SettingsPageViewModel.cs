@@ -18,6 +18,15 @@ public enum AppLanguage
     English,
 }
 
+/// <summary>维护卡动作（源：SystemTabView 维护区；进行中状态按动作独立）。</summary>
+public enum MaintenanceAction
+{
+    UpgradeCore,
+    UpgradeGeo,
+    FlushFakeIp,
+    FlushDns,
+}
+
 /// <summary>
 /// 设置页模型（源：AppViewModel+Settings.swift / SystemTabView 基础设置区）：
 /// 外观三态、语言中英、开机自启（HKCU Run）、流量概览显隐。变化上抛由 App 层
@@ -379,15 +388,26 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
         }
     }
 
-    private bool _isMaintaining;
+    private readonly HashSet<MaintenanceAction> _inFlightMaintenance = new();
     private string? _maintenanceStatusText;
     private string _maintenanceStatusLevel = "info";
 
-    public bool IsMaintaining
-    {
-        get => _isMaintaining;
-        private set => SetProperty(ref _isMaintaining, value);
-    }
+    /// <summary>任一维护动作进行中（汇总态；各动作的进行中状态彼此独立）。</summary>
+    public bool IsMaintaining => _inFlightMaintenance.Count > 0;
+
+    /// <summary>「升级内核」进行中（只有本按钮置灰并显示「执行中…」）。</summary>
+    public bool IsUpgradingCore => IsBusy(MaintenanceAction.UpgradeCore);
+
+    /// <summary>「更新 GEO 数据」进行中（与升级内核互不联动）。</summary>
+    public bool IsUpdatingGeo => IsBusy(MaintenanceAction.UpgradeGeo);
+
+    /// <summary>「清 FakeIP 缓存」进行中。</summary>
+    public bool IsFlushingFakeIp => IsBusy(MaintenanceAction.FlushFakeIp);
+
+    /// <summary>「清 DNS 缓存」进行中。</summary>
+    public bool IsFlushingDns => IsBusy(MaintenanceAction.FlushDns);
+
+    public bool IsBusy(MaintenanceAction action) => _inFlightMaintenance.Contains(action);
 
     /// <summary>维护结果反馈行（null = 隐藏）。</summary>
     public string? MaintenanceStatusText
@@ -420,26 +440,29 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
 
     public SettingsPageViewModel()
     {
-        UpgradeGeoCommand = new RelayCommand(_ => RunMaintenanceAsync(UpgradeGeoRequested));
-        UpgradeCoreCommand = new RelayCommand(_ => RunMaintenanceAsync(UpgradeCoreRequested));
-        FlushFakeIPCommand = new RelayCommand(_ => RunMaintenanceAsync(FlushFakeIPRequested));
-        FlushDNSCommand = new RelayCommand(_ => RunMaintenanceAsync(FlushDNSRequested));
+        UpgradeGeoCommand = new RelayCommand(_ => RunMaintenanceAsync(MaintenanceAction.UpgradeGeo, UpgradeGeoRequested));
+        UpgradeCoreCommand = new RelayCommand(_ => RunMaintenanceAsync(MaintenanceAction.UpgradeCore, UpgradeCoreRequested));
+        FlushFakeIPCommand = new RelayCommand(_ => RunMaintenanceAsync(MaintenanceAction.FlushFakeIp, FlushFakeIPRequested));
+        FlushDNSCommand = new RelayCommand(_ => RunMaintenanceAsync(MaintenanceAction.FlushDns, FlushDNSRequested));
         CheckUpdateCommand = new RelayCommand(_ => RunUpdateCheckAsync());
         CheckKernelUpdateCommand = new RelayCommand(_ => RunKernelUpdateCheckAsync());
     }
 
-    /// <summary>执行维护动作并反馈结果（进行中禁用按钮；源：维护区交互）。</summary>
-    private async Task RunMaintenanceAsync(Func<Task<string>>? action)
+    /// <summary>
+    /// 执行维护动作并反馈结果。进行中状态按动作独立：只有同一动作重复触发被忽略，
+    /// 其余按钮保持可用、不跟着变「执行中…」（进行中禁用本按钮）。
+    /// </summary>
+    private async Task RunMaintenanceAsync(MaintenanceAction action, Func<Task<string>>? requested)
     {
-        if (IsMaintaining || action is null)
+        if (IsBusy(action) || requested is null)
         {
             return;
         }
 
-        IsMaintaining = true;
+        SetMaintenanceBusy(action, true);
         try
         {
-            string message = await action();
+            string message = await requested();
             MaintenanceStatusText = message;
             MaintenanceStatusLevel = message.StartsWith(ClashBarX.Core.L10n.CoreL10n.T("maintenance.failed").Split(':')[0], StringComparison.Ordinal) ? "error" : "ok";
             MaintenanceFeedback?.Invoke(message, MaintenanceStatusLevel == "error");
@@ -452,9 +475,27 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
         }
         finally
         {
-            IsMaintaining = false;
+            SetMaintenanceBusy(action, false);
         }
     }
+
+    /// <summary>维护动作进行中状态翻转（通知对应按钮属性与汇总态）。</summary>
+    private void SetMaintenanceBusy(MaintenanceAction action, bool busy)
+    {
+        if (busy ? _inFlightMaintenance.Add(action) : _inFlightMaintenance.Remove(action))
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(BusyPropertyName(action)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsMaintaining)));
+        }
+    }
+
+    private static string BusyPropertyName(MaintenanceAction action) => action switch
+    {
+        MaintenanceAction.UpgradeCore => nameof(IsUpgradingCore),
+        MaintenanceAction.UpgradeGeo => nameof(IsUpdatingGeo),
+        MaintenanceAction.FlushFakeIp => nameof(IsFlushingFakeIp),
+        _ => nameof(IsFlushingDns),
+    };
 
     public IReadOnlyList<EnumOption<AppLanguage>> LanguageOptions { get; } = new[]
     {

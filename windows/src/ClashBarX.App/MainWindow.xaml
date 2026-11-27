@@ -1636,15 +1636,17 @@
                                             FontSize="11"
                                             Command="{Binding CheckUpdateCommand}"
                                             IsEnabled="{Binding IsCheckingUpdate, Converter={StaticResource InverseBool}}" />
+                                    <!-- 进行中状态按动作独立：升级内核时只有本按钮置灰并显示「执行中…」，GEO 等其余按钮不受联动 -->
                                     <Button Padding="8,2"
                                             Margin="0,0,6,10"
                                             FontSize="11"
-                                            Command="{Binding UpgradeCoreCommand}">
+                                            Command="{Binding UpgradeCoreCommand}"
+                                            IsEnabled="{Binding IsUpgradingCore, Converter={StaticResource InverseBool}}">
                                         <Button.Style>
                                             <Style TargetType="Button">
                                                 <Setter Property="Content" Value="{DynamicResource MaintenanceUpgradeCore}" />
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsMaintaining}" Value="True">
+                                                    <DataTrigger Binding="{Binding IsUpgradingCore}" Value="True">
                                                         <Setter Property="Content" Value="{DynamicResource CommonProcessing}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
@@ -1654,12 +1656,13 @@
                                     <Button Padding="8,2"
                                             Margin="0,0,6,10"
                                             FontSize="11"
-                                            Command="{Binding UpgradeGeoCommand}">
+                                            Command="{Binding UpgradeGeoCommand}"
+                                            IsEnabled="{Binding IsUpdatingGeo, Converter={StaticResource InverseBool}}">
                                         <Button.Style>
                                             <Style TargetType="Button">
                                                 <Setter Property="Content" Value="{DynamicResource MaintenanceUpdateGeo}" />
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsMaintaining}" Value="True">
+                                                    <DataTrigger Binding="{Binding IsUpdatingGeo}" Value="True">
                                                         <Setter Property="Content" Value="{DynamicResource CommonProcessing}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
@@ -1670,11 +1673,13 @@
                                             Margin="0,0,6,10"
                                             FontSize="11"
                                             Command="{Binding FlushFakeIPCommand}"
+                                            IsEnabled="{Binding IsFlushingFakeIp, Converter={StaticResource InverseBool}}"
                                             Content="{DynamicResource MaintenanceFlushFakeIP}" />
                                     <Button Padding="8,2"
                                             Margin="0,0,6,10"
                                             FontSize="11"
                                             Command="{Binding FlushDNSCommand}"
+                                            IsEnabled="{Binding IsFlushingDns, Converter={StaticResource InverseBool}}"
                                             Content="{DynamicResource MaintenanceFlushDNS}" />
                                     <Button Padding="8,2"
                                             Margin="0,0,0,10"
