@@ -54,6 +54,15 @@
         <core:InverseBoolToVisibilityConverter x:Key="InvertVis" />
         <core:InverseBoolToVisibilityConverter x:Key="InverseBoolToVis" />
         <core:StringToVisibilityConverter x:Key="StringToVis" />
+        <!-- 代理端口输入框：按端口上限 65535（5 位）固定宽度，不随内容（尤其是空值）收缩
+             （源：Mac SystemTabView.settingsPortFieldWidth 的固定宽度设计） -->
+        <Style x:Key="PortFieldStyle" TargetType="TextBox">
+            <Setter Property="Width" Value="80" />
+            <Setter Property="MaxLength" Value="5" />
+            <Setter Property="Padding" Value="6,2" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+        </Style>
     </Window.Resources>
     <Border BorderBrush="{DynamicResource ThemeBorderBrush}" BorderThickness="1">
     <DockPanel>
@@ -1531,15 +1540,15 @@
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
                                     <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource SettingsMixedPort}" FontSize="12" VerticalAlignment="Center" Margin="0,6,0,6" />
-                                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding MixedPortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" VerticalContentAlignment="Center" HorizontalAlignment="Right" />
+                                    <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource PortFieldStyle}" Text="{Binding MixedPortText, UpdateSourceTrigger=PropertyChanged}" />
                                     <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource SettingsHttpPort}" FontSize="12" VerticalAlignment="Center" Margin="0,6,0,6" />
-                                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding PortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" VerticalContentAlignment="Center" HorizontalAlignment="Right" />
+                                    <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource PortFieldStyle}" Text="{Binding PortText, UpdateSourceTrigger=PropertyChanged}" />
                                     <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource SettingsSocksPort}" FontSize="12" VerticalAlignment="Center" Margin="0,6,0,6" />
-                                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding SocksPortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" VerticalContentAlignment="Center" HorizontalAlignment="Right" />
+                                    <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource PortFieldStyle}" Text="{Binding SocksPortText, UpdateSourceTrigger=PropertyChanged}" />
                                     <TextBlock Grid.Row="3" Grid.Column="0" Text="{DynamicResource SettingsRedirPort}" FontSize="12" VerticalAlignment="Center" Margin="0,6,0,6" />
-                                    <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding RedirPortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" VerticalContentAlignment="Center" HorizontalAlignment="Right" />
+                                    <TextBox Grid.Row="3" Grid.Column="1" Style="{StaticResource PortFieldStyle}" Text="{Binding RedirPortText, UpdateSourceTrigger=PropertyChanged}" />
                                     <TextBlock Grid.Row="4" Grid.Column="0" Text="{DynamicResource SettingsTproxyPort}" FontSize="12" VerticalAlignment="Center" Margin="0,6,0,6" />
-                                    <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding TproxyPortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" VerticalContentAlignment="Center" HorizontalAlignment="Right" />
+                                    <TextBox Grid.Row="4" Grid.Column="1" Style="{StaticResource PortFieldStyle}" Text="{Binding TproxyPortText, UpdateSourceTrigger=PropertyChanged}" />
                                 </Grid>
                             </StackPanel>
                         </Border>
