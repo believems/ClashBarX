@@ -55,12 +55,14 @@
         <core:InverseBoolToVisibilityConverter x:Key="InverseBoolToVis" />
         <core:StringToVisibilityConverter x:Key="StringToVis" />
         <!-- 代理端口输入框：按端口上限 65535（5 位）固定宽度，不随内容（尤其是空值）收缩
-             （源：Mac SystemTabView.settingsPortFieldWidth 的固定宽度设计） -->
+             （源：Mac SystemTabView.settingsPortFieldWidth 的固定宽度设计）；纵向居中，
+             不被网格行高拉伸（否则五个框上下贴在一起） -->
         <Style x:Key="PortFieldStyle" TargetType="TextBox">
             <Setter Property="Width" Value="80" />
             <Setter Property="MaxLength" Value="5" />
             <Setter Property="Padding" Value="6,2" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="HorizontalAlignment" Value="Right" />
         </Style>
         <!-- 说明文字统一收进「info 小图标 + ToolTip」（页面更紧凑）。矢量绘制（圆圈 + i），不依赖图标字体；
