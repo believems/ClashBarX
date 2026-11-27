@@ -135,4 +135,25 @@ public class ProxyProvidersSectionViewModelTests
         viewModel.SetProviderUpdating("alpha", false);
         Assert.False(viewModel.Rows.Single().IsUpdating);
     }
+
+    [Fact]
+    public void ClearProviders_DropsStaleRowsOnCoreStop()
+    {
+        var viewModel = new ProxyProvidersSectionViewModel();
+        viewModel.ApplyProviders(new Dictionary<string, ProviderDetail> { ["alpha"] = Detail(1) });
+        bool? hasProvidersNotified = null;
+        viewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ProxyProvidersSectionViewModel.HasProviders))
+            {
+                hasProvidersNotified = viewModel.HasProviders;
+            }
+        };
+
+        viewModel.ClearProviders();
+
+        Assert.Empty(viewModel.Rows);
+        Assert.False(viewModel.HasProviders);
+        Assert.False(hasProvidersNotified);
+    }
 }

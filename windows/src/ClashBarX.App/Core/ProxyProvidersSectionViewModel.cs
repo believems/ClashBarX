@@ -216,6 +216,18 @@ public sealed class ProxyProvidersSectionViewModel : INotifyPropertyChanged
         row?.ApplyDetail(detail, now ?? DateTimeOffset.Now);
     }
 
+    /// <summary>内核停止后清空陈旧面板（源：stopCore 的 clearProxyPresentation）。</summary>
+    public void ClearProviders()
+    {
+        if (Rows.Count == 0)
+        {
+            return;
+        }
+
+        Rows.Clear();
+        Raise(nameof(HasProviders));
+    }
+
     public bool HasProviders => Rows.Count > 0;
 
     /// <summary>标记单个 provider 更新中（动作开始/结束）。</summary>

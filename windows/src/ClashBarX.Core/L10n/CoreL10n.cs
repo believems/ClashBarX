@@ -20,6 +20,9 @@ public static class CoreL10n
         ["proxy.traffic.totals"] = "总量 ↑{0} ↓{1}",
         ["proxy.traffic.connections"] = "连接 {0}",
         ["proxy.traffic.memory"] = "内存 {0}",
+        // 代理页空态（内核未运行 / 运行中但无可显示分组）
+        ["proxy.empty.core_not_running"] = "启动内核后此处显示代理分组与订阅源",
+        ["proxy.empty.no_groups"] = "内核运行中，但当前配置没有可显示的代理分组",
 
         // 规则页下拉（源：ui.rules.filter.type.* / policyOptions）
         ["rules.filter.all"] = "全部",
@@ -234,6 +237,9 @@ public static class CoreL10n
         ["proxy.traffic.totals"] = "Total ↑{0} ↓{1}",
         ["proxy.traffic.connections"] = "Conn {0}",
         ["proxy.traffic.memory"] = "Mem {0}",
+        // Proxy page empty states (core not running / running with nothing to show)
+        ["proxy.empty.core_not_running"] = "Start the core to show proxy groups and providers here",
+        ["proxy.empty.no_groups"] = "The core is running, but the current config has no proxy groups to show",
 
         // Rules page dropdowns (source: ui.rules.filter.type.* / policyOptions)
         ["rules.filter.all"] = "All",

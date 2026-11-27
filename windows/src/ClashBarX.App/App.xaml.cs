@@ -2630,6 +2630,13 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
             _lastKnownCoreVersion = version;
         }
 
+        // 代理页空态：未运行时显示「启动内核后…」并清掉陈旧面板（源：stopCore 的 clearProxyPresentation）
+        _proxyPage?.ApplyCoreRunning(coreRunning);
+        if (!coreRunning)
+        {
+            _proxyProviders?.ClearProviders();
+        }
+
         // TUN 开启时用 TUN 品牌图（源：StatusItemContentView 的 tunBrandStatusIconImage 分支）
         _tray?.SetKind(coreRunning
             ? apiHealth == ApiHealth.Healthy

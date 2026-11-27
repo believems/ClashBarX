@@ -562,6 +562,15 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        <!-- 空态提示（源：Mac 的 emptyCard）：内核未运行 → 引导启动；运行中无可显示分组 → 暂无代理分组；
+                             替代此前的一片空白（新用户会误以为 bug） -->
+                        <TextBlock Text="{Binding EmptyStateHint}"
+                                   Visibility="{Binding HasEmptyStateHint, Converter={StaticResource BoolToVis}}"
+                                   Foreground="{DynamicResource ThemeSecondaryTextBrush}"
+                                   FontSize="12"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   Margin="12,36,12,12" />
                         </StackPanel>
                     </ScrollViewer>
                 </DockPanel>
