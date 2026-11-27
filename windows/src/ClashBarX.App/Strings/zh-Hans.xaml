@@ -78,6 +78,14 @@
     <sys:String x:Key="TitleBarMinimize">最小化</sys:String>
     <sys:String x:Key="TitleBarClose">关闭（收起到托盘）</sys:String>
 
+    <!-- 关于对话框（应用菜单「关于 ClashBarX」的落点；设置页关于卡 1.0.0 移除后版本信息在此展示） -->
+    <sys:String x:Key="AboutWindowTitle">关于 ClashBarX</sys:String>
+    <sys:String x:Key="AboutAppVersionLabel">应用版本</sys:String>
+    <sys:String x:Key="AboutKernelVersionLabel">内核版本</sys:String>
+    <sys:String x:Key="AboutActiveConfigLabel">生效配置</sys:String>
+    <sys:String x:Key="AboutDataDirLabel">数据目录</sys:String>
+    <sys:String x:Key="AboutClose">关闭</sys:String>
+
     <!-- 无内核安装引导对话框（源：app.core.setup_required.*） -->
     <sys:String x:Key="GuideCoreTitle">安装 Mihomo 内核</sys:String>
     <sys:String x:Key="GuideCoreIntro">ClashBarX 不内置代理内核（no-core 策略）。首次使用前，请手动放入 mihomo 内核：</sys:String>

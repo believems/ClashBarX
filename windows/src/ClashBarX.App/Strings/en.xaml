@@ -78,6 +78,14 @@
     <sys:String x:Key="TitleBarMinimize">Minimize</sys:String>
     <sys:String x:Key="TitleBarClose">Close (minimize to tray)</sys:String>
 
+    <!-- About dialog (opened from the app menu; version info lives here since the settings About card was removed in 1.0.0) -->
+    <sys:String x:Key="AboutWindowTitle">About ClashBarX</sys:String>
+    <sys:String x:Key="AboutAppVersionLabel">App version</sys:String>
+    <sys:String x:Key="AboutKernelVersionLabel">Core version</sys:String>
+    <sys:String x:Key="AboutActiveConfigLabel">Active config</sys:String>
+    <sys:String x:Key="AboutDataDirLabel">Data folder</sys:String>
+    <sys:String x:Key="AboutClose">Close</sys:String>
+
     <!-- No-core setup guide dialog (source: app.core.setup_required.*) -->
     <sys:String x:Key="GuideCoreTitle">Install the Mihomo core</sys:String>
     <sys:String x:Key="GuideCoreIntro">ClashBarX ships without a proxy core (no-core policy). Add the mihomo core before first use:</sys:String>

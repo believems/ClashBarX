@@ -130,6 +130,19 @@ public partial class MainWindow : Window
     /// <summary>切换到设置页（应用菜单「关于/检查更新」的落点）。</summary>
     public void SelectSettingsTab() => MainTabs.SelectedIndex = 5;
 
+    /// <summary>
+    /// 切到设置页并滚动到维护卡（应用菜单「检查更新」的落点）：维护卡常在首屏之外，
+    /// 不滚动的话检查期间唯一的即时反馈（按钮「检查中…」）看不见，观感就是「点了没反应」。
+    /// 切页后布局尚未完成时 BringIntoView 不生效，须等 Loaded 优先级再滚。
+    /// </summary>
+    public void SelectSettingsTabAtMaintenance()
+    {
+        MainTabs.SelectedIndex = 5;
+        _ = Dispatcher.BeginInvoke(
+            new Action(() => MaintenanceCard.BringIntoView()),
+            System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
     /// <summary>刷新配置列表与选中标记。调用方负责 UI 线程编组。</summary>
     public void SetConfigFiles(IReadOnlyList<string> fileNames, string? selected)
     {

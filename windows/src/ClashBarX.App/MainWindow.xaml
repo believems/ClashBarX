@@ -1614,8 +1614,10 @@
                         </StackPanel>
                         </Border>
                         <!-- 维护卡（源：SystemTabView 维护区；GEO 热更新 + 内核自升级 + 应用更新检查；
-                             六按钮 UniformGrid 3×2 等大；升级/检查反馈走对话框，卡内不留状态行） -->
-                        <Border Padding="8"
+                             六按钮 UniformGrid 3×2 等大；升级/检查反馈走对话框，卡内不留状态行）。
+                             x:Name 供应用菜单「检查更新」跳转后 BringIntoView 滚到本卡 -->
+                        <Border x:Name="MaintenanceCard"
+                                Padding="8"
                                 Margin="0,10,0,0"
                                 BorderBrush="#DDD"
                                 BorderThickness="1"
@@ -1629,12 +1631,24 @@
                                 <!-- 六按钮等大：UniformGrid 3×2 等分单元格。容器负外边距抵消按钮自身外间距，
                                      得到横纵均匀的 6px 间隙且不改变卡内边距 -->
                                 <UniformGrid Columns="3" Margin="0,0,-6,-6">
-                                    <Button Content="{DynamicResource AboutCheckUpdate}"
-                                            Padding="8,2"
+                                    <!-- 检查中：置灰并显示「检查中…」（应用菜单跳转后这是唯一的即时反馈，
+                                         必须看得见——BOSS 拍板 2026-11-27） -->
+                                    <Button Padding="8,2"
                                             Margin="0,0,6,6"
                                             FontSize="11"
                                             Command="{Binding CheckUpdateCommand}"
-                                            IsEnabled="{Binding IsCheckingUpdate, Converter={StaticResource InverseBool}}" />
+                                            IsEnabled="{Binding IsCheckingUpdate, Converter={StaticResource InverseBool}}">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Content" Value="{DynamicResource AboutCheckUpdate}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsCheckingUpdate}" Value="True">
+                                                        <Setter Property="Content" Value="{DynamicResource CommonChecking}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
                                     <!-- 进行中状态按动作独立：升级内核时只有本按钮置灰并显示「执行中…」，GEO 等其余按钮不受联动 -->
                                     <Button Padding="8,2"
                                             Margin="0,0,6,6"

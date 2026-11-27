@@ -173,11 +173,12 @@ public partial class App : Application
         _mainWindow.MachineTargetSwitchRequested += machineId => _ = SwitchMachineTargetAsync(machineId);
         _mainWindow.ManageMachinesRequested += OpenRemoteMachineManager;
         _mainWindow.OpenWebUIRequested += OpenControllerWebUI;
-        // 应用菜单（左上角 App 图标）：关于=定位设置页关于卡；检查更新=设置页检查命令
-        _mainWindow.AppAboutRequested += () => Dispatcher.BeginInvoke(() => _mainWindow.SelectSettingsTab());
+        // 应用菜单（左上角 App 图标）：关于=弹关于对话框（关于卡已随 1.0.0 定稿从设置页移除，
+        // 旧落点成了无效果入口）；检查更新=设置页滚到维护卡（让「检查中…」按钮即时可见）再执行检查命令
+        _mainWindow.AppAboutRequested += () => Dispatcher.BeginInvoke(() => ShowAboutDialog());
         _mainWindow.AppCheckUpdateRequested += () => Dispatcher.BeginInvoke(() =>
         {
-            _mainWindow.SelectSettingsTab();
+            _mainWindow.SelectSettingsTabAtMaintenance();
             _settingsPage?.CheckUpdateCommand.Execute(null);
         });
 
@@ -2584,6 +2585,40 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
         {
             // 弹过即记（无论用户是否去打开目录）：下次启动不再自动弹
             _settingsStore.Save(settings with { CoreSetupGuideShown = true });
+        }
+    }
+
+    // ---- 关于对话框（应用菜单「关于 ClashBarX」的落点） ----
+
+    /// <summary>关于对话框是否已打开（防重入：菜单可反复触发）。</summary>
+    private bool _aboutDialogOpen;
+
+    /// <summary>
+    /// 弹出关于对话框：应用版本、内核版本（仅运行时显示，停止后不展示旧版本号）、生效配置、
+    /// 数据目录与发布页入口。须在 UI 线程调用。
+    /// </summary>
+    private void ShowAboutDialog()
+    {
+        if (_mainWindow == null || _aboutDialogOpen)
+        {
+            return;
+        }
+
+        _aboutDialogOpen = true;
+        try
+        {
+            AboutInfo info = AboutInfo.Create(
+                CurrentAppVersionText(),
+                _lastKnownCoreVersion,
+                kernelRunning: _processManager?.IsRunning == true,
+                _subscriptions?.GetSelectedFileName(),
+                ClashBarXPaths.AppDataRoot(),
+                ClashBarX.Core.L10n.CoreL10n.Language);
+            new AboutWindow(info, _mainWindow).ShowDialog();
+        }
+        finally
+        {
+            _aboutDialogOpen = false;
         }
     }
 
