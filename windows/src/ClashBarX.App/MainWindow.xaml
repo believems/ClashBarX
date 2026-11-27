@@ -1634,7 +1634,7 @@
                         </StackPanel>
                         </Border>
                         <!-- 维护卡（源：SystemTabView 维护区；GEO 热更新 + 内核自升级 + 应用更新检查；
-                             小按钮 WrapPanel 排布；升级/检查反馈走对话框，卡内不留状态行） -->
+                             六按钮 UniformGrid 3×2 等大；升级/检查反馈走对话框，卡内不留状态行） -->
                         <Border Padding="8"
                                 Margin="0,10,0,0"
                                 BorderBrush="#DDD"
@@ -1646,16 +1646,18 @@
                                            FontWeight="SemiBold"
                                            FontSize="12"
                                            Margin="0,0,0,6" />
-                                <WrapPanel Orientation="Horizontal">
+                                <!-- 六按钮等大：UniformGrid 3×2 等分单元格。容器负外边距抵消按钮自身外间距，
+                                     得到横纵均匀的 6px 间隙且不改变卡内边距 -->
+                                <UniformGrid Columns="3" Margin="0,0,-6,-6">
                                     <Button Content="{DynamicResource AboutCheckUpdate}"
                                             Padding="8,2"
-                                            Margin="0,0,6,10"
+                                            Margin="0,0,6,6"
                                             FontSize="11"
                                             Command="{Binding CheckUpdateCommand}"
                                             IsEnabled="{Binding IsCheckingUpdate, Converter={StaticResource InverseBool}}" />
                                     <!-- 进行中状态按动作独立：升级内核时只有本按钮置灰并显示「执行中…」，GEO 等其余按钮不受联动 -->
                                     <Button Padding="8,2"
-                                            Margin="0,0,6,10"
+                                            Margin="0,0,6,6"
                                             FontSize="11"
                                             Command="{Binding UpgradeCoreCommand}"
                                             IsEnabled="{Binding IsUpgradingCore, Converter={StaticResource InverseBool}}">
@@ -1671,7 +1673,7 @@
                                         </Button.Style>
                                     </Button>
                                     <Button Padding="8,2"
-                                            Margin="0,0,6,10"
+                                            Margin="0,0,6,6"
                                             FontSize="11"
                                             Command="{Binding UpgradeGeoCommand}"
                                             IsEnabled="{Binding IsUpdatingGeo, Converter={StaticResource InverseBool}}">
@@ -1687,23 +1689,23 @@
                                         </Button.Style>
                                     </Button>
                                     <Button Padding="8,2"
-                                            Margin="0,0,6,10"
+                                            Margin="0,0,6,6"
                                             FontSize="11"
                                             Command="{Binding FlushFakeIPCommand}"
                                             IsEnabled="{Binding IsFlushingFakeIp, Converter={StaticResource InverseBool}}"
                                             Content="{DynamicResource MaintenanceFlushFakeIP}" />
                                     <Button Padding="8,2"
-                                            Margin="0,0,6,10"
+                                            Margin="0,0,6,6"
                                             FontSize="11"
                                             Command="{Binding FlushDNSCommand}"
                                             IsEnabled="{Binding IsFlushingDns, Converter={StaticResource InverseBool}}"
                                             Content="{DynamicResource MaintenanceFlushDNS}" />
                                     <Button Padding="8,2"
-                                            Margin="0,0,0,10"
+                                            Margin="0,0,6,6"
                                             FontSize="11"
                                             Content="{DynamicResource MaintenanceOpenCoreDir}"
                                             Click="OnOpenCoreDirectoryClick" />
-                                </WrapPanel>
+                                </UniformGrid>
                             </StackPanel>
                         </Border>
                     </StackPanel>
