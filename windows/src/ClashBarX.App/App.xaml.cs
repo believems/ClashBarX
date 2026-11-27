@@ -316,13 +316,14 @@ public partial class App : Application
             RefreshPresentationState();   // 托盘 tooltip 与状态行随语言即时更新（评审 P2）
         };
 
-        // 关于与更新检查（源：refreshLatestAppRelease + availableAppUpdate + footer 链接）
+        // 关于与更新检查（源：refreshLatestAppRelease + availableAppUpdate + footer 链接）。
+        // 应用自身走发版列表按 Windows 资产过滤：/releases/latest 不区分平台，macOS 发版较新时会误报
         _releaseService = new AppReleaseService();
         string currentVersion = CurrentAppVersionText();
         _settingsPage.CurrentVersionText = currentVersion;
         _settingsPage.CheckUpdateRequested = async () =>
             AppReleaseService.ResolveAvailableUpdate(
-                await _releaseService!.FetchLatestReleaseAsync(currentVersion), currentVersion);
+                await _releaseService!.FetchLatestWindowsReleaseAsync(currentVersion), currentVersion);
         // 内核块更新检查（定稿：mihomo releases latest 对比当前内核版本；发现新版后才显示升级按钮）
         _mihomoReleaseService = new AppReleaseService(
             latestReleaseUrl: "https://api.github.com/repos/MetaCubeX/mihomo/releases/latest");
@@ -989,7 +990,7 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
         try
         {
             AppReleaseInfo? latest = await _releaseService!
-                .FetchLatestReleaseAsync(CurrentAppVersionText())
+                .FetchLatestWindowsReleaseAsync(CurrentAppVersionText())
                 .ConfigureAwait(true);
             Dispatcher.BeginInvoke(() => _settingsPage?.ApplyLatestRelease(latest));
         }
