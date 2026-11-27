@@ -165,6 +165,8 @@
     <sys:String x:Key="OverrideApplyNow">立即应用</sys:String>
     <sys:String x:Key="CommonProcessing">执行中…</sys:String>
     <sys:String x:Key="CommonEnable">启用</sys:String>
+    <!-- info 小图标的无障碍名称（提示正文取自该图标的 ToolTip） -->
+    <sys:String x:Key="InfoHintName">说明</sys:String>
     <sys:String x:Key="GuardCheckNow">立即检查</sys:String>
     <sys:String x:Key="CommonChecking">检查中…</sys:String>
     <sys:String x:Key="MaintenanceUpdateGeo">更新 GEO 数据</sys:String>

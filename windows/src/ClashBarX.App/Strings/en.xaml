@@ -165,6 +165,8 @@
     <sys:String x:Key="OverrideApplyNow">Apply Now</sys:String>
     <sys:String x:Key="CommonProcessing">Processing…</sys:String>
     <sys:String x:Key="CommonEnable">Enable</sys:String>
+    <!-- Accessible name of the info icons (the hint text itself comes from each icon's ToolTip) -->
+    <sys:String x:Key="InfoHintName">Info</sys:String>
     <sys:String x:Key="GuardCheckNow">Check Now</sys:String>
     <sys:String x:Key="CommonChecking">Checking…</sys:String>
     <sys:String x:Key="MaintenanceUpdateGeo">Update GEO data</sys:String>

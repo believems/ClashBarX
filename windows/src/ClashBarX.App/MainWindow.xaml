@@ -74,6 +74,9 @@
             <Setter Property="Cursor" Value="Help" />
             <Setter Property="ToolTipService.InitialShowDelay" Value="0" />
             <Setter Property="Focusable" Value="False" />
+            <!-- 读屏：图标本身没有文字，把 ToolTip 里的说明同步暴露为帮助文本 -->
+            <Setter Property="AutomationProperties.Name" Value="{DynamicResource InfoHintName}" />
+            <Setter Property="AutomationProperties.HelpText" Value="{Binding ToolTip, RelativeSource={RelativeSource Self}}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ContentControl">
@@ -1412,8 +1415,10 @@
                                 Background="#FAFAFA"
                                 Margin="0,0,0,8">
                             <StackPanel>
-                                <!-- 标题括号说明与关闭态说明收进 info 图标 ToolTip -->
+                                <!-- 标题括号说明与关闭态说明收进 info 图标 ToolTip；
+                                     内容换成容器后勾选框不再有文字名，显式补自动化名称供读屏识别 -->
                                 <CheckBox IsChecked="{Binding IsGuardEnabled}"
+                                          AutomationProperties.Name="{DynamicResource NetworkGuardTitle}"
                                           FontWeight="SemiBold"
                                           FontSize="12">
                                     <StackPanel Orientation="Horizontal">
