@@ -50,10 +50,24 @@ public partial class MainWindow : Window
 
     private void OnOpenWebUIClick(object sender, RoutedEventArgs e) => OpenWebUIRequested?.Invoke();
 
+    private bool _importBusy;
+
     public MainWindow()
     {
+        // 菜单模板与托盘共用（TrayMenu.xaml：无图标列竖线的 ContextMenu/MenuItem/Separator）——
+        // 左上角应用菜单同享干净外观（BOSS 截图 2026-11-28 圈出默认模板的图标列分隔竖线）。
+        // XAML 隐式 Window.Resources 挂不了 MergedDictionaries 属性元素（MC3074），故在此合并；
+        // 须在 InitializeComponent 前，供 XAML 内 StaticResource 解析可见。
+        Resources.MergedDictionaries.Add(new System.Windows.ResourceDictionary
+        {
+            Source = new System.Uri("pack://application:,,,/Themes/TrayMenu.xaml", System.UriKind.Absolute),
+        });
         InitializeComponent();
         MainTabs.SelectionChanged += (_, _) => TabSelectionChanged?.Invoke(this, EventArgs.Empty);
+        MainTabs.SelectionChanged += (_, _) => ApplyTabWindowHeight();
+        ConfigFilesBox.SelectionChanged += (_, _) => RefreshSubscriptionActionState();
+        SubscriptionUrlBox.TextChanged += (_, _) => RefreshImportActionState();
+        RefreshImportActionState();
     }
 
     /// <summary>主 tab 选择变化（App 层在 UI 线程上缓存各页可见性，供后台流线程读取）。</summary>
@@ -113,31 +127,51 @@ public partial class MainWindow : Window
 
     private void OnAppHideWindowClick(object sender, RoutedEventArgs e) => Hide();
 
-    // ---- 自绘标题栏窗控（WindowStyle=None：拖动/双击最大化/最小化/最大化/关闭） ----
+    // ---- 自绘标题栏窗控（WindowStyle=None：拖动移窗/最小化/关闭；窗口固定尺寸，不提供最大化） ----
 
-    private void OnTitleBarMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
-    {
-        if (e.ClickCount == 2)
-        {
-            ToggleMaxRestore();
-        }
-        else
-        {
-            DragMove();
-        }
-    }
+    private void OnTitleBarMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) =>
+        DragMove();
 
     private void OnMinimizeClick(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
 
-    private void OnMaximizeClick(object sender, RoutedEventArgs e) => ToggleMaxRestore();
-
     private void OnCloseClick(object sender, RoutedEventArgs e) => Close();   // OnClosing 取消并隐藏（托盘常驻）
 
-    private void ToggleMaxRestore() =>
-        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+    /// <summary>切换到网络页（订阅区 2026-11-27 起在此页；「去导入」引导的落点）。</summary>
+    public void SelectNetworkTab() => MainTabs.SelectedIndex = 4;
 
-    /// <summary>切换到设置页（应用菜单「关于/检查更新」的落点）。</summary>
-    public void SelectSettingsTab() => MainTabs.SelectedIndex = 5;
+    /// <summary>设置页窗高（2026-11-28 真机二分收敛：以「启用态滚动条节点」为判据，416 有条、420 无条，取 420）；内容长高（如 SSID 绑定增多）时走页内滚动。</summary>
+    private const double SettingsTabWindowHeight = 420;
+
+    /// <summary>其余页窗高（2026-11-28 真机二分收敛：479 有页级滚动条、483 无，取 483；列表类页面靠内部滚动填满）。</summary>
+    private const double DefaultWindowHeight = 483;
+
+    /// <summary>
+    /// 窗高按页切换（BOSS 拍板 2026-11-27「按页自动调窗高」）：设置页内容比网络页矮约 120 逻辑像素，
+    /// 统一窗高下这份结构性剩余只能变成留白（BOSS 两度截图圈出）；进设置页收高到实测值，
+    /// 切回其余页恢复 520。顶边不动、底边收放。
+    /// 注：SizeToContent=Height 与 WindowChrome 全自绘标题栏组合测量不准（实测少算约 98 逻辑像素
+    /// 导致裁切），故用实测常量而非自动测量。
+    /// </summary>
+    private void ApplyTabWindowHeight()
+    {
+        double height = MainTabs.SelectedIndex == 5 ? SettingsTabWindowHeight : DefaultWindowHeight;
+        Height = height;
+        MinHeight = height;
+        MaxHeight = height;
+    }
+
+    /// <summary>
+    /// 切到设置页并滚动到维护卡（应用菜单「检查更新」的落点）：维护卡常在首屏之外，
+    /// 不滚动的话检查期间唯一的即时反馈（按钮「检查中…」）看不见，观感就是「点了没反应」。
+    /// 切页后布局尚未完成时 BringIntoView 不生效，须等 Loaded 优先级再滚。
+    /// </summary>
+    public void SelectSettingsTabAtMaintenance()
+    {
+        MainTabs.SelectedIndex = 5;
+        _ = Dispatcher.BeginInvoke(
+            new Action(() => MaintenanceCard.BringIntoView()),
+            System.Windows.Threading.DispatcherPriority.Loaded);
+    }
 
     /// <summary>刷新配置列表与选中标记。调用方负责 UI 线程编组。</summary>
     public void SetConfigFiles(IReadOnlyList<string> fileNames, string? selected)
@@ -156,13 +190,51 @@ public partial class MainWindow : Window
                 ConfigFilesBox.SelectedItem = item;
             }
         }
+
+        RefreshSubscriptionActionState();
     }
 
-    /// <summary>导入按钮的可用态（下载期间禁用防重复提交）。</summary>
+    /// <summary>订阅操作按钮作用域：更新/启用/删除作用于列表选中行（无选中置灰）；更新全部依赖存在订阅。</summary>
+    private void RefreshSubscriptionActionState()
+    {
+        bool hasSelection = SelectedFileName is not null;
+        UpdateSubscriptionButton.IsEnabled = hasSelection;
+        EnableConfigButton.IsEnabled = hasSelection;
+        RemoveConfigButton.IsEnabled = hasSelection;
+        UpdateAllSubscriptionsButton.IsEnabled = ConfigFilesBox.Items.Count > 0;
+    }
+
+    /// <summary>导入按钮的可用态（下载期间禁用防重复提交；文案「导入中…」走资源字典，恢复后回到本地化文案）。</summary>
     public void SetImportBusy(bool busy)
     {
-        ImportButton.IsEnabled = !busy;
-        ImportButton.Content = busy ? "导入中…" : "导入";
+        _importBusy = busy;
+        RefreshImportActionState();
+        ImportButton.SetResourceReference(
+            ContentControl.ContentProperty, busy ? "NetworkSubscriptionImporting" : "NetworkSubscriptionImport");
+    }
+
+    /// <summary>
+    /// 导入按钮仅在订阅链接非空且不在导入中时可用（此前空链接点「导入」无任何反馈）；
+    /// 占位提示随输入显隐。
+    /// </summary>
+    private void RefreshImportActionState()
+    {
+        bool hasUrl = SubscriptionUrlBox.Text.Trim().Length > 0;
+        ImportButton.IsEnabled = !_importBusy && hasUrl;
+        SubscriptionUrlPlaceholder.Visibility = hasUrl ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    /// <summary>切到网络页并把焦点交给订阅链接输入框（「去导入」引导的落点；订阅区已挪至网络页）。</summary>
+    public void FocusSubscriptionUrlBox()
+    {
+        SelectNetworkTab();
+        Dispatcher.BeginInvoke(
+            new Action(() =>
+            {
+                SubscriptionUrlBox.Focus();
+                System.Windows.Input.Keyboard.Focus(SubscriptionUrlBox);
+            }),
+            System.Windows.Threading.DispatcherPriority.Input);
     }
 
     /// <summary>当前是否停在「代理」tab（驱动代理页的刷新节奏）。</summary>
@@ -424,21 +496,9 @@ public partial class MainWindow : Window
     private void OnCopyProxyCommandBashClick(object sender, RoutedEventArgs e) =>
         CopyProxyCommandRequested?.Invoke("bash");
 
-    /// <summary>打开内核目录（源：维护区「打开内核目录」）。</summary>
-    private void OnOpenCoreDirectoryClick(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            string directory = ClashBarXPaths.CoreDirectory();
-            System.IO.Directory.CreateDirectory(directory);
-            System.Diagnostics.Process.Start(
-                new System.Diagnostics.ProcessStartInfo("explorer.exe", directory) { UseShellExecute = true });
-        }
-        catch (System.Exception)
-        {
-            // explorer 启动失败不影响主流程
-        }
-    }
+    /// <summary>打开内核目录（源：维护区「打开内核目录」）；与无内核安装引导对话框共用同一入口。</summary>
+    private void OnOpenCoreDirectoryClick(object sender, RoutedEventArgs e) =>
+        ShellNavigator.TryOpenDirectory(ClashBarXPaths.CoreDirectory(), out _);
 
     private void OnImportClick(object sender, RoutedEventArgs e)
     {

@@ -2,7 +2,8 @@ name: Release Windows
 
 # Windows 发版流水线（M4-5）：tag=win-v1.0.0 触发（应用内显示 1.0.0；
 # v1.0.0 已被 macOS 占用，从 v1.1.0 起双平台同 tag 统一版本号）。
-# 产物：ClashBarX-<版本>-setup.exe（Inno Setup）+ portable zip + 各自 sha256。
+# 产物：ClashBarX-<版本>-setup.exe（Inno Setup 自包含）+ ClashBarX-<版本>-setup-lite.exe
+#      （框架依赖，需 .NET 8 Desktop Runtime）+ portable zip + 三者各自的 sha256，共 6 个资产。
 on:
   push:
     tags:
@@ -163,6 +164,15 @@ jobs:
           powershell -NoProfile -ExecutionPolicy Bypass -File windows/installer/build-installer.ps1 `
             -Version "${{ needs.prepare-version.outputs.version }}" -IsccPath "$iscc"
 
+      - name: Build lite setup installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $iscc = (Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup*\ISCC.exe", "${env:ProgramFiles}\Inno Setup*\ISCC.exe" -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $iscc) { throw "ISCC.exe not found" }
+          powershell -NoProfile -ExecutionPolicy Bypass -File windows/installer/build-installer.ps1 `
+            -Version "${{ needs.prepare-version.outputs.version }}" -IsccPath "$iscc" -Lite
+
       - name: Generate sha256
         shell: pwsh
         run: |
@@ -207,6 +217,7 @@ jobs:
           ## ClashBarX for Windows ${{ needs.prepare-version.outputs.version }}
 
           - **安装版**：`ClashBarX-${{ needs.prepare-version.outputs.version }}-setup.exe` —— Inno Setup，用户级安装（%LOCALAPPDATA%\Programs），无需管理员；含开始菜单快捷方式与卸载。
+          - **轻量安装版**：`ClashBarX-${{ needs.prepare-version.outputs.version }}-setup-lite.exe` —— 安装体验与安装版相同，但不随包自带 .NET 运行时（体积小得多）；**需要已安装 [.NET 8 Desktop Runtime（Windows x64）](https://dotnet.microsoft.com/download/dotnet/8.0)**，未安装请先到该页面下载「.NET Desktop Runtime 8.0.x」再运行。
           - **绿色便携版**：`ClashBarX-${{ needs.prepare-version.outputs.version }}-portable-win-x64.zip` —— 自包含 .NET 8，解压即用。
           - 数据目录 `%APPDATA%\ClashBarX`（配置/订阅/内核），卸载与升级均保留。
           - 首次使用请导入订阅或在 `%APPDATA%\ClashBarX\config.yaml` 准备运行配置，并将 `mihomo.exe` 放入 `%APPDATA%\ClashBarX\core\`。

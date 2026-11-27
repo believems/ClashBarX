@@ -202,6 +202,7 @@ public sealed class ProxyPageViewModel : INotifyPropertyChanged
     private bool _showTrafficOverview = true;
     private string _mode = "rule";
     private ProxyBoard? _lastBoard;
+    private bool _coreRunning;
 
     // ---- 分组卡四视图（源：ProxyGroupsViewModel + compactTopIcon 开关组；会话态不持久化） ----
 
@@ -303,6 +304,54 @@ public sealed class ProxyPageViewModel : INotifyPropertyChanged
     }
 
     public ObservableCollection<ProxyGroupViewModel> Groups { get; }
+
+    /// <summary>
+    /// 内核运行态回填（App 层随 RefreshPresentationState）。停止时清空上一次的分组并切回
+    /// 引导提示（源：stopCore 的 clearProxyPresentation——内核已停不该继续展示陈旧分组）。
+    /// </summary>
+    public void ApplyCoreRunning(bool running)
+    {
+        if (_coreRunning == running)
+        {
+            return;
+        }
+
+        _coreRunning = running;
+        if (!running)
+        {
+            _lastBoard = null;
+            Groups.Clear();
+        }
+
+        RaiseEmptyState();
+    }
+
+    /// <summary>
+    /// 空态提示（null = 不显示）：内核未运行 → 引导启动；运行中且面板已载入但没有可显示的分组 →
+    /// 暂无代理分组；面板尚未载入（刚启动、首帧刷新前）→ 不提示，避免加载期闪现。
+    /// </summary>
+    public string? EmptyStateHint
+    {
+        get
+        {
+            if (!_coreRunning)
+            {
+                return ClashBarX.Core.L10n.CoreL10n.T("proxy.empty.core_not_running");
+            }
+
+            return _lastBoard is not null && Groups.Count == 0
+                ? ClashBarX.Core.L10n.CoreL10n.T("proxy.empty.no_groups")
+                : null;
+        }
+    }
+
+    public bool HasEmptyStateHint => EmptyStateHint is not null;
+
+    private void RaiseEmptyState()
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(EmptyStateHint)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasEmptyStateHint)));
+    }
 
     public string TrafficSummary
     {
@@ -527,6 +576,8 @@ public sealed class ProxyPageViewModel : INotifyPropertyChanged
             };
             Groups.Add(groupViewModel);
         }
+
+        RaiseEmptyState();
     }
 
     /// <summary>分组可见性（源：updateFilteredProxyGroups——非 global 模式滤 GLOBAL；默认滤 hidden）。</summary>

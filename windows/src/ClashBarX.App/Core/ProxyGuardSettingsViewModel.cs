@@ -7,8 +7,8 @@ namespace ClashBarX.App.Core;
 
 /// <summary>
 /// 代理守护设置区模型（源：SystemTabView.swift 守护区块 + SystemTabViewModel 的交互语义）。
-/// 开启才展开「周期输入 + 立即检查 + 结果行」，关闭时显示说明文字；周期回写仅当
-/// 解析为 30…86400 的整数，否则静默忽略；显示值 clamp 到下限 30。
+/// 配置区（周期输入 + 立即检查 + 结果行）常驻显示，开关关闭时整体置灰而非折叠；
+/// 周期回写仅当解析为 30…86400 的整数，否则静默忽略；显示值 clamp 到下限 30。
 /// </summary>
 public sealed class ProxyGuardSettingsViewModel : INotifyPropertyChanged
 {
@@ -106,9 +106,6 @@ public sealed class ProxyGuardSettingsViewModel : INotifyPropertyChanged
     }
 
     public bool HasOutcome => OutcomeText is { Length: > 0 };
-
-    /// <summary>关闭时的说明文字行（源：ui.settings.proxy_guard_disabled_hint）。</summary>
-    public string DisabledHint => "开启后自动检测连通性，故障时切换组内节点并自愈订阅";
 
     public ICommand CheckNowCommand { get; }
 

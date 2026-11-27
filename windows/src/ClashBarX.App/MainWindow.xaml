@@ -7,21 +7,30 @@
         xmlns:core="clr-namespace:ClashBarX.App.Core"
         xmlns:overrides="clr-namespace:ClashBarX.Core.Overrides;assembly=ClashBarX.Core"
         mc:Ignorable="d"
-        Title="ClashBarX" Height="660" Width="760"
+        Title="ClashBarX" Height="483" Width="760"
+        MinWidth="760" MaxWidth="760" MinHeight="483" MaxHeight="483"
+        ResizeMode="CanMinimize"
         WindowStyle="None"
         Background="{DynamicResource ThemeWindowBrush}"
         WindowStartupLocation="CenterScreen">
-    <!-- 自绘标题栏（原型 titlebar 语义：LOGO→应用菜单 + 应用名 + 窗控按钮）；
-         CaptionHeight=0 全自绘，ResizeBorderThickness 保留边缘缩放 -->
+    <!-- 面板类应用固定尺寸：Min=Max + CanMinimize（禁最大化/缩放，仅保留最小化）——
+         自由缩放会让各页布局变形（代理端口框、日志过滤栏、维护卡等）；
+         CaptionHeight=0 全自绘标题栏。
+         高度 660→483（BOSS 定稿 2026-11-27，截图标注：订阅卡与状态栏间的空带「不要」）：
+         网络页双栏压紧、守护按钮同行、绕过列表双列化（卡内无滚动条）、订阅区从设置页
+         挪来后按实测内容高收口；约束页为网络页（双栏卡 + 订阅卡），真机复测零越界零空带。
+         设置页例外：进页收高到实测 402（BOSS 拍板 2026-11-27「按页自动调窗高」），
+         见 code-behind ApplyTabWindowHeight -->
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="0"
-                      ResizeBorderThickness="6"
+                      ResizeBorderThickness="0"
                       CornerRadius="0"
                       GlassFrameThickness="0"
                       UseAeroCaptionButtons="False" />
     </WindowChrome.WindowChrome>
     <Window.Resources>
-        <!-- 自绘标题栏窗控按钮（扁平、悬停浅灰底） -->
+        <!-- 自绘标题栏窗控按钮（扁平、悬停浅灰底）；
+             菜单模板（TrayMenu.xaml）在 code-behind 构造里合并，见「菜单模板与托盘共用」注释 -->
         <Style x:Key="TitleBarButtonStyle" TargetType="Button">
             <Setter Property="Width" Value="46" />
             <Setter Property="Height" Value="34" />
@@ -51,10 +60,55 @@
         <core:InverseBoolToVisibilityConverter x:Key="InvertVis" />
         <core:InverseBoolToVisibilityConverter x:Key="InverseBoolToVis" />
         <core:StringToVisibilityConverter x:Key="StringToVis" />
+        <!-- 代理端口输入框：按端口上限 65535（5 位）固定宽度，不随内容（尤其是空值）收缩
+             （源：Mac SystemTabView.settingsPortFieldWidth 的固定宽度设计）；纵向居中，
+             不被网格行高拉伸（否则五个框上下贴在一起） -->
+        <Style x:Key="PortFieldStyle" TargetType="TextBox">
+            <Setter Property="Width" Value="80" />
+            <Setter Property="MaxLength" Value="5" />
+            <Setter Property="Padding" Value="4,1" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+        </Style>
+        <!-- 说明文字统一收进「info 小图标 + ToolTip」（页面更紧凑）。矢量绘制（圆圈 + i），不依赖图标字体；
+             用法：<ContentControl Style="{StaticResource InfoHintStyle}" ToolTip="{DynamicResource …}" /> -->
+        <Style x:Key="InfoHintStyle" TargetType="ContentControl">
+            <Setter Property="Width" Value="14" />
+            <Setter Property="Height" Value="14" />
+            <Setter Property="Margin" Value="6,0,0,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource ThemeMutedTextBrush}" />
+            <Setter Property="Cursor" Value="Help" />
+            <Setter Property="ToolTipService.InitialShowDelay" Value="0" />
+            <Setter Property="Focusable" Value="False" />
+            <!-- 读屏：图标本身没有文字，把 ToolTip 里的说明同步暴露为帮助文本 -->
+            <Setter Property="AutomationProperties.Name" Value="{DynamicResource InfoHintName}" />
+            <Setter Property="AutomationProperties.HelpText" Value="{Binding ToolTip, RelativeSource={RelativeSource Self}}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContentControl">
+                        <Grid>
+                            <Ellipse Stroke="{TemplateBinding Foreground}" StrokeThickness="1.2" />
+                            <Ellipse Width="2" Height="2" Fill="{TemplateBinding Foreground}"
+                                     VerticalAlignment="Top" Margin="0,3,0,0" />
+                            <Rectangle Width="2" Height="5.5" RadiusX="1" RadiusY="1" Fill="{TemplateBinding Foreground}"
+                                       VerticalAlignment="Bottom" Margin="0,0,0,2.5" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- 日志过滤项：WPF 原生 ToggleButton 外观（不自绘胶囊），仅统一字号/内边距/间距 -->
+        <Style x:Key="LogFilterToggleStyle" TargetType="ToggleButton">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Padding" Value="8,1" />
+            <Setter Property="Margin" Value="0,0,4,0" />
+        </Style>
     </Window.Resources>
     <Border BorderBrush="{DynamicResource ThemeBorderBrush}" BorderThickness="1">
     <DockPanel>
-        <!-- 自绘标题栏：LOGO（应用菜单）+ 应用名 | 最小化/最大化/关闭；拖动移窗、双击最大化/还原 -->
+        <!-- 自绘标题栏：LOGO（应用菜单）+ 应用名 | 最小化/关闭；拖动移窗（窗口固定尺寸，无最大化） -->
         <DockPanel x:Name="TitleBarRoot"
                    DockPanel.Dock="Top"
                    Height="34"
@@ -65,10 +119,6 @@
                         Style="{StaticResource TitleBarButtonStyle}"
                         ToolTip="{DynamicResource TitleBarMinimize}"
                         Click="OnMinimizeClick" />
-                <Button Content="▢"
-                        Style="{StaticResource TitleBarButtonStyle}"
-                        ToolTip="{DynamicResource TitleBarMaximize}"
-                        Click="OnMaximizeClick" />
                 <Button Content="✕"
                         Style="{StaticResource TitleBarButtonStyle}"
                         ToolTip="{DynamicResource TitleBarClose}"
@@ -562,6 +612,15 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        <!-- 空态提示（源：Mac 的 emptyCard）：内核未运行 → 引导启动；运行中无可显示分组 → 暂无代理分组；
+                             替代此前的一片空白（新用户会误以为 bug） -->
+                        <TextBlock Text="{Binding EmptyStateHint}"
+                                   Visibility="{Binding HasEmptyStateHint, Converter={StaticResource BoolToVis}}"
+                                   Foreground="{DynamicResource ThemeSecondaryTextBrush}"
+                                   FontSize="12"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   Margin="12,36,12,12" />
                         </StackPanel>
                     </ScrollViewer>
                 </DockPanel>
@@ -1021,89 +1080,45 @@
             </TabItem>
 
             <!-- 日志（M3-2）：mihomo WS 流 + 等级过滤 + 搜索 + 渲染上限；
-                 定稿=表格化（时间/来源/等级/消息四列、彩色徽章、斑马纹、行悬停、表头吸顶、胶囊过滤） -->
+                 定稿=表格化（时间/来源/等级/消息四列、彩色徽章、斑马纹、行悬停、表头吸顶、原生样式过滤项） -->
             <TabItem Header="{DynamicResource TabLogs}">
                 <DockPanel x:Name="LogsRoot" Margin="4,8,4,4">
-                    <DockPanel.Resources>
-                        <!-- 过滤胶囊（源：日志页 chip——圆角 99；选中=彩色边框/文字/浅底） -->
-                        <ControlTemplate x:Key="FilterChipTemplate" TargetType="ToggleButton">
-                            <Border x:Name="ChipBorder"
-                                    Background="{TemplateBinding Background}"
-                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="99"
-                                    Padding="{TemplateBinding Padding}"
-                                    SnapsToDevicePixels="True">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="ChipBorder" Property="Opacity" Value="0.85" />
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                        <Style x:Key="FilterChipBase" TargetType="ToggleButton">
-                            <Setter Property="FontSize" Value="11" />
-                            <Setter Property="Padding" Value="10,2" />
-                            <Setter Property="Margin" Value="0,0,6,0" />
-                            <Setter Property="Foreground" Value="#5E6B78" />
-                            <Setter Property="BorderBrush" Value="#CDD4DC" />
-                            <Setter Property="Background" Value="White" />
-                            <Setter Property="Cursor" Value="Hand" />
-                            <Setter Property="Template" Value="{StaticResource FilterChipTemplate}" />
-                        </Style>
-                        <Style x:Key="ChipMihomoStyle" TargetType="ToggleButton" BasedOn="{StaticResource FilterChipBase}">
-                            <Style.Triggers>
-                                <Trigger Property="IsChecked" Value="True">
-                                    <Setter Property="Foreground" Value="#2563EB" />
-                                    <Setter Property="BorderBrush" Value="#2563EB" />
-                                    <Setter Property="Background" Value="#1A2563EB" />
-                                    <Setter Property="FontWeight" Value="SemiBold" />
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                        <Style x:Key="ChipClashBarStyle" TargetType="ToggleButton" BasedOn="{StaticResource FilterChipBase}">
-                            <Style.Triggers>
-                                <Trigger Property="IsChecked" Value="True">
-                                    <Setter Property="Foreground" Value="#5E6B78" />
-                                    <Setter Property="BorderBrush" Value="#5E6B78" />
-                                    <Setter Property="Background" Value="#1A5E6B78" />
-                                    <Setter Property="FontWeight" Value="SemiBold" />
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                        <Style x:Key="ChipErrorStyle" TargetType="ToggleButton" BasedOn="{StaticResource FilterChipBase}">
-                            <Style.Triggers>
-                                <Trigger Property="IsChecked" Value="True">
-                                    <Setter Property="Foreground" Value="#C0392B" />
-                                    <Setter Property="BorderBrush" Value="#C0392B" />
-                                    <Setter Property="Background" Value="#1AC0392B" />
-                                    <Setter Property="FontWeight" Value="SemiBold" />
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                        <Style x:Key="ChipWarningStyle" TargetType="ToggleButton" BasedOn="{StaticResource FilterChipBase}">
-                            <Style.Triggers>
-                                <Trigger Property="IsChecked" Value="True">
-                                    <Setter Property="Foreground" Value="#B45309" />
-                                    <Setter Property="BorderBrush" Value="#B45309" />
-                                    <Setter Property="Background" Value="#1AB45309" />
-                                    <Setter Property="FontWeight" Value="SemiBold" />
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                        <Style x:Key="ChipInfoStyle" TargetType="ToggleButton" BasedOn="{StaticResource FilterChipBase}">
-                            <Style.Triggers>
-                                <Trigger Property="IsChecked" Value="True">
-                                    <Setter Property="Foreground" Value="#1B7F3B" />
-                                    <Setter Property="BorderBrush" Value="#1B7F3B" />
-                                    <Setter Property="Background" Value="#1A1B7F3B" />
-                                    <Setter Property="FontWeight" Value="SemiBold" />
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                    </DockPanel.Resources>
-                    <!-- 过滤栏：来源/等级胶囊 + 搜索 + 等级快捷 + 动作 -->
+                    <!-- 过滤栏分两行：此前左侧过滤组与右侧搜索/操作区同挤一行，过滤组溢出后盖住搜索框，
+                         「错误」之后的过滤项被截断。改为第一行=来源/等级过滤 + 搜索，第二行=匹配数 + 等级/动作，
+                         任一侧变宽都不会与另一侧重叠 -->
+                    <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <!-- 来源过滤（源：logsSourceFilterButtons——空集 = 全部）+ 等级过滤（空集 = 全部）；
+                             WPF 原生 ToggleButton 外观 -->
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <ToggleButton Content="Mihomo"
+                                          Style="{StaticResource LogFilterToggleStyle}"
+                                          IsChecked="{Binding IsMihomoSourceSelected}" />
+                            <ToggleButton Content="ClashBarX"
+                                          Style="{StaticResource LogFilterToggleStyle}"
+                                          IsChecked="{Binding IsClashBarSourceSelected}" />
+                            <Rectangle Width="1" Height="14" Fill="#D9DEE4" Margin="4,0,8,0" />
+                            <ToggleButton Content="{DynamicResource LogsLevelError}"
+                                          Style="{StaticResource LogFilterToggleStyle}"
+                                          IsChecked="{Binding IsErrorSelected}" />
+                            <ToggleButton Content="{DynamicResource LogsLevelWarning}"
+                                          Style="{StaticResource LogFilterToggleStyle}"
+                                          IsChecked="{Binding IsWarningSelected}" />
+                            <ToggleButton Content="{DynamicResource LogsLevelInfo}"
+                                          Style="{StaticResource LogFilterToggleStyle}"
+                                          IsChecked="{Binding IsInfoSelected}" />
+                        </StackPanel>
+                        <TextBox Grid.Column="1"
+                                 Width="220"
+                                 HorizontalAlignment="Right"
+                                 ToolTip="{DynamicResource LogsSearchHint}"
+                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                 VerticalContentAlignment="Center"
+                                 Padding="6,2" />
+                    </Grid>
                     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
                         <Button DockPanel.Dock="Right"
                                 Content="{DynamicResource LogsClear}"
@@ -1126,35 +1141,12 @@
                                   DisplayMemberPath="Label"
                                   SelectedValuePath="Value"
                                   SelectedValue="{Binding LogLevel}" />
-                        <TextBox DockPanel.Dock="Right"
-                                 Width="160"
-                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                                 VerticalContentAlignment="Center"
-                                 Padding="6,2" />
-                        <!-- 来源过滤（源：logsSourceFilterButtons——空集 = 全部） -->
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <ToggleButton Content="Mihomo"
-                                          Style="{StaticResource ChipMihomoStyle}"
-                                          IsChecked="{Binding IsMihomoSourceSelected}" />
-                            <ToggleButton Content="ClashBarX"
-                                          Style="{StaticResource ChipClashBarStyle}"
-                                          IsChecked="{Binding IsClashBarSourceSelected}" />
-                            <Rectangle Width="1" Height="16" Fill="#D9DEE4" Margin="4,0,10,0" />
-                            <ToggleButton Content="{DynamicResource LogsLevelError}"
-                                          Style="{StaticResource ChipErrorStyle}"
-                                          IsChecked="{Binding IsErrorSelected}" />
-                            <ToggleButton Content="{DynamicResource LogsLevelWarning}"
-                                          Style="{StaticResource ChipWarningStyle}"
-                                          IsChecked="{Binding IsWarningSelected}" />
-                            <ToggleButton Content="{DynamicResource LogsLevelInfo}"
-                                          Style="{StaticResource ChipInfoStyle}"
-                                          IsChecked="{Binding IsInfoSelected}" />
-                            <TextBlock Text="{Binding MatchedCountText}"
-                                       Foreground="#5E6B78"
-                                       FontSize="11"
-                                       Margin="10,0,0,0"
-                                       VerticalAlignment="Center" />
-                        </StackPanel>
+                        <!-- 匹配条数（全部匹配数，含渲染上限之外） -->
+                        <TextBlock VerticalAlignment="Center"
+                                   Foreground="#5E6B78"
+                                   FontSize="11">
+                            <Run Text="{DynamicResource LogsMatchedPrefix}" /><Run Text="{Binding MatchedCountText, Mode=OneWay}" />
+                        </TextBlock>
                     </DockPanel>
                     <!-- 日志表格卡：表头吸顶（表头在滚动区外） + 斑马纹 + 行悬停 -->
                     <Border BorderBrush="#DDD"
@@ -1325,8 +1317,14 @@
                  订阅全宽居底；外层滚动容忍任意窗口高度（真机教训：无外滚时超高内容会被后绘卡片盖住） -->
             <TabItem Header="{DynamicResource TabNetwork}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <Grid Margin="4,8,4,4">
-                    <!-- 双列自然高顶对齐（真机反馈：拉伸到视口高会在左列列表区留大片空白；紧凑优先） -->
+                <!-- 外边距收到 4/4/4/2（BOSS 截图标注 2026-11-27：整页不要滚动条） -->
+                <Grid Margin="4,4,4,2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <!-- 双列自然高顶对齐（真机反馈：拉伸到视口高会在左列列表区留大片空白；紧凑优先）。
+                         BOSS 定稿 2026-11-27：双栏行距压紧、列表区压低，腾出的高度给挪入本页第二行的订阅区 -->
                     <Grid Grid.Row="0" VerticalAlignment="Top">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -1347,35 +1345,39 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <DockPanel Grid.Row="0">
                                     <CheckBox DockPanel.Dock="Right"
                                               Content="{DynamicResource NetworkSystemProxyEnable}"
                                               FontSize="12"
                                               IsChecked="{Binding IsEnabled}" />
-                                    <TextBlock Text="{DynamicResource NetworkSystemProxyTitle}"
-                                               FontWeight="SemiBold"
-                                               FontSize="12"
-                                               VerticalAlignment="Center" />
+                                    <!-- 绕过列表说明（原标题下方文字）收进 info 图标 ToolTip -->
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{DynamicResource NetworkSystemProxyTitle}"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center" />
+                                        <ContentControl Style="{StaticResource InfoHintStyle}"
+                                                        ToolTip="{DynamicResource NetworkBypassHint}" />
+                                    </StackPanel>
                                 </DockPanel>
-                                <TextBlock Grid.Row="1"
-                                           Text="{DynamicResource NetworkBypassHint}"
-                                           FontSize="11"
-                                           Foreground="#5E6B78"
-                                           Margin="0,6,0,0"
-                                           TextWrapping="Wrap" />
-                                <!-- 绕过列表：卡内滚动（MaxHeight 控自然高，双列自然高对齐的前提；
-                                     新增行固定卡底） -->
-                                <ScrollViewer Grid.Row="2"
+                                <!-- 绕过列表：双列排布（BOSS 定稿 2026-11-27：系统代理卡变矮、卡内不出滚动条——
+                                     默认 8 条 4 行全显示，对齐 1.0.0 无内滚的观感）；超过 16 条才卡内滚。
+                                     双列后左卡自然高与右列（守护+端口）重新配平，卡下无空白 -->
+                                <ScrollViewer Grid.Row="1"
                                               VerticalScrollBarVisibility="Auto"
-                                              MinHeight="60"
+                                              MinHeight="44"
                                               MaxHeight="224"
                                               Margin="16,4,0,0">
                                     <ItemsControl ItemsSource="{Binding Exceptions}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <UniformGrid Columns="2" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <DockPanel Margin="0,1">
+                                            <DockPanel Margin="0,2,6,2">
                                                 <Button DockPanel.Dock="Right"
                                                         Content="✕"
                                                         Padding="5,0"
@@ -1391,7 +1393,7 @@
                                     </ItemsControl.ItemTemplate>
                                     </ItemsControl>
                                 </ScrollViewer>
-                                <DockPanel Grid.Row="3" Margin="16,4,0,0">
+                                <DockPanel Grid.Row="2" Margin="16,4,0,0">
                                     <Button DockPanel.Dock="Right"
                                             Content="{DynamicResource NetworkBypassAdd}"
                                             Padding="8,1"
@@ -1402,7 +1404,7 @@
                                              VerticalContentAlignment="Center"
                                              Padding="4,2" />
                                 </DockPanel>
-                                <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="16,8,0,0">
+                                <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="16,6,0,0">
                                     <Button Content="{DynamicResource NetworkBypassReset}"
                                             Padding="10,2"
                                             FontSize="11"
@@ -1425,47 +1427,70 @@
                         <!-- 自动代理守护（M3-3 区块挪入网络页；开关 + 周期 + 立即检查 + 结果反馈行） -->
                         <Border x:Name="GuardSettingsRoot"
                                 Grid.Row="0"
-                                Padding="8"
+                                Padding="4"
                                 BorderBrush="#DDD"
                                 BorderThickness="1"
                                 CornerRadius="4"
                                 Background="#FAFAFA"
-                                Margin="0,0,0,8">
+                                Margin="0,0,0,4">
                             <StackPanel>
+                                <!-- 标题括号说明与关闭态说明收进 info 图标 ToolTip；
+                                     内容换成容器后勾选框不再有文字名，显式补自动化名称供读屏识别 -->
                                 <CheckBox IsChecked="{Binding IsGuardEnabled}"
-                                          Content="{DynamicResource NetworkGuardTitle}"
+                                          AutomationProperties.Name="{DynamicResource NetworkGuardTitle}"
                                           FontWeight="SemiBold"
-                                          FontSize="12" />
-                                <StackPanel Margin="16,8,0,0"
-                                            Visibility="{Binding IsGuardEnabled, Converter={StaticResource BoolToVis}}">
-                                    <StackPanel Orientation="Horizontal" Margin="0,8">
-                                        <TextBlock Text="{DynamicResource NetworkGuardInterval}" VerticalAlignment="Center" FontSize="12" />
-                                        <TextBox Text="{Binding IntervalText}"
-                                                 Width="64"
-                                                 Margin="8,0,0,0"
-                                                 Padding="4,2"
-                                                 VerticalContentAlignment="Center" />
+                                          FontSize="12">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{DynamicResource NetworkGuardTitle}" VerticalAlignment="Center" />
+                                        <ContentControl Style="{StaticResource InfoHintStyle}"
+                                                        ToolTip="{DynamicResource NetworkGuardHint}" />
                                     </StackPanel>
-                                    <Button Margin="0,10,0,0"
-                                            Padding="10,2"
-                                            MinWidth="96"
-                                            HorizontalAlignment="Left"
-                                            Command="{Binding CheckNowCommand}">
-                                        <Button.Style>
-                                            <Style TargetType="Button">
-                                                <Setter Property="Content" Value="{DynamicResource GuardCheckNow}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsProbing}" Value="True">
-                                                        <Setter Property="Content" Value="{DynamicResource CommonChecking}" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
-                                    <TextBlock Margin="0,10,0,0"
+                                </CheckBox>
+                                <!-- 配置区常驻：开关关闭时整体置灰（IsEnabled 绑定 + 降低不透明度）而非折叠——
+                                     块高不随开关跳动，与左列的底边对齐保持稳定；说明文字在标题 info 图标的 ToolTip -->
+                                <StackPanel Margin="16,4,0,0"
+                                            IsEnabled="{Binding IsGuardEnabled}">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Style.Triggers>
+                                                <Trigger Property="IsEnabled" Value="False">
+                                                    <Setter Property="Opacity" Value="0.45" />
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+                                    <!-- 探测周期与「立即检查」同一行（BOSS 截图标注 2026-11-27）：
+                                         按钮靠右落进卡片右侧空位，守护卡不再为按钮单独占一行 -->
+                                    <DockPanel Margin="0">
+                                        <Button DockPanel.Dock="Right"
+                                                Padding="10,2"
+                                                MinWidth="96"
+                                                Command="{Binding CheckNowCommand}">
+                                            <Button.Style>
+                                                <Style TargetType="Button">
+                                                    <Setter Property="Content" Value="{DynamicResource GuardCheckNow}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsProbing}" Value="True">
+                                                            <Setter Property="Content" Value="{DynamicResource CommonChecking}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{DynamicResource NetworkGuardInterval}" VerticalAlignment="Center" FontSize="12" />
+                                            <TextBox Text="{Binding IntervalText}"
+                                                     Width="64"
+                                                     Margin="8,0,0,0"
+                                                     Padding="4,2"
+                                                     VerticalContentAlignment="Center" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                    <!-- 结果行：无结果时零高度（BOSS 截图标注 2026-11-27：预留空行删掉）；
+                                         结果到达时卡片长高一行的跳动换取整页紧凑 -->
+                                    <TextBlock Margin="0"
                                                FontSize="12"
-                                               Text="{Binding OutcomeText}"
-                                               Visibility="{Binding HasOutcome, Converter={StaticResource BoolToVis}}">
+                                               Text="{Binding OutcomeText}">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="Foreground" Value="#1B7F3B" />
@@ -1478,38 +1503,27 @@
                                         </TextBlock.Style>
                                     </TextBlock>
                                 </StackPanel>
-                                <TextBlock Text="{Binding DisabledHint}"
-                                           Foreground="#5E6B78"
-                                           FontSize="11"
-                                           Margin="16,8,0,0"
-                                           TextWrapping="Wrap">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsGuardEnabled}" Value="True">
-                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
                             </StackPanel>
                         </Border>
                         <!-- 代理端口独立卡（源：Mac systemTabView 的 proxy_ports section；
                              750ms 防抖自动保存；单列右值；DataContext 经 code-behind 注入 CoreSettings） -->
                         <Border x:Name="ProxyPortsRoot"
                                 Grid.Row="1"
-                                Padding="8"
+                                Padding="4"
                                 BorderBrush="#DDD"
                                 BorderThickness="1"
                                 CornerRadius="4"
                                 Background="#FAFAFA">
                             <StackPanel>
-                                <TextBlock Text="{DynamicResource SettingsProxyPorts}"
-                                           FontWeight="SemiBold"
-                                           FontSize="12"
-                                           Margin="0,0,0,6" />
+                                <!-- 标题后缀说明（修改后自动保存）收进 info 图标 ToolTip -->
+                                <StackPanel Orientation="Horizontal" Margin="0">
+                                    <TextBlock Text="{DynamicResource SettingsProxyPorts}"
+                                               FontWeight="SemiBold"
+                                               FontSize="12"
+                                               VerticalAlignment="Center" />
+                                    <ContentControl Style="{StaticResource InfoHintStyle}"
+                                                    ToolTip="{DynamicResource SettingsProxyPortsHint}" />
+                                </StackPanel>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -1522,35 +1536,148 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
-                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource SettingsMixedPort}" FontSize="12" VerticalAlignment="Center" Margin="0,6,0,6" />
-                                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding MixedPortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" VerticalContentAlignment="Center" HorizontalAlignment="Right" />
-                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource SettingsHttpPort}" FontSize="12" VerticalAlignment="Center" Margin="0,6,0,6" />
-                                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding PortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" VerticalContentAlignment="Center" HorizontalAlignment="Right" />
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource SettingsSocksPort}" FontSize="12" VerticalAlignment="Center" Margin="0,6,0,6" />
-                                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding SocksPortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" VerticalContentAlignment="Center" HorizontalAlignment="Right" />
-                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="{DynamicResource SettingsRedirPort}" FontSize="12" VerticalAlignment="Center" Margin="0,6,0,6" />
-                                    <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding RedirPortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" VerticalContentAlignment="Center" HorizontalAlignment="Right" />
-                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="{DynamicResource SettingsTproxyPort}" FontSize="12" VerticalAlignment="Center" Margin="0,6,0,6" />
-                                    <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding TproxyPortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" VerticalContentAlignment="Center" HorizontalAlignment="Right" />
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource SettingsMixedPort}" FontSize="12" VerticalAlignment="Center" Margin="0" />
+                                    <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource PortFieldStyle}" Text="{Binding MixedPortText, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource SettingsHttpPort}" FontSize="12" VerticalAlignment="Center" Margin="0" />
+                                    <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource PortFieldStyle}" Text="{Binding PortText, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource SettingsSocksPort}" FontSize="12" VerticalAlignment="Center" Margin="0" />
+                                    <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource PortFieldStyle}" Text="{Binding SocksPortText, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="{DynamicResource SettingsRedirPort}" FontSize="12" VerticalAlignment="Center" Margin="0" />
+                                    <TextBox Grid.Row="3" Grid.Column="1" Style="{StaticResource PortFieldStyle}" Text="{Binding RedirPortText, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="{DynamicResource SettingsTproxyPort}" FontSize="12" VerticalAlignment="Center" Margin="0" />
+                                    <TextBox Grid.Row="4" Grid.Column="1" Style="{StaticResource PortFieldStyle}" Text="{Binding TproxyPortText, UpdateSourceTrigger=PropertyChanged}" />
                                 </Grid>
                             </StackPanel>
                         </Border>
                         </Grid>
                     </Grid>
-                    
+
+                    <!-- 订阅管理（M2-3；2026-11-27 BOSS 定稿从设置页挪至网络页第二行——双栏压紧后本页放得下，
+                         订阅与系统代理/代理端口同属网络语义；双栏——左=导入行+订阅列表，右=操作按钮列；
+                         原与按钮同行的说明文字收进各按钮 ToolTip；远程目标时整体只读） -->
+                    <Border x:Name="SubscriptionSectionRoot"
+                            Grid.Row="1"
+                            Padding="8"
+                            Margin="0,6,0,0"
+                            BorderBrush="#DDD"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Background="#FAFAFA">
+                        <StackPanel>
+                            <DockPanel Margin="0,0,0,6">
+                                <TextBlock x:Name="RemoteReadonlyHint"
+                                           DockPanel.Dock="Right"
+                                           Text="{DynamicResource MachineRemoteReadonly}"
+                                           FontSize="11"
+                                           Foreground="#B45309"
+                                           VerticalAlignment="Center"
+                                           Visibility="Collapsed" />
+                                <TextBlock Text="{DynamicResource NetworkSubscriptionTitle}"
+                                           FontWeight="SemiBold"
+                                           FontSize="12" />
+                            </DockPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <!-- 左栏：导入行（订阅链接 + 导入 / 导入本地文件）+ 订阅列表 -->
+                                <DockPanel Grid.Column="0" Margin="0,0,8,0">
+                                    <!-- 导入行独立成一段停靠顶部：两个按钮停靠右侧，输入框作为末子元素占满剩余宽度 -->
+                                    <DockPanel DockPanel.Dock="Top">
+                                        <Button x:Name="ImportLocalButton"
+                                                DockPanel.Dock="Right"
+                                                Content="{DynamicResource NetworkSubscriptionImportLocal}"
+                                                Padding="10,2"
+                                                MinWidth="60"
+                                                Margin="6,0,0,0"
+                                                ToolTip="{DynamicResource NetworkSubscriptionImportLocalHint}"
+                                                Click="OnImportLocalClick" />
+                                        <Button x:Name="ImportButton"
+                                                DockPanel.Dock="Right"
+                                                Content="{DynamicResource NetworkSubscriptionImport}"
+                                                Padding="10,2"
+                                                MinWidth="60"
+                                                ToolTip="{DynamicResource NetworkSubscriptionImportHint}"
+                                                Click="OnImportClick" />
+                                        <!-- 订阅链接输入框：无内容时显示占位提示（引导用户粘贴链接） -->
+                                        <Grid>
+                                            <TextBox x:Name="SubscriptionUrlBox"
+                                                     VerticalContentAlignment="Center"
+                                                     Padding="4,2" />
+                                            <TextBlock x:Name="SubscriptionUrlPlaceholder"
+                                                       Text="{DynamicResource NetworkSubscriptionUrlPlaceholder}"
+                                                       Foreground="#8A93A0"
+                                                       FontSize="12"
+                                                       Margin="6,0,0,0"
+                                                       VerticalAlignment="Center"
+                                                       IsHitTestVisible="False" />
+                                        </Grid>
+                                    </DockPanel>
+                                    <!-- 订阅列表（末子元素占满剩余高度）：为空时显示导入引导（覆盖在列表区上）；列表区 96-160→64-104 配合窗口降高，条目多在卡内滚 -->
+                                    <Grid Margin="0,6,0,0">
+                                        <ListBox x:Name="ConfigFilesBox"
+                                                 MinHeight="64"
+                                                 MaxHeight="104" />
+                                        <TextBlock Text="{DynamicResource NetworkSubscriptionEmptyHint}"
+                                                   Foreground="#8A93A0"
+                                                   FontSize="12"
+                                                   TextWrapping="Wrap"
+                                                   TextAlignment="Center"
+                                                   Margin="12"
+                                                   IsHitTestVisible="False">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Path=HasItems, ElementName=ConfigFilesBox}" Value="False">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Grid>
+                                </DockPanel>
+                                <!-- 右栏：操作按钮列（等宽；更新/启用/删除作用于列表选中行，未选中时置灰） -->
+                                <StackPanel Grid.Column="1" Width="120">
+                                    <!-- 远程订阅更新（源：ProxyTabView 订阅行刷新/更新全部） -->
+                                    <Button x:Name="UpdateSubscriptionButton"
+                                            Content="{DynamicResource SubscriptionUpdate}"
+                                            ToolTip="{DynamicResource SubscriptionUpdateHint}"
+                                            Padding="10,2"
+                                            Margin="0,0,0,6"
+                                            Click="OnRefreshSubscriptionClick" />
+                                    <Button x:Name="UpdateAllSubscriptionsButton"
+                                            Content="{DynamicResource SubscriptionUpdateAll}"
+                                            ToolTip="{DynamicResource SubscriptionUpdateAllHint}"
+                                            Padding="10,2"
+                                            Margin="0,0,0,6"
+                                            Click="OnRefreshAllSubscriptionsClick" />
+                                    <Button x:Name="EnableConfigButton"
+                                            Content="{DynamicResource NetworkSubscriptionEnable}"
+                                            ToolTip="{DynamicResource NetworkSubscriptionEnableHint}"
+                                            Padding="10,2"
+                                            Margin="0,0,0,6"
+                                            Click="OnEnableClick" />
+                                    <Button x:Name="RemoveConfigButton"
+                                            Content="{DynamicResource NetworkSubscriptionRemove}"
+                                            ToolTip="{DynamicResource NetworkSubscriptionRemoveHint}"
+                                            Padding="10,2"
+                                            Click="OnRemoveClick" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
                 </Grid>
                 </ScrollViewer>
             </TabItem>
 
-            <!-- 设置（M4-3）：双列（左=常规+维护，右=核心设置含端口，两列等高）；
-                 关于与更新移出双列独占全宽（内部应用/内核并排 flex 1:1） -->
+            <!-- 设置（M4-3）：双列（左=常规+维护，右=核心设置+SSID，两列自然高）；
+                 订阅区已挪至网络页（BOSS 定稿 2026-11-27），本页不再需要第二行 -->
             <TabItem Header="{DynamicResource TabSettings}">
                 <ScrollViewer x:Name="SettingsRoot" VerticalScrollBarVisibility="Auto" Margin="4,8,4,4">
                     <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
                         <Grid Grid.Row="0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -1591,14 +1718,17 @@
                                            FontSize="12"
                                            VerticalAlignment="Center" />
                             </DockPanel>
+                            <!-- 开机自启说明文字收进 info 图标 ToolTip；勾选框文案统一为「启用」 -->
                             <DockPanel Margin="0,8">
                                 <CheckBox DockPanel.Dock="Right"
-                                          Content="{DynamicResource SettingsLaunchAtLoginHint}"
-                                          FontSize="11"
+                                          Content="{DynamicResource CommonEnable}"
+                                          FontSize="12"
                                           IsChecked="{Binding LaunchAtLogin}" />
-                                <TextBlock Text="{DynamicResource SettingsLaunchAtLoginTitle}"
-                                           FontSize="12"
-                                           VerticalAlignment="Center" />
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="{DynamicResource SettingsLaunchAtLoginTitle}" FontSize="12" />
+                                    <ContentControl Style="{StaticResource InfoHintStyle}"
+                                                    ToolTip="{DynamicResource SettingsLaunchAtLoginHint}" />
+                                </StackPanel>
                             </DockPanel>
                             <TextBlock Text="{DynamicResource SettingsLaunchAtLoginFailed}"
                                        FontSize="11"
@@ -1617,8 +1747,10 @@
                         </StackPanel>
                         </Border>
                         <!-- 维护卡（源：SystemTabView 维护区；GEO 热更新 + 内核自升级 + 应用更新检查；
-                             小按钮 WrapPanel 排布；升级/检查反馈走对话框，卡内不留状态行） -->
-                        <Border Padding="8"
+                             六按钮 UniformGrid 3×2 等大；升级/检查反馈走对话框，卡内不留状态行）。
+                             x:Name 供应用菜单「检查更新」跳转后 BringIntoView 滚到本卡 -->
+                        <Border x:Name="MaintenanceCard"
+                                Padding="8"
                                 Margin="0,10,0,0"
                                 BorderBrush="#DDD"
                                 BorderThickness="1"
@@ -1629,22 +1761,38 @@
                                            FontWeight="SemiBold"
                                            FontSize="12"
                                            Margin="0,0,0,6" />
-                                <WrapPanel Orientation="Horizontal">
-                                    <Button Content="{DynamicResource AboutCheckUpdate}"
-                                            Padding="8,2"
-                                            Margin="0,0,6,10"
+                                <!-- 六按钮等大：UniformGrid 3×2 等分单元格。容器负外边距抵消按钮自身外间距，
+                                     得到横纵均匀的 6px 间隙且不改变卡内边距 -->
+                                <UniformGrid Columns="3" Margin="0,0,-6,-6">
+                                    <!-- 检查中：置灰并显示「检查中…」（应用菜单跳转后这是唯一的即时反馈，
+                                         必须看得见——BOSS 拍板 2026-11-27） -->
+                                    <Button Padding="8,2"
+                                            Margin="0,0,6,6"
                                             FontSize="11"
                                             Command="{Binding CheckUpdateCommand}"
-                                            IsEnabled="{Binding IsCheckingUpdate, Converter={StaticResource InverseBool}}" />
+                                            IsEnabled="{Binding IsCheckingUpdate, Converter={StaticResource InverseBool}}">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Content" Value="{DynamicResource AboutCheckUpdate}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsCheckingUpdate}" Value="True">
+                                                        <Setter Property="Content" Value="{DynamicResource CommonChecking}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <!-- 进行中状态按动作独立：升级内核时只有本按钮置灰并显示「执行中…」，GEO 等其余按钮不受联动 -->
                                     <Button Padding="8,2"
-                                            Margin="0,0,6,10"
+                                            Margin="0,0,6,6"
                                             FontSize="11"
-                                            Command="{Binding UpgradeCoreCommand}">
+                                            Command="{Binding UpgradeCoreCommand}"
+                                            IsEnabled="{Binding IsUpgradingCore, Converter={StaticResource InverseBool}}">
                                         <Button.Style>
                                             <Style TargetType="Button">
                                                 <Setter Property="Content" Value="{DynamicResource MaintenanceUpgradeCore}" />
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsMaintaining}" Value="True">
+                                                    <DataTrigger Binding="{Binding IsUpgradingCore}" Value="True">
                                                         <Setter Property="Content" Value="{DynamicResource CommonProcessing}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
@@ -1652,14 +1800,15 @@
                                         </Button.Style>
                                     </Button>
                                     <Button Padding="8,2"
-                                            Margin="0,0,6,10"
+                                            Margin="0,0,6,6"
                                             FontSize="11"
-                                            Command="{Binding UpgradeGeoCommand}">
+                                            Command="{Binding UpgradeGeoCommand}"
+                                            IsEnabled="{Binding IsUpdatingGeo, Converter={StaticResource InverseBool}}">
                                         <Button.Style>
                                             <Style TargetType="Button">
                                                 <Setter Property="Content" Value="{DynamicResource MaintenanceUpdateGeo}" />
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsMaintaining}" Value="True">
+                                                    <DataTrigger Binding="{Binding IsUpdatingGeo}" Value="True">
                                                         <Setter Property="Content" Value="{DynamicResource CommonProcessing}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
@@ -1667,29 +1816,32 @@
                                         </Button.Style>
                                     </Button>
                                     <Button Padding="8,2"
-                                            Margin="0,0,6,10"
+                                            Margin="0,0,6,6"
                                             FontSize="11"
                                             Command="{Binding FlushFakeIPCommand}"
+                                            IsEnabled="{Binding IsFlushingFakeIp, Converter={StaticResource InverseBool}}"
                                             Content="{DynamicResource MaintenanceFlushFakeIP}" />
                                     <Button Padding="8,2"
-                                            Margin="0,0,6,10"
+                                            Margin="0,0,6,6"
                                             FontSize="11"
                                             Command="{Binding FlushDNSCommand}"
+                                            IsEnabled="{Binding IsFlushingDns, Converter={StaticResource InverseBool}}"
                                             Content="{DynamicResource MaintenanceFlushDNS}" />
                                     <Button Padding="8,2"
-                                            Margin="0,0,0,10"
+                                            Margin="0,0,6,6"
                                             FontSize="11"
                                             Content="{DynamicResource MaintenanceOpenCoreDir}"
                                             Click="OnOpenCoreDirectoryClick" />
-                                </WrapPanel>
+                                </UniformGrid>
                             </StackPanel>
                         </Border>
                     </StackPanel>
-                        <!-- 右列：核心设置卡 + SSID 策略卡（高度配平左列；PATCH /configs 即时生效） -->
+                        <!-- 右列：核心设置卡 + SSID 策略卡（均自然高；窗口进设置页时按内容自动收高，
+                             不再拉伸配平——拉伸会把留白藏进卡内，BOSS 截图圈过） -->
                         <Grid Grid.Column="1" Margin="6,0,0,0">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                         <Border Grid.Row="0"
                                 Padding="8"
@@ -1748,11 +1900,14 @@
                                               Content="{DynamicResource SsidStrategyToggle}"
                                               FontSize="12"
                                               IsChecked="{Binding IsEnabled}" />
+                                    <!-- SSID 自动切换说明文字收进 info 图标 ToolTip -->
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{DynamicResource SsidStrategyTitle}"
                                                    FontWeight="SemiBold"
                                                    FontSize="12"
                                                    VerticalAlignment="Center" />
+                                        <ContentControl Style="{StaticResource InfoHintStyle}"
+                                                        ToolTip="{DynamicResource SsidStrategyHint}" />
                                         <TextBlock Text="{Binding CurrentSsidText}"
                                                    FontSize="11"
                                                    Foreground="#5E6B78"
@@ -1760,12 +1915,7 @@
                                                    VerticalAlignment="Center" />
                                     </StackPanel>
                                 </DockPanel>
-                                <TextBlock Text="{DynamicResource SsidStrategyHint}"
-                                           FontSize="11"
-                                           Foreground="#5E6B78"
-                                           Margin="0,10,0,0"
-                                           TextWrapping="Wrap" />
-                                <ItemsControl ItemsSource="{Binding Bindings}" Margin="0,6,0,0">
+                                <ItemsControl ItemsSource="{Binding Bindings}" Margin="0,10,0,0">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <DockPanel Margin="0,3">
@@ -1798,86 +1948,6 @@
                         </Border>
                         </Grid>
                     </Grid>
-
-                    <!-- 订阅管理（M2-3：Boss 定稿挪入设置页全宽行；远程目标时整体只读） -->
-                    <Border x:Name="SubscriptionSectionRoot"
-                            Grid.Row="1"
-                            Padding="8"
-                            Margin="0,8,0,0"
-                            BorderBrush="#DDD"
-                            BorderThickness="1"
-                            CornerRadius="4"
-                            Background="#FAFAFA">
-                        <StackPanel>
-                            <DockPanel Margin="0,0,0,6">
-                                <TextBlock x:Name="RemoteReadonlyHint"
-                                           DockPanel.Dock="Right"
-                                           Text="{DynamicResource MachineRemoteReadonly}"
-                                           FontSize="11"
-                                           Foreground="#B45309"
-                                           VerticalAlignment="Center"
-                                           Visibility="Collapsed" />
-                                <TextBlock Text="{DynamicResource NetworkSubscriptionTitle}"
-                                           FontWeight="SemiBold"
-                                           FontSize="12" />
-                            </DockPanel>
-                            <DockPanel Margin="0,0,0,6">
-                                <Button x:Name="ImportLocalButton"
-                                        DockPanel.Dock="Right"
-                                        Content="{DynamicResource NetworkSubscriptionImportLocal}"
-                                        Padding="10,2"
-                                        MinWidth="60"
-                                        Margin="6,0,0,0"
-                                        ToolTip="{DynamicResource NetworkSubscriptionImportLocalHint}"
-                                        Click="OnImportLocalClick" />
-                                <Button x:Name="ImportButton"
-                                        DockPanel.Dock="Right"
-                                        Content="{DynamicResource NetworkSubscriptionImport}"
-                                        Padding="10,2"
-                                        MinWidth="60"
-                                        ToolTip="{DynamicResource NetworkSubscriptionImportHint}"
-                                        Click="OnImportClick" />
-                                <TextBox x:Name="SubscriptionUrlBox"
-                                         VerticalContentAlignment="Center"
-                                         Padding="4,2" />
-                            </DockPanel>
-                            <ListBox x:Name="ConfigFilesBox"
-                                     MinHeight="72"
-                                     MaxHeight="120" />
-                            <!-- 说明与四按钮同一行（定稿——说明左置、按钮组右置） -->
-                            <DockPanel Margin="0,6,0,0">
-                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                                    <!-- 远程订阅更新（源：ProxyTabView 订阅行刷新/更新全部） -->
-                                    <Button Content="{DynamicResource SubscriptionUpdate}"
-                                            Padding="10,2"
-                                            MinWidth="60"
-                                            Margin="0,0,8,0"
-                                            Click="OnRefreshSubscriptionClick" />
-                                    <Button Content="{DynamicResource SubscriptionUpdateAll}"
-                                            Padding="10,2"
-                                            MinWidth="72"
-                                            Margin="0,0,8,0"
-                                            Click="OnRefreshAllSubscriptionsClick" />
-                                    <Button Content="{DynamicResource NetworkSubscriptionEnable}"
-                                            Padding="10,2"
-                                            MinWidth="60"
-                                            Margin="0,0,8,0"
-                                            Click="OnEnableClick" />
-                                    <Button Content="{DynamicResource NetworkSubscriptionRemove}"
-                                            Padding="10,2"
-                                            MinWidth="60"
-                                            Click="OnRemoveClick" />
-                                </StackPanel>
-                                <TextBlock Text="{DynamicResource SubscriptionButtonsHint}"
-                                           FontSize="11"
-                                           Foreground="#5E6B78"
-                                           VerticalAlignment="Center"
-                                           TextWrapping="Wrap" />
-                            </DockPanel>
-                        </StackPanel>
-                    </Border>
-                    
-                                            
                 </Grid>
                 </ScrollViewer>
             </TabItem>

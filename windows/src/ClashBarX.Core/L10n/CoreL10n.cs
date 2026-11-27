@@ -20,6 +20,9 @@ public static class CoreL10n
         ["proxy.traffic.totals"] = "总量 ↑{0} ↓{1}",
         ["proxy.traffic.connections"] = "连接 {0}",
         ["proxy.traffic.memory"] = "内存 {0}",
+        // 代理页空态（内核未运行 / 运行中但无可显示分组）
+        ["proxy.empty.core_not_running"] = "启动内核后此处显示代理分组与订阅源",
+        ["proxy.empty.no_groups"] = "内核运行中，但当前配置没有可显示的代理分组",
 
         // 规则页下拉（源：ui.rules.filter.type.* / policyOptions）
         ["rules.filter.all"] = "全部",
@@ -53,6 +56,7 @@ public static class CoreL10n
         ["update.hint_idle"] = "在维护卡点「检查更新」检查应用新版本",
         ["about.kernel_upgrade"] = "升级到 {0}",
         ["about.kernel_found"] = "发现新版本 {0}",
+        ["about.active_config.none"] = "未选择",
 
         // Provider 展示
         ["provider.relative.minutes"] = "{0} 分钟前",
@@ -123,10 +127,11 @@ public static class CoreL10n
         ["log.guard.providers_fetch_failed"] = "拉取代理提供者失败：{0}",
         ["log.guard.self_heal_all"] = "更新全部订阅自愈（{0} 个提供者）",
         ["log.guard.self_heal_failed"] = "更新提供者 {0} 失败：{1}",
-        ["log.maintenance.geo"] = "GEO 数据更新：{0}（{1}）",
-        ["log.maintenance.geo_no_message"] = "GEO 数据更新：{0}",
+        ["log.maintenance.geo_updated"] = "GEO 数据已更新",
         ["log.maintenance.core"] = "内核升级：{0}（{1}）；Windows 上运行中内核文件可能被锁，失败时请手动替换 core\\mihomo.exe 后重启",
         ["log.maintenance.core_no_message"] = "内核升级：{0}；Windows 上运行中内核文件可能被锁，失败时请手动替换 core\\mihomo.exe 后重启",
+        ["log.maintenance.core_latest"] = "内核已是最新版本",
+        ["log.maintenance.core_latest_version"] = "内核已是最新版本（{0}）",
         ["log.maintenance.flush_fakeip"] = "FakeIP 缓存已清空",
         ["log.maintenance.flush_dns"] = "DNS 缓存已清空",
         ["log.maintenance.submitted"] = "已提交",
@@ -226,6 +231,15 @@ public static class CoreL10n
         ["log.core.restart_failed"] = "重启失败：{0}",
         ["log.core.restart_binary_missing"] = "重启失败：请将 mihomo.exe 放入 {0}",
         ["log.core.startup_hint"] = "请将 mihomo.exe 放入 {0}，并导入订阅或在 {1} 准备运行配置后重启应用。",
+
+        // 首次使用引导链（装内核 → 导订阅 → 启动 → 内容出现）
+        ["log.start.no_config"] = "未选择配置文件",
+        ["log.start.no_config_hint"] = "尚未导入订阅：请到「网络 → 订阅」导入后启动内核",
+        ["guide.no_config.title"] = "还没有可用的配置",
+        ["guide.no_config.message"] = "还没有可用的运行配置，内核无法启动。\n\n请到「网络 → 订阅」粘贴订阅链接并点「导入」（或点「导入本地文件」选择 YAML 配置），然后再启动内核。\n\n是否现在前往订阅导入？",
+        ["guide.import_success.title"] = "导入成功",
+        ["guide.import_success.message"] = "已导入并启用「{0}」。\n\n内核未运行时会自动启动，启动后「代理」页即可看到分组与订阅源。",
+        ["guide.import_failed.title"] = "导入失败",
     };
 
     private static readonly IReadOnlyDictionary<string, string> English = new Dictionary<string, string>
@@ -234,6 +248,9 @@ public static class CoreL10n
         ["proxy.traffic.totals"] = "Total ↑{0} ↓{1}",
         ["proxy.traffic.connections"] = "Conn {0}",
         ["proxy.traffic.memory"] = "Mem {0}",
+        // Proxy page empty states (core not running / running with nothing to show)
+        ["proxy.empty.core_not_running"] = "Start the core to show proxy groups and providers here",
+        ["proxy.empty.no_groups"] = "The core is running, but the current config has no proxy groups to show",
 
         // Rules page dropdowns (source: ui.rules.filter.type.* / policyOptions)
         ["rules.filter.all"] = "All",
@@ -263,6 +280,7 @@ public static class CoreL10n
         ["update.hint_idle"] = "Use \"Check for updates\" in the Maintenance card to check for app updates",
         ["about.kernel_upgrade"] = "Upgrade to {0}",
         ["about.kernel_found"] = "New version found: {0}",
+        ["about.active_config.none"] = "None selected",
 
         ["provider.relative.minutes"] = "{0} min ago",
         ["provider.relative.hours"] = "{0} h ago",
@@ -331,10 +349,11 @@ public static class CoreL10n
         ["log.guard.providers_fetch_failed"] = "Failed to fetch proxy providers: {0}",
         ["log.guard.self_heal_all"] = "Updating all provider self-heal ({0} providers)",
         ["log.guard.self_heal_failed"] = "Failed to update provider {0}: {1}",
-        ["log.maintenance.geo"] = "GEO data update: {0} ({1})",
-        ["log.maintenance.geo_no_message"] = "GEO data update: {0}",
+        ["log.maintenance.geo_updated"] = "GEO data updated",
         ["log.maintenance.core"] = "Core upgrade: {0} ({1}); the running core file may be locked on Windows — if it fails, manually replace core\\mihomo.exe and restart",
         ["log.maintenance.core_no_message"] = "Core upgrade: {0}; the running core file may be locked on Windows — if it fails, manually replace core\\mihomo.exe and restart",
+        ["log.maintenance.core_latest"] = "The core is already the latest version",
+        ["log.maintenance.core_latest_version"] = "The core is already the latest version ({0})",
         ["log.maintenance.flush_fakeip"] = "FakeIP cache flushed",
         ["log.maintenance.flush_dns"] = "DNS cache flushed",
         ["log.maintenance.submitted"] = "submitted",
@@ -434,6 +453,15 @@ public static class CoreL10n
         ["log.core.restart_failed"] = "Restart failed: {0}",
         ["log.core.restart_binary_missing"] = "Restart failed: put mihomo.exe into {0}",
         ["log.core.startup_hint"] = "Put mihomo.exe into {0}, then import a subscription or prepare a config at {1} and restart.",
+
+        // First-run guide chain (install core → import subscription → start → content appears)
+        ["log.start.no_config"] = "No config file selected",
+        ["log.start.no_config_hint"] = "No subscription yet: import one under Network → Subscriptions, then start the core",
+        ["guide.no_config.title"] = "No config available yet",
+        ["guide.no_config.message"] = "There is no config to run, so the core cannot start.\n\nGo to Network → Subscriptions, paste a subscription URL and click Import (or use Import Local File to pick a YAML config), then start the core.\n\nGo to the subscription import now?",
+        ["guide.import_success.title"] = "Imported",
+        ["guide.import_success.message"] = "Imported and activated \"{0}\".\n\nThe core starts automatically if it is not running; proxy groups and providers then appear on the Proxy tab.",
+        ["guide.import_failed.title"] = "Import failed",
     };
 
     /// <summary>当前语言（App 层语言切换时同步；默认中文）。</summary>
@@ -445,6 +473,20 @@ public static class CoreL10n
         IReadOnlyDictionary<string, string> table = Language == CoreLanguage.English ? English : Chinese;
         return table.TryGetValue(key, out string? value) ? value : key;
     }
+
+    /// <summary>
+    /// 按指定语言查文案、不改全局语言状态。供「生成时即定、切换语言后需重建」的选项列表使用
+    /// （如外观选项）：这类列表不能依赖全局语言恰好在重建前被切换。
+    /// </summary>
+    public static string T(CoreLanguage language, string key)
+    {
+        IReadOnlyDictionary<string, string> table = language == CoreLanguage.English ? English : Chinese;
+        return table.TryGetValue(key, out string? value) ? value : key;
+    }
+
+    /// <summary>某语言的全部文案键（测试用：校验中英文字典键集合一致）。</summary>
+    internal static IReadOnlyCollection<string> Keys(CoreLanguage language) =>
+        (language == CoreLanguage.English ? English : Chinese).Keys.ToArray();
 
     /// <summary>格式化文案（参数插值）。</summary>
     public static string T(string key, params object?[] args) =>

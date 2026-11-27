@@ -203,6 +203,21 @@ public class MihomoProcessManagerTests
     }
 
     [Fact]
+    public void IsBinaryPresent反映内核文件是否存在()
+    {
+        (string directory, string binaryPath) = AppTestHelper.CreateSleepCore();
+        try
+        {
+            Assert.True(new MihomoProcessManager(binaryPath).IsBinaryPresent);
+            Assert.False(new MihomoProcessManager(Path.Combine(directory, "absent.exe")).IsBinaryPresent);
+        }
+        finally
+        {
+            AppTestHelper.CleanupDirectory(directory);
+        }
+    }
+
+    [Fact]
     public async Task Job兜底_仅关闭Job句柄进程树被系统终结()
     {
         // 模拟宿主崩溃路径：不经 MihomoProcessManager 的 Kill，直接对 Job 验证 kill-on-close
@@ -222,14 +237,19 @@ public class MihomoProcessManagerTests
             using var guard = new JobObjectGuard();
             Assert.True(guard.TryAssign(process));
 
-            await AppTestHelper.WaitUntilAsync(() => File.Exists(childPidFile), "孙进程 pid 文件出现");
-            int childPid = int.Parse(File.ReadAllText(childPidFile).Trim());
+            // 放宽预算：派生孙进程要冷启动 PowerShell，关 Job 句柄后进程树由系统异步终结，
+            // CI 负载下都明显慢于本机；紧预算（5 秒）会偶发超时
+            const int systemTerminationBudgetMilliseconds = 20000;
+
+            // pid 文件须读到合法整数才算就绪（写入方先建文件后写内容，File.Exists 后立刻读会撞上占用）
+            int childPid = await AppTestHelper.WaitForPidFileAsync(
+                childPidFile, "孙进程 pid 文件可读", systemTerminationBudgetMilliseconds);
             int pid = process.Id;
 
             guard.Dispose();   // 宿主崩溃等价：只关 Job 句柄
 
-            await AppTestHelper.WaitProcessExitedAsync(pid, "Job 关闭后主进程终结");
-            await AppTestHelper.WaitProcessExitedAsync(childPid, "Job 关闭后孙进程终结");
+            await AppTestHelper.WaitProcessExitedAsync(pid, "Job 关闭后主进程终结", systemTerminationBudgetMilliseconds);
+            await AppTestHelper.WaitProcessExitedAsync(childPid, "Job 关闭后孙进程终结", systemTerminationBudgetMilliseconds);
         }
         finally
         {

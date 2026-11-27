@@ -1,4 +1,5 @@
 using ClashBarX.App.Core;
+using ClashBarX.Core.L10n;
 
 namespace ClashBarX.App.Tests.Core;
 
@@ -84,6 +85,51 @@ public class SettingsPageViewModelTests
         Assert.Equal(new[] { false }, harness.TrafficOverviews);
     }
 
+    // ---- 外观选项文案随语言重建（修复前：英文模式下选项仍是中文——文案在构造时按默认语言固化） ----
+
+    [Fact]
+    public void 外观选项文案按指定语言重建且值不变()
+    {
+        var viewModel = new SettingsPageViewModel();
+
+        viewModel.ReloadLocalizedOptions(CoreLanguage.English);
+        Assert.Equal(
+            new[] { "Follow system", "Light", "Dark" },
+            viewModel.AppearanceOptions.Select(option => option.Label));
+        Assert.Equal(
+            new[] { AppAppearanceMode.System, AppAppearanceMode.Light, AppAppearanceMode.Dark },
+            viewModel.AppearanceOptions.Select(option => option.Value));
+
+        viewModel.ReloadLocalizedOptions(CoreLanguage.ChineseSimplified);
+        Assert.Equal(
+            new[] { "跟随系统", "浅色", "深色" },
+            viewModel.AppearanceOptions.Select(option => option.Label));
+    }
+
+    [Fact]
+    public void 切换语言时外观选项跟随新语言重建()
+    {
+        var viewModel = new SettingsPageViewModel();
+
+        viewModel.Language = AppLanguage.English;
+        Assert.Equal(new[] { "Follow system", "Light", "Dark" }, viewModel.AppearanceOptions.Select(option => option.Label));
+
+        viewModel.Language = AppLanguage.ChineseSimplified;
+        Assert.Equal("跟随系统", viewModel.AppearanceOptions[0].Label);
+    }
+
+    [Fact]
+    public void Restore按保存的语言重建外观选项且不触发语言事件()
+    {
+        var harness = new Harness();
+
+        harness.ViewModel.Restore(
+            AppAppearanceMode.Light, AppLanguage.English, launchAtLogin: false, showTrafficOverview: true);
+
+        Assert.Equal(new[] { "Follow system", "Light", "Dark" }, harness.ViewModel.AppearanceOptions.Select(option => option.Label));
+        Assert.Empty(harness.Languages);
+    }
+
     [Fact]
     public async Task 维护动作成功反馈状态行()
     {
@@ -115,6 +161,90 @@ public class SettingsPageViewModelTests
         Assert.Contains("文件被锁", viewModel.MaintenanceStatusText!);
         Assert.Equal("error", viewModel.MaintenanceStatusLevel);
         Assert.False(viewModel.IsMaintaining);
+    }
+
+    [Fact]
+    public async Task 升级内核进行中时GEO按钮不联动且可独立执行()
+    {
+        var coreUpgrade = new TaskCompletionSource<string>();
+        var geoUpdate = new TaskCompletionSource<string>();
+        int geoCalls = 0;
+        var viewModel = new SettingsPageViewModel
+        {
+            UpgradeCoreRequested = () => coreUpgrade.Task,
+            UpgradeGeoRequested = () =>
+            {
+                geoCalls++;
+                return geoUpdate.Task;
+            },
+        };
+
+        viewModel.UpgradeCoreCommand.Execute(null);
+        Assert.True(viewModel.IsUpgradingCore);
+        Assert.False(viewModel.IsUpdatingGeo);   // 修复前：共用总 busy 开关，GEO 按钮也跟着变「执行中…」
+        Assert.True(viewModel.IsMaintaining);
+
+        viewModel.UpgradeGeoCommand.Execute(null);   // 内核升级期间 GEO 仍可执行（修复前被静默忽略）
+        await Task.Delay(20);
+        Assert.Equal(1, geoCalls);
+        Assert.True(viewModel.IsUpgradingCore);
+        Assert.True(viewModel.IsUpdatingGeo);
+
+        geoUpdate.SetResult("GEO 数据更新：success");
+        await Task.Delay(50);
+        Assert.False(viewModel.IsUpdatingGeo);
+        Assert.True(viewModel.IsUpgradingCore);       // 内核升级仍在进行，不因 GEO 完成而复位
+        Assert.True(viewModel.IsMaintaining);
+
+        coreUpgrade.SetResult("内核升级：success");
+        await Task.Delay(50);
+        Assert.False(viewModel.IsUpgradingCore);
+        Assert.False(viewModel.IsMaintaining);
+    }
+
+    [Fact]
+    public async Task 同一维护动作进行中重复触发被忽略()
+    {
+        var pending = new TaskCompletionSource<string>();
+        int calls = 0;
+        var viewModel = new SettingsPageViewModel
+        {
+            UpgradeCoreRequested = () =>
+            {
+                calls++;
+                return pending.Task;
+            },
+        };
+
+        viewModel.UpgradeCoreCommand.Execute(null);
+        viewModel.UpgradeCoreCommand.Execute(null);
+        await Task.Delay(20);
+
+        Assert.Equal(1, calls);
+
+        pending.SetResult("内核升级：success");
+        await Task.Delay(50);
+        Assert.Equal(1, calls);
+        Assert.False(viewModel.IsBusy(MaintenanceAction.UpgradeCore));
+    }
+
+    [Fact]
+    public void 维护动作进行中只通知本动作属性与汇总态()
+    {
+        var viewModel = new SettingsPageViewModel
+        {
+            UpgradeGeoRequested = () => new TaskCompletionSource<string>().Task,
+        };
+        var changed = new List<string?>();
+        viewModel.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        viewModel.UpgradeGeoCommand.Execute(null);
+
+        Assert.Contains(nameof(SettingsPageViewModel.IsUpdatingGeo), changed);
+        Assert.Contains(nameof(SettingsPageViewModel.IsMaintaining), changed);
+        Assert.DoesNotContain(nameof(SettingsPageViewModel.IsUpgradingCore), changed);
+        Assert.DoesNotContain(nameof(SettingsPageViewModel.IsFlushingFakeIp), changed);
+        Assert.DoesNotContain(nameof(SettingsPageViewModel.IsFlushingDns), changed);
     }
 
     [Fact]

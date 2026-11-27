@@ -96,6 +96,7 @@ public class ProviderFormattingTests
         Assert.Equal("未知", ProviderFormatting.RelativeTime(null, Now));
         Assert.Equal("未知", ProviderFormatting.RelativeTime("   ", Now));
         Assert.Equal("未知", ProviderFormatting.RelativeTime("not a date", Now));
+        Assert.Equal("未知", ProviderFormatting.RelativeTime("0001-01-01T00:00:00Z", Now));   // mihomo 零值（真机 739946 天前回归）
         Assert.Equal("5 分钟前", ProviderFormatting.RelativeTime(Now.AddMinutes(-5).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"), Now));
         Assert.Equal("3 小时前", ProviderFormatting.RelativeTime(Now.AddHours(-3).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"), Now));
         Assert.Equal("2 天前", ProviderFormatting.RelativeTime(Now.AddDays(-2).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"), Now));

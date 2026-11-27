@@ -16,12 +16,16 @@
     <sys:String x:Key="NetworkBypassRemove">Remove</sys:String>
     <sys:String x:Key="NetworkBypassReset">Reset to defaults</sys:String>
     <sys:String x:Key="NetworkBypassSave">Save</sys:String>
-    <sys:String x:Key="NetworkGuardTitle">Auto Proxy Guard (switch to a working node)</sys:String>
+    <sys:String x:Key="NetworkGuardTitle">Auto Proxy Guard</sys:String>
+    <sys:String x:Key="NetworkGuardHint">Switches to a working node automatically: probes connectivity on an interval and, on repeated failures, switches within the group and self-heals subscriptions</sys:String>
     <sys:String x:Key="NetworkGuardInterval">Probe interval (seconds)</sys:String>
     <sys:String x:Key="NetworkGuardCheckNow">Check now</sys:String>
     <sys:String x:Key="NetworkGuardChecking">Checking…</sys:String>
     <sys:String x:Key="NetworkSubscriptionTitle">Subscriptions</sys:String>
     <sys:String x:Key="NetworkSubscriptionImport">Import</sys:String>
+    <sys:String x:Key="NetworkSubscriptionImporting">Importing…</sys:String>
+    <sys:String x:Key="NetworkSubscriptionUrlPlaceholder">Paste subscription URL…</sys:String>
+    <sys:String x:Key="NetworkSubscriptionEmptyHint">No subscription yet: paste a URL above and click Import, or use Import Local File to pick a YAML config</sys:String>
     <sys:String x:Key="NetworkSubscriptionEnable">Enable</sys:String>
     <sys:String x:Key="NetworkSubscriptionRemove">Remove</sys:String>
 
@@ -72,8 +76,26 @@
     <sys:String x:Key="AppMenuCheckUpdate">Check for updates</sys:String>
     <sys:String x:Key="AppMenuHideWindow">Close window</sys:String>
     <sys:String x:Key="TitleBarMinimize">Minimize</sys:String>
-    <sys:String x:Key="TitleBarMaximize">Maximize / Restore</sys:String>
     <sys:String x:Key="TitleBarClose">Close (minimize to tray)</sys:String>
+
+    <!-- About dialog (opened from the app menu; version info lives here since the settings About card was removed in 1.0.0) -->
+    <sys:String x:Key="AboutWindowTitle">About ClashBarX</sys:String>
+    <sys:String x:Key="AboutAppVersionLabel">App version</sys:String>
+    <sys:String x:Key="AboutKernelVersionLabel">Core version</sys:String>
+    <sys:String x:Key="AboutActiveConfigLabel">Active config</sys:String>
+    <sys:String x:Key="AboutDataDirLabel">Data folder</sys:String>
+    <sys:String x:Key="AboutClose">Close</sys:String>
+
+    <!-- No-core setup guide dialog (source: app.core.setup_required.*) -->
+    <sys:String x:Key="GuideCoreTitle">Install the Mihomo core</sys:String>
+    <sys:String x:Key="GuideCoreIntro">ClashBarX ships without a proxy core (no-core policy). Add the mihomo core before first use:</sys:String>
+    <!-- File name verified against the official zip: it contains mihomo-windows-amd64.exe, which must be renamed to mihomo.exe -->
+    <sys:String x:Key="GuideCoreStep1">1. Open github.com/MetaCubeX/mihomo/releases and download the file named mihomo-windows-amd64-vX.Y.Z.zip (for example mihomo-windows-amd64-v1.19.34.zip; names containing compatible, v2, v3 or go1xx are other builds — leave them).</sys:String>
+    <sys:String x:Key="GuideCoreStep2">2. Extract mihomo-windows-amd64.exe, rename it to mihomo.exe, and put it into the folder below ("Open core folder" creates and opens it for you):</sys:String>
+    <sys:String x:Key="GuideCoreStep3">3. Back in ClashBarX, click "Start Core". If you have not imported a subscription yet, do that first under Network → Subscriptions.</sys:String>
+    <sys:String x:Key="GuideCoreOpenReleasePage">Open releases page</sys:String>
+    <sys:String x:Key="GuideCoreOpenDirectory">Open core folder</sys:String>
+    <sys:String x:Key="GuideCoreClose">Close</sys:String>
 
     <sys:String x:Key="ProvidersTitle">Providers</sys:String>
     <sys:String x:Key="ProvidersUpdateAll">Update All</sys:String>
@@ -121,6 +143,8 @@
     <sys:String x:Key="LogsColSource">Source</sys:String>
     <sys:String x:Key="LogsColLevel">Level</sys:String>
     <sys:String x:Key="LogsColMessage">Message</sys:String>
+    <sys:String x:Key="LogsSearchHint">Search log messages (case-insensitive)</sys:String>
+    <sys:String x:Key="LogsMatchedPrefix">Matched </sys:String>
     <sys:String x:Key="SubscriptionUpdate">Update</sys:String>
     <sys:String x:Key="SubscriptionUpdateAll">Update All</sys:String>
     <sys:String x:Key="SettingsLaunchAtLoginHint">Start ClashBarX automatically when signing in to Windows</sys:String>
@@ -129,7 +153,8 @@
     <sys:String x:Key="SettingsTcpConcurrent">TCP concurrency (tcp-concurrent)</sys:String>
     <sys:String x:Key="SettingsCloseConnections">Close old connections when switching nodes</sys:String>
     <sys:String x:Key="SettingsLogLevel">Log level</sys:String>
-    <sys:String x:Key="SettingsProxyPorts">Proxy ports (saved automatically)</sys:String>
+    <sys:String x:Key="SettingsProxyPorts">Proxy ports</sys:String>
+    <sys:String x:Key="SettingsProxyPortsHint">Saved automatically after changes (750ms debounce; 0 disables the port)</sys:String>
     <sys:String x:Key="SettingsMixedPort">Mixed port</sys:String>
     <sys:String x:Key="SettingsHttpPort">HTTP port</sys:String>
     <sys:String x:Key="SettingsSocksPort">SOCKS5 port</sys:String>
@@ -148,6 +173,9 @@
     <sys:String x:Key="OverrideCountSets"> sets</sys:String>
     <sys:String x:Key="OverrideApplyNow">Apply Now</sys:String>
     <sys:String x:Key="CommonProcessing">Processing…</sys:String>
+    <sys:String x:Key="CommonEnable">Enable</sys:String>
+    <!-- Accessible name of the info icons (the hint text itself comes from each icon's ToolTip) -->
+    <sys:String x:Key="InfoHintName">Info</sys:String>
     <sys:String x:Key="GuardCheckNow">Check Now</sys:String>
     <sys:String x:Key="CommonChecking">Checking…</sys:String>
     <sys:String x:Key="MaintenanceUpdateGeo">Update GEO data</sys:String>
@@ -160,6 +188,5 @@
     <sys:String x:Key="SubscriptionUpdateHint">Re-download the selected subscription (the highlighted row)</sys:String>
     <sys:String x:Key="SubscriptionUpdateAllHint">Re-download all subscriptions</sys:String>
     <sys:String x:Key="NetworkSubscriptionEnableHint">Activate the selected config row</sys:String>
-    <sys:String x:Key="SubscriptionButtonsHint">Buttons act on the selected row: Update = re-download · Enable = activate · Delete = remove file</sys:String>
     <sys:String x:Key="NetworkSubscriptionRemoveHint">Delete the selected config file</sys:String>
 </ResourceDictionary>

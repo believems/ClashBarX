@@ -173,11 +173,12 @@ public partial class App : Application
         _mainWindow.MachineTargetSwitchRequested += machineId => _ = SwitchMachineTargetAsync(machineId);
         _mainWindow.ManageMachinesRequested += OpenRemoteMachineManager;
         _mainWindow.OpenWebUIRequested += OpenControllerWebUI;
-        // 应用菜单（左上角 App 图标）：关于=定位设置页关于卡；检查更新=设置页检查命令
-        _mainWindow.AppAboutRequested += () => Dispatcher.BeginInvoke(() => _mainWindow.SelectSettingsTab());
+        // 应用菜单（左上角 App 图标）：关于=弹关于对话框（关于卡已随 1.0.0 定稿从设置页移除，
+        // 旧落点成了无效果入口）；检查更新=设置页滚到维护卡（让「检查中…」按钮即时可见）再执行检查命令
+        _mainWindow.AppAboutRequested += () => Dispatcher.BeginInvoke(() => ShowAboutDialog());
         _mainWindow.AppCheckUpdateRequested += () => Dispatcher.BeginInvoke(() =>
         {
-            _mainWindow.SelectSettingsTab();
+            _mainWindow.SelectSettingsTabAtMaintenance();
             _settingsPage?.CheckUpdateCommand.Execute(null);
         });
 
@@ -274,19 +275,25 @@ public partial class App : Application
         var maintenance = new MaintenanceService(_apiClient!);
         _settingsPage.UpgradeGeoRequested = async () =>
         {
-            CoreUpgradeResponse response = await maintenance.UpgradeGeoAsync();
-            string message = string.IsNullOrWhiteSpace(response.Message)
-                ? L("log.maintenance.geo_no_message", response.Status ?? L("log.maintenance.submitted"))
-                : L("log.maintenance.geo", response.Status ?? L("log.maintenance.submitted"), response.Message);
+            // 源：upgradeGeo 的 requestNoResponse——内核回 204 无响应体，2xx 即成功
+            await maintenance.UpgradeGeoAsync();
+            string message = L("log.maintenance.geo_updated");
             _mainWindow?.AppendLog($"[maintenance] {message}");
             return message;
         };
         _settingsPage.UpgradeCoreRequested = async () =>
         {
-            CoreUpgradeResponse response = await maintenance.UpgradeCoreAsync();
-            string message = string.IsNullOrWhiteSpace(response.Message)
-                ? L("log.maintenance.core_no_message", response.Status ?? L("log.maintenance.submitted"))
-                : L("log.maintenance.core", response.Status ?? L("log.maintenance.submitted"), response.Message);
+            CoreUpgradeResult result = await maintenance.UpgradeCoreWithResultAsync();
+            string message = result.Outcome switch
+            {
+                CoreUpgradeOutcome.AlreadyLatest => result.Version is { Length: > 0 } latestVersion
+                    ? L("log.maintenance.core_latest_version", latestVersion)
+                    : L("log.maintenance.core_latest"),
+                CoreUpgradeOutcome.Failed => L("maintenance.failed", result.Message ?? L("log.tun.unknown_error")),
+                _ => result.Message is { Length: > 0 } detail
+                    ? L("log.maintenance.core", result.Status ?? L("log.maintenance.submitted"), detail)
+                    : L("log.maintenance.core_no_message", result.Status ?? L("log.maintenance.submitted")),
+            };
             _mainWindow?.AppendLog($"[maintenance] {message}");
             return message;
         };
@@ -316,13 +323,14 @@ public partial class App : Application
             RefreshPresentationState();   // 托盘 tooltip 与状态行随语言即时更新（评审 P2）
         };
 
-        // 关于与更新检查（源：refreshLatestAppRelease + availableAppUpdate + footer 链接）
+        // 关于与更新检查（源：refreshLatestAppRelease + availableAppUpdate + footer 链接）。
+        // 应用自身走发版列表按 Windows 资产过滤：/releases/latest 不区分平台，macOS 发版较新时会误报
         _releaseService = new AppReleaseService();
         string currentVersion = CurrentAppVersionText();
         _settingsPage.CurrentVersionText = currentVersion;
         _settingsPage.CheckUpdateRequested = async () =>
             AppReleaseService.ResolveAvailableUpdate(
-                await _releaseService!.FetchLatestReleaseAsync(currentVersion), currentVersion);
+                await _releaseService!.FetchLatestWindowsReleaseAsync(currentVersion), currentVersion);
         // 内核块更新检查（定稿：mihomo releases latest 对比当前内核版本；发现新版后才显示升级按钮）
         _mihomoReleaseService = new AppReleaseService(
             latestReleaseUrl: "https://api.github.com/repos/MetaCubeX/mihomo/releases/latest");
@@ -460,6 +468,26 @@ public partial class App : Application
         // 远程目标不拉本机内核（源：AppViewModel+Initialization 的 isRemoteTarget guard）
         if (_remoteStore?.IsRemoteTarget == true)
         {
+            return;
+        }
+
+        // no-core 策略：内核未放置时不尝试启动；首次启动弹一次安装引导（源：presentInitialNoCoreSetupGuideIfNeeded），
+        // 其后只记日志提示（代理页空态与订阅区引导负责指路）
+        if (!IsCoreBinaryPresent())
+        {
+            _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory(), ClashBarXPaths.DefaultConfigPath()));
+            // 延后到启动流程收尾再弹：模态对话框的嵌套消息循环不能卡在 OnStartup 中间（显式丢弃返回值，不发 CS4014）
+            _ = Dispatcher.BeginInvoke(
+                DispatcherPriority.ApplicationIdle,
+                new Action(() => ShowCoreSetupGuide(CoreSetupGuideTrigger.Startup)));
+            return;
+        }
+
+        // 没有可启动的配置（还没导入订阅）：不把不存在的配置路径交给内核（内核会立刻退出）；
+        // 启动自动拉起不弹窗（源：auto trigger 的 startupErrorMessage 语义），由代理页与订阅区的空态提示引导
+        if (!HasRunnableConfig())
+        {
+            _mainWindow?.AppendLog(L("log.start.no_config_hint"));
             return;
         }
 
@@ -760,11 +788,30 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
     // ---- 远程机器（M5-2：源 RemoteMachineStore/RemoteMachineManagerView/
     //      AppViewModel+RemoteMachine.swift——切换前连通验证、状态清空、只读联动） ----
 
-    /// <summary>当前控制器地址与密钥（远程目标用机器值；本机用默认 127.0.0.1:9090）。</summary>
+    /// <summary>当前控制器地址与密钥（远程目标用机器值；本机用默认 127.0.0.1:9090 + 生效配置的 secret）。</summary>
     private (string Controller, string? Secret) ResolveActiveController() =>
         _remoteStore?.ActiveMachine is { } machine
             ? (machine.ControllerAddress, machine.Secret)
-            : (DefaultController, null);
+            : (DefaultController, LocalConfigSecret());
+
+    /// <summary>
+    /// 本机控制器密钥：读生效配置顶层 secret（源：macOS parseYAMLScalarValue(forKey:"secret")）。
+    /// 不读则带 secret 的配置全部 401、「API 未就绪」（真机实测 BOSS 生产配置即带 secret）；无 secret 返回 null。
+    /// </summary>
+    private string? LocalConfigSecret()
+    {
+        try
+        {
+            string? path = _subscriptions?.GetSelectedConfigPath();
+            return path is not null && File.Exists(path)
+                ? ClashBarX.Core.Mihomo.ConfigSecretReader.TryRead(File.ReadAllText(path))
+                : null;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            return null;   // 读不到按无 secret 处理，启动链路不因鉴权预读失败而断
+        }
+    }
 
     /// <summary>重建头部目标下拉并选中当前目标（不回环触发切换）。</summary>
     private void RefreshMachineSelector()
@@ -989,7 +1036,7 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
         try
         {
             AppReleaseInfo? latest = await _releaseService!
-                .FetchLatestReleaseAsync(CurrentAppVersionText())
+                .FetchLatestWindowsReleaseAsync(CurrentAppVersionText())
                 .ConfigureAwait(true);
             Dispatcher.BeginInvoke(() => _settingsPage?.ApplyLatestRelease(latest));
         }
@@ -2189,6 +2236,14 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
 
     // ---- 订阅管理（M2-3） ----
 
+    /// <summary>模态反馈（源：runModalAlert 的 Windows 对应物；UI 线程调用）。</summary>
+    private void ShowMessage(string title, string message, bool isError) => System.Windows.MessageBox.Show(
+        _mainWindow,
+        message,
+        title,
+        System.Windows.MessageBoxButton.OK,
+        isError ? System.Windows.MessageBoxImage.Warning : System.Windows.MessageBoxImage.Information);
+
     private void RefreshConfigList()
     {
         if (_subscriptions == null || _mainWindow == null)
@@ -2201,6 +2256,9 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
         _mainWindow.SetConfigFiles(files, selected);
     }
 
+    /// <summary>内核是否已放置（no-core 策略：%APPDATA%\ClashBarX\core\mihomo.exe）。</summary>
+    private bool IsCoreBinaryPresent() => _processManager?.IsBinaryPresent == true;
+
     private async void OnSubscriptionImportRequested(string urlText)
     {
         if (_remoteStore?.IsRemoteTarget == true)
@@ -2210,10 +2268,15 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
 
         if (!Uri.TryCreate(urlText, UriKind.Absolute, out Uri? url))
         {
-            _mainWindow?.AppendLog(L("log.subscription.invalid_url"));
+            string invalidUrl = L("log.subscription.invalid_url");
+            _mainWindow?.AppendLog(invalidUrl);
+            ShowMessage(L("guide.import_failed.title"), invalidUrl, isError: true);
             return;
         }
 
+        // 首次导入（此前没有任何配置文件）给引导性反馈（源：app.config.remote_import.alert.success）
+        int configCountBeforeImport = _subscriptions!.ListConfigFiles().Count;
+        bool corePresent = IsCoreBinaryPresent();
         _mainWindow?.SetImportBusy(true);
         try
         {
@@ -2221,16 +2284,26 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
             string version = _poller?.Version is string current && current.Length > 0
                 ? current
                 : DefaultMihomoVersionForUserAgent;
-            SubscriptionInfo info = await _subscriptions!.AddAsync(url, $"clash.meta/{version}");
+            SubscriptionInfo info = await _subscriptions.AddAsync(url, $"clash.meta/{version}");
 
             _subscriptions.Select(info.FileName);
             _mainWindow?.AppendLog(L("log.subscription.imported", info.FileName));
             RefreshConfigList();
+            if (FirstRunGuidePolicy.ShouldAnnounceImportSuccess(configCountBeforeImport, corePresent))
+            {
+                ShowMessage(
+                    L("guide.import_success.title"),
+                    L("guide.import_success.message", info.FileName),
+                    isError: false);
+            }
+
             await ApplySelectedConfigAsync();
         }
         catch (Exception error)
         {
-            _mainWindow?.AppendLog(L("log.subscription.import_failed", error.Message));
+            string message = L("log.subscription.import_failed", error.Message);
+            _mainWindow?.AppendLog(message);
+            ShowMessage(L("guide.import_failed.title"), message, isError: true);   // 失败原因只进日志页用户看不到
         }
         finally
         {
@@ -2246,6 +2319,8 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
             return;   // 远程目标配置管理只读（UI 已禁用，此处兜底）
         }
 
+        int configCountBeforeImport = _subscriptions?.ListConfigFiles().Count ?? 0;
+        bool corePresent = IsCoreBinaryPresent();
         try
         {
             string fileName = Path.GetFileName(sourcePath);
@@ -2263,11 +2338,21 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
             _subscriptions!.Select(fileName);
             _mainWindow?.AppendLog(L("log.subscription.local_imported", fileName));
             RefreshConfigList();
+            if (FirstRunGuidePolicy.ShouldAnnounceImportSuccess(configCountBeforeImport, corePresent))
+            {
+                ShowMessage(
+                    L("guide.import_success.title"),
+                    L("guide.import_success.message", fileName),
+                    isError: false);
+            }
+
             await ApplySelectedConfigAsync();
         }
         catch (Exception error)
         {
-            _mainWindow?.AppendLog(L("log.subscription.local_import_failed", error.Message));
+            string message = L("log.subscription.local_import_failed", error.Message);
+            _mainWindow?.AppendLog(message);
+            ShowMessage(L("guide.import_failed.title"), message, isError: true);
         }
     }
 
@@ -2284,6 +2369,9 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
             _mainWindow?.AppendLog(L("log.config.switched", fileName));
             RefreshConfigList();
             await ApplySelectedConfigAsync();
+            // 热重载用旧凭据完成；新配置的 secret 可能不同，重载后刷新本机凭据
+            (string controller, string? secret) = ResolveActiveController();
+            _apiClient?.UpdateCredentials(controller, secret);
         }
         catch (Exception error)
         {
@@ -2483,6 +2571,102 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
         await ApplySelectedConfigAsync();
     }
 
+    // ---- 首次使用引导（装内核 → 导订阅 → 启动；判定见 FirstRunGuidePolicy） ----
+
+    /// <summary>无内核引导对话框是否已打开（防重入：启动/导入/托盘多条链路可能同时触发）。</summary>
+    private bool _coreSetupGuideOpen;
+
+    /// <summary>
+    /// 无内核安装引导（源：presentInitialNoCoreSetupGuideIfNeeded + app.core.error.binary_not_found）：
+    /// 手动触发每次都弹；启动触发仅首次（持久化标记，对齐 macOS 的 guide.shown）。须在 UI 线程调用。
+    /// </summary>
+    private void ShowCoreSetupGuide(CoreSetupGuideTrigger trigger)
+    {
+        if (_mainWindow == null || _coreSetupGuideOpen)
+        {
+            return;
+        }
+
+        AppSettings settings = _settingsStore.Load();
+        if (!FirstRunGuidePolicy.ShouldShowCoreSetupGuide(trigger, settings.CoreSetupGuideShown))
+        {
+            return;
+        }
+
+        _coreSetupGuideOpen = true;
+        try
+        {
+            new CoreSetupGuideWindow(ClashBarXPaths.CoreDirectory(), _mainWindow).ShowDialog();
+        }
+        finally
+        {
+            _coreSetupGuideOpen = false;
+        }
+
+        if (!settings.CoreSetupGuideShown)
+        {
+            // 弹过即记（无论用户是否去打开目录）：下次启动不再自动弹
+            _settingsStore.Save(settings with { CoreSetupGuideShown = true });
+        }
+    }
+
+    // ---- 关于对话框（应用菜单「关于 ClashBarX」的落点） ----
+
+    /// <summary>关于对话框是否已打开（防重入：菜单可反复触发）。</summary>
+    private bool _aboutDialogOpen;
+
+    /// <summary>
+    /// 弹出关于对话框：应用版本、内核版本（仅运行时显示，停止后不展示旧版本号）、生效配置、
+    /// 数据目录与发布页入口。须在 UI 线程调用。
+    /// </summary>
+    private void ShowAboutDialog()
+    {
+        if (_mainWindow == null || _aboutDialogOpen)
+        {
+            return;
+        }
+
+        _aboutDialogOpen = true;
+        try
+        {
+            AboutInfo info = AboutInfo.Create(
+                CurrentAppVersionText(),
+                _lastKnownCoreVersion,
+                kernelRunning: _processManager?.IsRunning == true,
+                _subscriptions?.GetSelectedFileName(),
+                ClashBarXPaths.AppDataRoot(),
+                ClashBarX.Core.L10n.CoreL10n.Language);
+            new AboutWindow(info, _mainWindow).ShowDialog();
+        }
+        finally
+        {
+            _aboutDialogOpen = false;
+        }
+    }
+
+    /// <summary>是否存在可启动的运行配置（选中配置或根目录手工 config.yaml）。</summary>
+    private bool HasRunnableConfig() => FirstRunGuidePolicy.HasRunnableConfig(
+        _subscriptions?.GetSelectedConfigPath(), ClashBarXPaths.DefaultConfigPath());
+
+    /// <summary>
+    /// 没有可启动的运行配置：提示先导入订阅，可一键前往网络页订阅区
+    /// （源：log.start.no_config + reportCoreStartFailure 的启动失败告警）。
+    /// </summary>
+    private void ShowNoConfigPrompt()
+    {
+        _mainWindow?.AppendLog(L("log.start.no_config"));
+        System.Windows.MessageBoxResult choice = System.Windows.MessageBox.Show(
+            _mainWindow,
+            L("guide.no_config.message"),
+            L("guide.no_config.title"),
+            System.Windows.MessageBoxButton.YesNo,
+            System.Windows.MessageBoxImage.Information);
+        if (choice == System.Windows.MessageBoxResult.Yes)
+        {
+            _mainWindow?.FocusSubscriptionUrlBox();
+        }
+    }
+
     // ---- 手动内核生命周期（源：MenuBarHeaderView 的启动/停止/重启动作） ----
 
     private async Task StartCoreManualAsync()
@@ -2490,6 +2674,21 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
         if (_processManager?.IsRunning == true)
         {
             _mainWindow?.AppendLog(L("log.core.already_running"));
+            return;
+        }
+
+        // 首次使用引导链 ①：内核未安装 → 弹安装引导（此前只往日志页写一行，点「启动内核」毫无反馈）
+        if (!IsCoreBinaryPresent())
+        {
+            _mainWindow?.AppendLog(L("log.core.binary_missing", ClashBarXPaths.CoreDirectory()));
+            ShowCoreSetupGuide(CoreSetupGuideTrigger.Manual);
+            return;
+        }
+
+        // 首次使用引导链 ②：还没有可启动的配置（还没导入订阅）→ 引导去导入
+        if (!HasRunnableConfig())
+        {
+            ShowNoConfigPrompt();
             return;
         }
 
@@ -2539,6 +2738,19 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
 
     private async Task RestartCoreManualAsync()
     {
+        if (!IsCoreBinaryPresent())
+        {
+            _mainWindow?.AppendLog(L("log.core.restart_binary_missing", ClashBarXPaths.CoreDirectory()));
+            ShowCoreSetupGuide(CoreSetupGuideTrigger.Manual);
+            return;
+        }
+
+        if (!HasRunnableConfig())
+        {
+            ShowNoConfigPrompt();
+            return;
+        }
+
         string configPath = _subscriptions?.GetSelectedConfigPath() ?? ClashBarXPaths.DefaultConfigPath();
         try
         {
@@ -2595,7 +2807,11 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
         }
         catch (MihomoBinaryResolutionException)
         {
-            // 无内核时保持 no-core 引导提示，不重复刷
+            // 刚导入/启用了配置但内核未安装：弹安装引导（此前静默吞掉，导入之后毫无后续）；无配置可启动时不打扰
+            if (HasRunnableConfig())
+            {
+                ShowCoreSetupGuide(CoreSetupGuideTrigger.Manual);
+            }
         }
         catch (Exception error)
         {
@@ -2627,6 +2843,13 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
         if (_poller?.Version is { Length: > 0 } version)
         {
             _lastKnownCoreVersion = version;
+        }
+
+        // 代理页空态：未运行时显示「启动内核后…」并清掉陈旧面板（源：stopCore 的 clearProxyPresentation）
+        _proxyPage?.ApplyCoreRunning(coreRunning);
+        if (!coreRunning)
+        {
+            _proxyProviders?.ClearProviders();
         }
 
         // TUN 开启时用 TUN 品牌图（源：StatusItemContentView 的 tunBrandStatusIconImage 分支）

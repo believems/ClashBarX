@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using ClashBarX.Core.L10n;
 
 namespace ClashBarX.App.Core;
 
@@ -16,6 +17,15 @@ public enum AppLanguage
 {
     ChineseSimplified,
     English,
+}
+
+/// <summary>维护卡动作（源：SystemTabView 维护区；进行中状态按动作独立）。</summary>
+public enum MaintenanceAction
+{
+    UpgradeCore,
+    UpgradeGeo,
+    FlushFakeIp,
+    FlushDns,
 }
 
 /// <summary>
@@ -62,6 +72,8 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
         {
             if (SetProperty(ref _language, value))
             {
+                // 先按新语言重建选项文案，再通知 App 层切换字典（不依赖事件处理顺序）
+                ReloadLocalizedOptions(ToCoreLanguage(value));
                 LanguageChanged?.Invoke(value);
             }
         }
@@ -100,11 +112,30 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
         }
     }
 
-    public IReadOnlyList<EnumOption<AppAppearanceMode>> AppearanceOptions { get; } = new[]
+    private IReadOnlyList<EnumOption<AppAppearanceMode>> _appearanceOptions = CreateAppearanceOptions(CoreL10n.Language);
+
+    /// <summary>
+    /// 外观选项（文案随界面语言）。选项文案在生成时即定，不会自己跟随语言变化：
+    /// 切换语言（Language setter）与恢复持久化语言（Restore）时都按目标语言重建。
+    /// </summary>
+    public IReadOnlyList<EnumOption<AppAppearanceMode>> AppearanceOptions
     {
-        new EnumOption<AppAppearanceMode>(ClashBarX.Core.L10n.CoreL10n.T("settings.appearance.system"), AppAppearanceMode.System),
-        new EnumOption<AppAppearanceMode>(ClashBarX.Core.L10n.CoreL10n.T("settings.appearance.light"), AppAppearanceMode.Light),
-        new EnumOption<AppAppearanceMode>(ClashBarX.Core.L10n.CoreL10n.T("settings.appearance.dark"), AppAppearanceMode.Dark),
+        get => _appearanceOptions;
+        private set => SetProperty(ref _appearanceOptions, value);
+    }
+
+    /// <summary>按界面语言重建外观选项文案（选中值由绑定保持，不在此处改动）。</summary>
+    public void ReloadLocalizedOptions(CoreLanguage language) =>
+        AppearanceOptions = CreateAppearanceOptions(language);
+
+    private static CoreLanguage ToCoreLanguage(AppLanguage language) =>
+        language == AppLanguage.English ? CoreLanguage.English : CoreLanguage.ChineseSimplified;
+
+    private static IReadOnlyList<EnumOption<AppAppearanceMode>> CreateAppearanceOptions(CoreLanguage language) => new[]
+    {
+        new EnumOption<AppAppearanceMode>(CoreL10n.T(language, "settings.appearance.system"), AppAppearanceMode.System),
+        new EnumOption<AppAppearanceMode>(CoreL10n.T(language, "settings.appearance.light"), AppAppearanceMode.Light),
+        new EnumOption<AppAppearanceMode>(CoreL10n.T(language, "settings.appearance.dark"), AppAppearanceMode.Dark),
     };
 
     /// <summary>核心设置子模型（allow-lan/ipv6/tcp-concurrent/日志等级/端口；经 PATCH /configs）。</summary>
@@ -379,15 +410,26 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
         }
     }
 
-    private bool _isMaintaining;
+    private readonly HashSet<MaintenanceAction> _inFlightMaintenance = new();
     private string? _maintenanceStatusText;
     private string _maintenanceStatusLevel = "info";
 
-    public bool IsMaintaining
-    {
-        get => _isMaintaining;
-        private set => SetProperty(ref _isMaintaining, value);
-    }
+    /// <summary>任一维护动作进行中（汇总态；各动作的进行中状态彼此独立）。</summary>
+    public bool IsMaintaining => _inFlightMaintenance.Count > 0;
+
+    /// <summary>「升级内核」进行中（只有本按钮置灰并显示「执行中…」）。</summary>
+    public bool IsUpgradingCore => IsBusy(MaintenanceAction.UpgradeCore);
+
+    /// <summary>「更新 GEO 数据」进行中（与升级内核互不联动）。</summary>
+    public bool IsUpdatingGeo => IsBusy(MaintenanceAction.UpgradeGeo);
+
+    /// <summary>「清 FakeIP 缓存」进行中。</summary>
+    public bool IsFlushingFakeIp => IsBusy(MaintenanceAction.FlushFakeIp);
+
+    /// <summary>「清 DNS 缓存」进行中。</summary>
+    public bool IsFlushingDns => IsBusy(MaintenanceAction.FlushDns);
+
+    public bool IsBusy(MaintenanceAction action) => _inFlightMaintenance.Contains(action);
 
     /// <summary>维护结果反馈行（null = 隐藏）。</summary>
     public string? MaintenanceStatusText
@@ -420,26 +462,29 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
 
     public SettingsPageViewModel()
     {
-        UpgradeGeoCommand = new RelayCommand(_ => RunMaintenanceAsync(UpgradeGeoRequested));
-        UpgradeCoreCommand = new RelayCommand(_ => RunMaintenanceAsync(UpgradeCoreRequested));
-        FlushFakeIPCommand = new RelayCommand(_ => RunMaintenanceAsync(FlushFakeIPRequested));
-        FlushDNSCommand = new RelayCommand(_ => RunMaintenanceAsync(FlushDNSRequested));
+        UpgradeGeoCommand = new RelayCommand(_ => RunMaintenanceAsync(MaintenanceAction.UpgradeGeo, UpgradeGeoRequested));
+        UpgradeCoreCommand = new RelayCommand(_ => RunMaintenanceAsync(MaintenanceAction.UpgradeCore, UpgradeCoreRequested));
+        FlushFakeIPCommand = new RelayCommand(_ => RunMaintenanceAsync(MaintenanceAction.FlushFakeIp, FlushFakeIPRequested));
+        FlushDNSCommand = new RelayCommand(_ => RunMaintenanceAsync(MaintenanceAction.FlushDns, FlushDNSRequested));
         CheckUpdateCommand = new RelayCommand(_ => RunUpdateCheckAsync());
         CheckKernelUpdateCommand = new RelayCommand(_ => RunKernelUpdateCheckAsync());
     }
 
-    /// <summary>执行维护动作并反馈结果（进行中禁用按钮；源：维护区交互）。</summary>
-    private async Task RunMaintenanceAsync(Func<Task<string>>? action)
+    /// <summary>
+    /// 执行维护动作并反馈结果。进行中状态按动作独立：只有同一动作重复触发被忽略，
+    /// 其余按钮保持可用、不跟着变「执行中…」（进行中禁用本按钮）。
+    /// </summary>
+    private async Task RunMaintenanceAsync(MaintenanceAction action, Func<Task<string>>? requested)
     {
-        if (IsMaintaining || action is null)
+        if (IsBusy(action) || requested is null)
         {
             return;
         }
 
-        IsMaintaining = true;
+        SetMaintenanceBusy(action, true);
         try
         {
-            string message = await action();
+            string message = await requested();
             MaintenanceStatusText = message;
             MaintenanceStatusLevel = message.StartsWith(ClashBarX.Core.L10n.CoreL10n.T("maintenance.failed").Split(':')[0], StringComparison.Ordinal) ? "error" : "ok";
             MaintenanceFeedback?.Invoke(message, MaintenanceStatusLevel == "error");
@@ -452,9 +497,27 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
         }
         finally
         {
-            IsMaintaining = false;
+            SetMaintenanceBusy(action, false);
         }
     }
+
+    /// <summary>维护动作进行中状态翻转（通知对应按钮属性与汇总态）。</summary>
+    private void SetMaintenanceBusy(MaintenanceAction action, bool busy)
+    {
+        if (busy ? _inFlightMaintenance.Add(action) : _inFlightMaintenance.Remove(action))
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(BusyPropertyName(action)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsMaintaining)));
+        }
+    }
+
+    private static string BusyPropertyName(MaintenanceAction action) => action switch
+    {
+        MaintenanceAction.UpgradeCore => nameof(IsUpgradingCore),
+        MaintenanceAction.UpgradeGeo => nameof(IsUpdatingGeo),
+        MaintenanceAction.FlushFakeIp => nameof(IsFlushingFakeIp),
+        _ => nameof(IsFlushingDns),
+    };
 
     public IReadOnlyList<EnumOption<AppLanguage>> LanguageOptions { get; } = new[]
     {
@@ -491,6 +554,8 @@ public sealed class SettingsPageViewModel : INotifyPropertyChanged
         _language = language;
         _launchAtLogin = launchAtLogin;
         _showTrafficOverview = showTrafficOverview;
+        // 选项文案按保存的语言重建（此刻 App 层尚未切换全局字典，不能用全局语言）
+        ReloadLocalizedOptions(ToCoreLanguage(language));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(AppearanceMode)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Language)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LaunchAtLogin)));

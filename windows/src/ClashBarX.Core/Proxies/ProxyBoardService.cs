@@ -61,8 +61,32 @@ public sealed class ProxyBoardService
             // provider 接口不可用不阻断分组展示（源：fetchProxyProvidersSummarySafely）
         }
 
-        return BuildBoard(response, providers);
+        return BuildBoard(response, OnlyRealProviders(providers));
     }
+
+    /// <summary>
+    /// 真订阅源判定（源：macOS shouldIncludeProxyProvider）：mihomo 的 /providers/proxies 会把
+    /// 内置 default 与每个代理分组都作为 vehicleType=Compatible 的伪 provider 回传（updatedAt 为零值），
+    /// 展示与「更新全部」都必须排除它们，否则订阅源列表混进分组、日期显示成七十余万天前。
+    /// </summary>
+    public static bool ShouldIncludeProxyProvider(string key, ProviderDetail detail)
+    {
+        string resolvedName = string.IsNullOrWhiteSpace(detail.Name) ? key : detail.Name.Trim();
+        if (resolvedName.Equals("default", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return !string.Equals(
+            (detail.VehicleType ?? string.Empty).Trim(), "Compatible", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static ProviderSummary? OnlyRealProviders(ProviderSummary? summary) =>
+        summary is null
+            ? null
+            : new ProviderSummary(summary.Providers
+                .Where(pair => ShouldIncludeProxyProvider(pair.Key, pair.Value))
+                .ToDictionary(pair => pair.Key, pair => pair.Value));
 
     /// <summary>切换分组当前节点（源：switchProxy——PUT 后由上层刷新分组同步实际选中）。</summary>
     public Task SwitchNodeAsync(string groupName, string targetNode, CancellationToken cancellationToken = default) =>
@@ -90,7 +114,7 @@ public sealed class ProxyBoardService
         }
 
         var updated = new List<string>();
-        foreach (string name in providers?.Providers.Keys ?? Enumerable.Empty<string>())
+        foreach (string name in OnlyRealProviders(providers)?.Providers.Keys ?? Enumerable.Empty<string>())
         {
             try
             {
