@@ -788,11 +788,30 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
     // ---- 远程机器（M5-2：源 RemoteMachineStore/RemoteMachineManagerView/
     //      AppViewModel+RemoteMachine.swift——切换前连通验证、状态清空、只读联动） ----
 
-    /// <summary>当前控制器地址与密钥（远程目标用机器值；本机用默认 127.0.0.1:9090）。</summary>
+    /// <summary>当前控制器地址与密钥（远程目标用机器值；本机用默认 127.0.0.1:9090 + 生效配置的 secret）。</summary>
     private (string Controller, string? Secret) ResolveActiveController() =>
         _remoteStore?.ActiveMachine is { } machine
             ? (machine.ControllerAddress, machine.Secret)
-            : (DefaultController, null);
+            : (DefaultController, LocalConfigSecret());
+
+    /// <summary>
+    /// 本机控制器密钥：读生效配置顶层 secret（源：macOS parseYAMLScalarValue(forKey:"secret")）。
+    /// 不读则带 secret 的配置全部 401、「API 未就绪」（真机实测 BOSS 生产配置即带 secret）；无 secret 返回 null。
+    /// </summary>
+    private string? LocalConfigSecret()
+    {
+        try
+        {
+            string? path = _subscriptions?.GetSelectedConfigPath();
+            return path is not null && File.Exists(path)
+                ? ClashBarX.Core.Mihomo.ConfigSecretReader.TryRead(File.ReadAllText(path))
+                : null;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            return null;   // 读不到按无 secret 处理，启动链路不因鉴权预读失败而断
+        }
+    }
 
     /// <summary>重建头部目标下拉并选中当前目标（不回环触发切换）。</summary>
     private void RefreshMachineSelector()
@@ -2350,6 +2369,9 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
             _mainWindow?.AppendLog(L("log.config.switched", fileName));
             RefreshConfigList();
             await ApplySelectedConfigAsync();
+            // 热重载用旧凭据完成；新配置的 secret 可能不同，重载后刷新本机凭据
+            (string controller, string? secret) = ResolveActiveController();
+            _apiClient?.UpdateCredentials(controller, secret);
         }
         catch (Exception error)
         {
