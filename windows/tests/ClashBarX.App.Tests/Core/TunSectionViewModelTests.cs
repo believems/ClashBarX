@@ -80,31 +80,45 @@ public class TunSectionViewModelTests
     }
 
     [Fact]
-    public void SelectedStack_SetRaisesStackSelected()
+    public void SelectedStackOption_SetRaisesStackSelected()
     {
         var viewModel = CreateViewModel();
         string? selected = null;
         viewModel.StackSelected += value => selected = value;
 
-        viewModel.SelectedStack = "system";
+        viewModel.SelectedStackOption = viewModel.StackOptions.First(option => option.Stack == "system");
 
         Assert.Equal("system", viewModel.SelectedStack);
         Assert.Equal("system", selected);
     }
 
     [Fact]
-    public void SelectedStack_EmptyAndSameIgnored()
+    public void SelectedStackOption_NullAndSameIgnored()
     {
         var viewModel = CreateViewModel();
-        viewModel.SelectedStack = "mixed";
+        var mixed = viewModel.StackOptions.First(option => option.Stack == "mixed");
+        viewModel.SelectedStackOption = mixed;
         int fired = 0;
         viewModel.StackSelected += _ => fired++;
 
-        viewModel.SelectedStack = "";
-        viewModel.SelectedStack = null;
-        viewModel.SelectedStack = "mixed";   // 同值不触发（VM 防抖）
+        viewModel.SelectedStackOption = null;           // 置空忽略
+        viewModel.SelectedStackOption = mixed;          // 同对象不触发（VM 防抖）
 
         Assert.Equal(0, fired);
+    }
+
+    [Fact]
+    public void SelectedStackOption_RestoredAfterMipsRebuild()
+    {
+        // SetMipsSupport 重建选项集合后按 Stack 值恢复选中（对象实例更替不丢选中）
+        var viewModel = CreateViewModel();
+        viewModel.SelectedStackOption = viewModel.StackOptions.First(option => option.Stack == "gvisor");
+        viewModel.ApplySnapshot(enabled: true, stack: "gvisor");
+
+        viewModel.SetMipsSupport(supported: false);   // 重建
+        viewModel.SetMipsSupport(supported: true);    // 再重建
+
+        Assert.Equal("gvisor", viewModel.SelectedStack);
     }
 
     [Fact]

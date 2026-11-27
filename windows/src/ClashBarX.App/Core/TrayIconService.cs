@@ -107,11 +107,25 @@ public sealed class TrayIconService : IDisposable
         _taskbarIcon.ForceCreate(enablesEfficiencyMode: false);
     }
 
-    /// <summary>状态化提示文本（源：状态栏语义——tooltip 随内核状态与实时速率更新）。</summary>
+    /// <summary>状态化提示文本（源：状态栏语义——tooltip 随内核状态与实时速率更新）。
+    /// H.NotifyIcon 在托盘图标未就绪/已销毁的窗口期写 ToolTipText 会抛
+    /// InvalidOperationException——吞掉等下次（真机实测启动早期偶发，非致命）。</summary>
     public void SetToolTip(string text)
     {
         _lastStatusToolTip = text;
-        _taskbarIcon.ToolTipText = text;
+        TrySetToolTipText(text);
+    }
+
+    private void TrySetToolTipText(string text)
+    {
+        try
+        {
+            _taskbarIcon.ToolTipText = text;
+        }
+        catch (InvalidOperationException)
+        {
+            // 图标窗口期：下次状态刷新自然重试
+        }
     }
 
     /// <summary>
@@ -120,7 +134,7 @@ public sealed class TrayIconService : IDisposable
     /// </summary>
     public void ShowTransientMessage(string message)
     {
-        _taskbarIcon.ToolTipText = $"ClashBarX · {message}";
+        TrySetToolTipText($"ClashBarX · {message}");
         _tooltipResetTimer?.Dispose();
         _tooltipResetTimer = new System.Threading.Timer(
             _ => SetToolTip(_lastStatusToolTip),

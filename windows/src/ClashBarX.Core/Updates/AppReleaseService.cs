@@ -42,6 +42,9 @@ public sealed class AppReleaseService : IDisposable
         string currentVersion, CancellationToken cancellationToken = default)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, _latestReleaseUrl);
+        // 单次探测禁用连接复用：陈旧连接被远端 RST 时连接池后台路径会产生
+        // UnobservedTaskException 噪声（真机实测 10054）
+        request.Headers.ConnectionClose = true;
         request.Headers.TryAddWithoutValidation("Accept", "application/vnd.github+json");
         request.Headers.TryAddWithoutValidation("X-GitHub-Api-Version", "2022-11-28");
         request.Headers.TryAddWithoutValidation("User-Agent", $"ClashBar/{currentVersion}");

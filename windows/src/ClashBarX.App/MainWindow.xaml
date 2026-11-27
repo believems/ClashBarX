@@ -130,8 +130,7 @@
                                       FontSize="12"
                                       ToolTip="{DynamicResource ProxyTunStackHint}"
                                       ItemsSource="{Binding StackOptions}"
-                                      SelectedValuePath="Stack"
-                                      SelectedValue="{Binding SelectedStack}"
+                                      SelectedItem="{Binding SelectedStackOption}"
                                       IsEnabled="{Binding IsTunToggleEnabled}">
                                 <ComboBox.ItemContainerStyle>
                                     <Style TargetType="ComboBoxItem">

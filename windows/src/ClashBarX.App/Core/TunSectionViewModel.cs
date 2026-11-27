@@ -87,27 +87,31 @@ public sealed class TunSectionViewModel : INotifyPropertyChanged
         }
     }
 
-    /// <summary>当前 stack（显示用，实际生效值由运行态回填）。</summary>
-    public string? SelectedStack
+    /// <summary>
+    /// 选中项（对象级绑定——SelectedValue 字符串反查在 ItemsSource 填充前生效会
+    /// 永久空选中，真机实测收起态空白；对象级 SelectedItem 无此坑）。
+    /// </summary>
+    public StackOptionViewModel? SelectedStackOption
     {
-        get => _selectedStack;
+        get => _selectedStackOption;
         set
         {
-            if (string.IsNullOrWhiteSpace(value))
+            if (value is null || ReferenceEquals(_selectedStackOption, value))
             {
                 return;
             }
 
-            if (string.Equals(_selectedStack, value, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            _selectedStack = value;
+            _selectedStackOption = value;
+            Raise(nameof(SelectedStackOption));
             Raise(nameof(SelectedStack));
-            StackSelected?.Invoke(value);
+            StackSelected?.Invoke(value.Stack);
         }
     }
+
+    private StackOptionViewModel? _selectedStackOption;
+
+    /// <summary>当前 stack 名（显示用，实际生效值由运行态回填；由选中项派生）。</summary>
+    public string? SelectedStack => _selectedStackOption?.Stack;
 
     /// <summary>同步内核版本门槛（不满足时 mips 禁选；源：isMipsStackSupported）。</summary>
     public void SetMipsSupport(bool supported)
@@ -118,21 +122,31 @@ public sealed class TunSectionViewModel : INotifyPropertyChanged
         }
 
         _isMipsSupported = supported;
+        string? currentStack = _selectedStackOption?.Stack;   // 重建后按 Stack 值恢复选中
         StackOptions.Clear();
         foreach (StackOptionViewModel option in BuildStackOptions())
         {
             StackOptions.Add(option);
         }
+
+        _selectedStackOption = StackOptions.FirstOrDefault(option => option.Stack == currentStack);
+        Raise(nameof(SelectedStackOption));
+        Raise(nameof(SelectedStack));
     }
 
     /// <summary>程序化回填运行态（不触发 Toggle/StackSelected 事件；源：fetchRuntimeConfigSnapshot 同步链）。</summary>
     public void ApplySnapshot(bool enabled, string? stack)
     {
         bool enabledChanged = _isTunEnabled != enabled;
-        string? nextStack = string.IsNullOrWhiteSpace(stack) ? _selectedStack : stack.Trim();
-        bool stackChanged = !string.Equals(_selectedStack, nextStack, StringComparison.Ordinal);
+        string? currentStack = _selectedStackOption?.Stack;
+        string? nextStack = string.IsNullOrWhiteSpace(stack) ? currentStack : stack.Trim();
+        StackOptionViewModel? nextOption = string.IsNullOrEmpty(nextStack)
+            ? _selectedStackOption
+            : StackOptions.FirstOrDefault(option => option.Stack == nextStack)
+              ?? _selectedStackOption;   // 面板未就绪时保留旧选中，待 SetMipsSupport/下次快照对齐
+        bool stackChanged = !string.Equals(currentStack, nextOption?.Stack, StringComparison.Ordinal);
         _isTunEnabled = enabled;
-        _selectedStack = nextStack;
+        _selectedStackOption = nextOption;
 
         if (enabledChanged)
         {
@@ -141,6 +155,7 @@ public sealed class TunSectionViewModel : INotifyPropertyChanged
 
         if (stackChanged)
         {
+            Raise(nameof(SelectedStackOption));
             Raise(nameof(SelectedStack));
         }
     }
