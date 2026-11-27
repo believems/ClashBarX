@@ -1601,7 +1601,7 @@
                                        FontWeight="SemiBold"
                                        FontSize="12"
                                        Margin="0,0,0,6" />
-                            <DockPanel Margin="0,3">
+                            <DockPanel Margin="0,7">
                                 <ComboBox DockPanel.Dock="Right"
                                           Width="150"
                                           ItemsSource="{Binding AppearanceOptions}"
@@ -1612,7 +1612,7 @@
                                            FontSize="12"
                                            VerticalAlignment="Center" />
                             </DockPanel>
-                            <DockPanel Margin="0,3">
+                            <DockPanel Margin="0,7">
                                 <ComboBox DockPanel.Dock="Right"
                                           Width="150"
                                           ItemsSource="{Binding LanguageOptions}"
@@ -1623,7 +1623,7 @@
                                            FontSize="12"
                                            VerticalAlignment="Center" />
                             </DockPanel>
-                            <DockPanel Margin="0,3">
+                            <DockPanel Margin="0,7">
                                 <CheckBox DockPanel.Dock="Right"
                                           Content="{DynamicResource SettingsLaunchAtLoginHint}"
                                           FontSize="11"
@@ -1637,7 +1637,7 @@
                                        Foreground="#C0392B"
                                        Margin="0,2,0,0"
                                        Visibility="{Binding LaunchAtLoginFailed, Converter={StaticResource BoolToVis}}" />
-                            <DockPanel Margin="0,3">
+                            <DockPanel Margin="0,7">
                                 <CheckBox DockPanel.Dock="Right"
                                           Content="{DynamicResource SettingsTrafficOverviewShort}"
                                           FontSize="11"
@@ -1662,9 +1662,9 @@
                                            FontSize="12"
                                            Margin="0,0,0,6" />
                                 <!-- UniformGrid 强制等宽单元格（star 列会被按钮内容宽度顶得不等宽，真机实测参差） -->
-                                <UniformGrid Columns="3" Rows="2">
+                                <UniformGrid Columns="2" Rows="3">
                                     <Button
-                                            Padding="6,2"
+                                            Padding="10,6"
                                             Margin="0,0,4,4"
                                             FontSize="11"
                                             Command="{Binding UpgradeGeoCommand}">
@@ -1680,8 +1680,8 @@
                                         </Button.Style>
                                     </Button>
                                     <Button
-                                            Padding="6,2"
-                                            Margin="0,0,4,4"
+                                            Padding="10,6"
+                                            Margin="0,0,0,4"
                                             FontSize="11"
                                             Command="{Binding UpgradeCoreCommand}">
                                         <Button.Style>
@@ -1696,19 +1696,19 @@
                                         </Button.Style>
                                     </Button>
                                     <Button
-                                            Padding="6,2"
-                                            Margin="0,0,0,4"
+                                            Padding="10,6"
+                                            Margin="0,0,4,4"
                                             FontSize="11"
                                             Command="{Binding FlushFakeIPCommand}"
                                             Content="{DynamicResource MaintenanceFlushFakeIP}" />
                                     <Button
-                                            Padding="6,2"
-                                            Margin="0,0,4,0"
+                                            Padding="10,6"
+                                            Margin="0,0,0,4"
                                             FontSize="11"
                                             Command="{Binding FlushDNSCommand}"
                                             Content="{DynamicResource MaintenanceFlushDNS}" />
                                     <Button
-                                            Padding="6,2"
+                                            Padding="10,6"
                                             Margin="0,0,4,0"
                                             FontSize="11"
                                             Content="{DynamicResource MaintenanceOpenCoreDir}"
@@ -1733,10 +1733,10 @@
                             </StackPanel>
                         </Border>
                     </StackPanel>
-                        <!-- 右列：核心设置卡（含端口；PATCH /configs 即时生效） -->
+                        <!-- 右列：核心设置卡 + 代理端口独立卡（源：Mac systemTabView 的
+                             core_settings 与 proxy_ports 两个平级 section；PATCH /configs 即时生效） -->
+                        <StackPanel Grid.Column="1" Margin="6,0,0,0">
                         <Border Padding="8"
-                                Grid.Column="1"
-                                Margin="6,0,0,0"
                                 BorderBrush="#DDD"
                                 BorderThickness="1"
                                 CornerRadius="4"
@@ -1774,11 +1774,22 @@
                                               SelectedValue="{Binding LogLevel}" />
                                 </StackPanel>
 
-                                <!-- 代理端口五项（750ms 防抖自动保存；单列右值，定稿样式） -->
+                            </StackPanel>
+                        </Border>
+                        <!-- 代理端口独立卡（源：Mac systemTabView 的 proxy_ports section；
+                             750ms 防抖自动保存；单列右值） -->
+                        <Border Padding="8"
+                                Margin="0,8,0,0"
+                                BorderBrush="#DDD"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Background="#FAFAFA"
+                                DataContext="{Binding CoreSettings}">
+                            <StackPanel>
                                 <TextBlock Text="{DynamicResource SettingsProxyPorts}"
                                            FontWeight="SemiBold"
                                            FontSize="12"
-                                           Margin="0,14,0,6" />
+                                           Margin="0,0,0,6" />
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -1791,19 +1802,20 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
-                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource SettingsMixedPort}" FontSize="12" VerticalAlignment="Center" Margin="0,2,0,2" />
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource SettingsMixedPort}" FontSize="12" VerticalAlignment="Center" Margin="0,3,0,3" />
                                     <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding MixedPortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" VerticalContentAlignment="Center" HorizontalAlignment="Right" />
-                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource SettingsHttpPort}" FontSize="12" VerticalAlignment="Center" Margin="0,2,0,2" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource SettingsHttpPort}" FontSize="12" VerticalAlignment="Center" Margin="0,3,0,3" />
                                     <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding PortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" VerticalContentAlignment="Center" HorizontalAlignment="Right" />
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource SettingsSocksPort}" FontSize="12" VerticalAlignment="Center" Margin="0,2,0,2" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource SettingsSocksPort}" FontSize="12" VerticalAlignment="Center" Margin="0,3,0,3" />
                                     <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding SocksPortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" VerticalContentAlignment="Center" HorizontalAlignment="Right" />
-                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="{DynamicResource SettingsRedirPort}" FontSize="12" VerticalAlignment="Center" Margin="0,2,0,2" />
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="{DynamicResource SettingsRedirPort}" FontSize="12" VerticalAlignment="Center" Margin="0,3,0,3" />
                                     <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding RedirPortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" VerticalContentAlignment="Center" HorizontalAlignment="Right" />
-                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="{DynamicResource SettingsTproxyPort}" FontSize="12" VerticalAlignment="Center" Margin="0,2,0,2" />
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="{DynamicResource SettingsTproxyPort}" FontSize="12" VerticalAlignment="Center" Margin="0,3,0,3" />
                                     <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding TproxyPortText, UpdateSourceTrigger=PropertyChanged}" Padding="4,2" VerticalContentAlignment="Center" HorizontalAlignment="Right" />
                                 </Grid>
                             </StackPanel>
                         </Border>
+                        </StackPanel>
                     </Grid>
 
                     <!-- 关于与更新（定稿：移出双列独占全宽；内部应用/内核两块并排 flex 1:1） -->
