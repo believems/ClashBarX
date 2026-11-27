@@ -18,7 +18,8 @@ public sealed record AppSettings(
     bool TunEnabled = false,
     string TunStack = "mixed",
     bool SsidStrategyEnabled = false,
-    string SsidStrategyRulesJson = "[]")
+    string SsidStrategyRulesJson = "[]",
+    bool CoreSetupGuideShown = false)
 {
     public static readonly AppSettings Default = new(false);
 }

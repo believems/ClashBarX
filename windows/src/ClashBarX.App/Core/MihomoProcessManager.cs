@@ -68,6 +68,9 @@ public sealed class MihomoProcessManager : IDisposable
     /// <summary>当前会探测的内核二进制路径。</summary>
     public string DetectedBinaryPath => _binaryPath;
 
+    /// <summary>内核二进制是否已放置（no-core 策略：缺失时由界面引导用户放入 core 目录，不尝试启动）。</summary>
+    public bool IsBinaryPresent => File.Exists(_binaryPath);
+
     /// <summary>
     /// 构造管理器。默认在 %APPDATA%\ClashBarX\core\mihomo.exe 探测内核（no-core 策略）；
     /// 测试可注入假内核路径。

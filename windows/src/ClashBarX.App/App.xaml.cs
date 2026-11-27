@@ -464,6 +464,18 @@ public partial class App : Application
             return;
         }
 
+        // no-core 策略：内核未放置时不尝试启动；首次启动弹一次安装引导（源：presentInitialNoCoreSetupGuideIfNeeded），
+        // 其后只记日志提示（代理页空态与订阅区引导负责指路）
+        if (!IsCoreBinaryPresent())
+        {
+            _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory(), ClashBarXPaths.DefaultConfigPath()));
+            // 延后到启动流程收尾再弹：模态对话框的嵌套消息循环不能卡在 OnStartup 中间
+            Dispatcher.BeginInvoke(
+                DispatcherPriority.ApplicationIdle,
+                new Action(() => ShowCoreSetupGuide(CoreSetupGuideTrigger.Startup)));
+            return;
+        }
+
         // 没有可启动的配置（还没导入订阅）：不把不存在的配置路径交给内核（内核会立刻退出）；
         // 启动自动拉起不弹窗（源：auto trigger 的 startupErrorMessage 语义），由代理页与订阅区的空态提示引导
         if (!HasRunnableConfig())
@@ -2219,8 +2231,7 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
     }
 
     /// <summary>内核是否已放置（no-core 策略：%APPDATA%\ClashBarX\core\mihomo.exe）。</summary>
-    private bool IsCoreBinaryPresent() =>
-        _processManager?.DetectedBinaryPath is { } binaryPath && File.Exists(binaryPath);
+    private bool IsCoreBinaryPresent() => _processManager?.IsBinaryPresent == true;
 
     private async void OnSubscriptionImportRequested(string urlText)
     {
@@ -2531,7 +2542,44 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
         await ApplySelectedConfigAsync();
     }
 
-    // ---- 手动内核生命周期（源：MenuBarHeaderView 的启动/停止/重启动作） ----
+    // ---- 首次使用引导（装内核 → 导订阅 → 启动；判定见 FirstRunGuidePolicy） ----
+
+    /// <summary>无内核引导对话框是否已打开（防重入：启动/导入/托盘多条链路可能同时触发）。</summary>
+    private bool _coreSetupGuideOpen;
+
+    /// <summary>
+    /// 无内核安装引导（源：presentInitialNoCoreSetupGuideIfNeeded + app.core.error.binary_not_found）：
+    /// 手动触发每次都弹；启动触发仅首次（持久化标记，对齐 macOS 的 guide.shown）。须在 UI 线程调用。
+    /// </summary>
+    private void ShowCoreSetupGuide(CoreSetupGuideTrigger trigger)
+    {
+        if (_mainWindow == null || _coreSetupGuideOpen)
+        {
+            return;
+        }
+
+        AppSettings settings = _settingsStore.Load();
+        if (!FirstRunGuidePolicy.ShouldShowCoreSetupGuide(trigger, settings.CoreSetupGuideShown))
+        {
+            return;
+        }
+
+        _coreSetupGuideOpen = true;
+        try
+        {
+            new CoreSetupGuideWindow(ClashBarXPaths.CoreDirectory(), _mainWindow).ShowDialog();
+        }
+        finally
+        {
+            _coreSetupGuideOpen = false;
+        }
+
+        if (!settings.CoreSetupGuideShown)
+        {
+            // 弹过即记（无论用户是否去打开目录）：下次启动不再自动弹
+            _settingsStore.Save(settings with { CoreSetupGuideShown = true });
+        }
+    }
 
     /// <summary>是否存在可启动的运行配置（选中配置或根目录手工 config.yaml）。</summary>
     private bool HasRunnableConfig() => FirstRunGuidePolicy.HasRunnableConfig(
@@ -2556,11 +2604,21 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
         }
     }
 
+    // ---- 手动内核生命周期（源：MenuBarHeaderView 的启动/停止/重启动作） ----
+
     private async Task StartCoreManualAsync()
     {
         if (_processManager?.IsRunning == true)
         {
             _mainWindow?.AppendLog(L("log.core.already_running"));
+            return;
+        }
+
+        // 首次使用引导链 ①：内核未安装 → 弹安装引导（此前只往日志页写一行，点「启动内核」毫无反馈）
+        if (!IsCoreBinaryPresent())
+        {
+            _mainWindow?.AppendLog(L("log.core.binary_missing", ClashBarXPaths.CoreDirectory()));
+            ShowCoreSetupGuide(CoreSetupGuideTrigger.Manual);
             return;
         }
 
@@ -2617,6 +2675,13 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
 
     private async Task RestartCoreManualAsync()
     {
+        if (!IsCoreBinaryPresent())
+        {
+            _mainWindow?.AppendLog(L("log.core.restart_binary_missing", ClashBarXPaths.CoreDirectory()));
+            ShowCoreSetupGuide(CoreSetupGuideTrigger.Manual);
+            return;
+        }
+
         if (!HasRunnableConfig())
         {
             ShowNoConfigPrompt();
@@ -2679,7 +2744,11 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
         }
         catch (MihomoBinaryResolutionException)
         {
-            // 无内核时保持 no-core 引导提示，不重复刷
+            // 刚导入/启用了配置但内核未安装：弹安装引导（此前静默吞掉，导入之后毫无后续）；无配置可启动时不打扰
+            if (HasRunnableConfig())
+            {
+                ShowCoreSetupGuide(CoreSetupGuideTrigger.Manual);
+            }
         }
         catch (Exception error)
         {

@@ -67,6 +67,16 @@ public class FirstRunGuidePolicyTests
     }
 
     [Theory]
+    [InlineData(CoreSetupGuideTrigger.Manual, false, true)]
+    [InlineData(CoreSetupGuideTrigger.Manual, true, true)]      // 手动触发：弹过也再弹（用户正要启动内核）
+    [InlineData(CoreSetupGuideTrigger.Startup, false, true)]    // 首次启动：弹
+    [InlineData(CoreSetupGuideTrigger.Startup, true, false)]    // 其后启动：不再自动弹
+    public void 无内核引导_手动触发恒弹_启动触发仅首次(CoreSetupGuideTrigger trigger, bool shownBefore, bool expected)
+    {
+        Assert.Equal(expected, FirstRunGuidePolicy.ShouldShowCoreSetupGuide(trigger, shownBefore));
+    }
+
+    [Theory]
     [InlineData(0, true, true)]      // 首次导入且内核就位 → 引导性成功提示
     [InlineData(0, false, false)]    // 首次导入但内核缺失 → 由无内核安装引导接管，不重复弹
     [InlineData(1, true, false)]     // 非首次导入 → 只记日志，不打断

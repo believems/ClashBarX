@@ -19,6 +19,7 @@ public class AppSettingsStoreTests : IDisposable
         Assert.False(settings.SystemProxyEnabled);
         Assert.False(settings.ProxyGuardEnabled);
         Assert.Equal(300, settings.ProxyGuardIntervalSeconds);
+        Assert.False(settings.CoreSetupGuideShown);
     }
 
     [Fact]
@@ -31,6 +32,16 @@ public class AppSettingsStoreTests : IDisposable
         Assert.True(settings.SystemProxyEnabled);   // 旧字段保留
         Assert.False(settings.ProxyGuardEnabled);   // 新字段默认
         Assert.Equal(300, settings.ProxyGuardIntervalSeconds);
+        Assert.False(settings.CoreSetupGuideShown);   // 新字段默认：升级上来的用户首次启动仍会看到无内核引导
+    }
+
+    [Fact]
+    public void 无内核引导已展示标记可往返()
+    {
+        var store = new AppSettingsStore(_path);
+        store.Save(new AppSettings(SystemProxyEnabled: false, CoreSetupGuideShown: true));
+
+        Assert.True(store.Load().CoreSetupGuideShown);
     }
 
     [Fact]

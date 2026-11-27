@@ -203,6 +203,21 @@ public class MihomoProcessManagerTests
     }
 
     [Fact]
+    public void IsBinaryPresent反映内核文件是否存在()
+    {
+        (string directory, string binaryPath) = AppTestHelper.CreateSleepCore();
+        try
+        {
+            Assert.True(new MihomoProcessManager(binaryPath).IsBinaryPresent);
+            Assert.False(new MihomoProcessManager(Path.Combine(directory, "absent.exe")).IsBinaryPresent);
+        }
+        finally
+        {
+            AppTestHelper.CleanupDirectory(directory);
+        }
+    }
+
+    [Fact]
     public async Task Job兜底_仅关闭Job句柄进程树被系统终结()
     {
         // 模拟宿主崩溃路径：不经 MihomoProcessManager 的 Kill，直接对 Job 验证 kill-on-close

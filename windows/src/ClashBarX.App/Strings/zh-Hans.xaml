@@ -78,6 +78,16 @@
     <sys:String x:Key="TitleBarMinimize">最小化</sys:String>
     <sys:String x:Key="TitleBarClose">关闭（收起到托盘）</sys:String>
 
+    <!-- 无内核安装引导对话框（源：app.core.setup_required.*） -->
+    <sys:String x:Key="GuideCoreTitle">安装 Mihomo 内核</sys:String>
+    <sys:String x:Key="GuideCoreIntro">ClashBarX 不内置代理内核（no-core 策略）。首次使用前，请手动放入 mihomo 内核：</sys:String>
+    <sys:String x:Key="GuideCoreStep1">1. 打开发布页 github.com/MetaCubeX/mihomo/releases，下载文件名含 mihomo-windows-amd64 的 zip（例如 mihomo-windows-amd64-v1.19.x.zip）。</sys:String>
+    <sys:String x:Key="GuideCoreStep2">2. 解压出 mihomo.exe，放入下面的目录（点「打开内核目录」会自动创建并打开它）：</sys:String>
+    <sys:String x:Key="GuideCoreStep3">3. 回到 ClashBarX 点「启动内核」。如果还没导入订阅，请先到「设置 → 订阅」导入。</sys:String>
+    <sys:String x:Key="GuideCoreOpenReleasePage">打开发布页</sys:String>
+    <sys:String x:Key="GuideCoreOpenDirectory">打开内核目录</sys:String>
+    <sys:String x:Key="GuideCoreClose">关闭</sys:String>
+
     <sys:String x:Key="ProvidersTitle">订阅源</sys:String>
     <sys:String x:Key="ProvidersUpdateAll">更新全部</sys:String>
     <sys:String x:Key="ProvidersHealthcheck">健康检查（测速全部节点）</sys:String>

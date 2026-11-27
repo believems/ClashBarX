@@ -78,6 +78,16 @@
     <sys:String x:Key="TitleBarMinimize">Minimize</sys:String>
     <sys:String x:Key="TitleBarClose">Close (minimize to tray)</sys:String>
 
+    <!-- No-core setup guide dialog (source: app.core.setup_required.*) -->
+    <sys:String x:Key="GuideCoreTitle">Install the Mihomo core</sys:String>
+    <sys:String x:Key="GuideCoreIntro">ClashBarX ships without a proxy core (no-core policy). Add the mihomo core before first use:</sys:String>
+    <sys:String x:Key="GuideCoreStep1">1. Open github.com/MetaCubeX/mihomo/releases and download the zip whose file name contains mihomo-windows-amd64 (for example mihomo-windows-amd64-v1.19.x.zip).</sys:String>
+    <sys:String x:Key="GuideCoreStep2">2. Extract mihomo.exe and put it into the folder below ("Open core folder" creates and opens it for you):</sys:String>
+    <sys:String x:Key="GuideCoreStep3">3. Back in ClashBarX, click "Start Core". If you have not imported a subscription yet, do that first under Settings → Subscriptions.</sys:String>
+    <sys:String x:Key="GuideCoreOpenReleasePage">Open releases page</sys:String>
+    <sys:String x:Key="GuideCoreOpenDirectory">Open core folder</sys:String>
+    <sys:String x:Key="GuideCoreClose">Close</sys:String>
+
     <sys:String x:Key="ProvidersTitle">Providers</sys:String>
     <sys:String x:Key="ProvidersUpdateAll">Update All</sys:String>
     <sys:String x:Key="ProvidersHealthcheck">Health check (test all nodes)</sys:String>

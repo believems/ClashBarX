@@ -453,21 +453,9 @@ public partial class MainWindow : Window
     private void OnCopyProxyCommandBashClick(object sender, RoutedEventArgs e) =>
         CopyProxyCommandRequested?.Invoke("bash");
 
-    /// <summary>打开内核目录（源：维护区「打开内核目录」）。</summary>
-    private void OnOpenCoreDirectoryClick(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            string directory = ClashBarXPaths.CoreDirectory();
-            System.IO.Directory.CreateDirectory(directory);
-            System.Diagnostics.Process.Start(
-                new System.Diagnostics.ProcessStartInfo("explorer.exe", directory) { UseShellExecute = true });
-        }
-        catch (System.Exception)
-        {
-            // explorer 启动失败不影响主流程
-        }
-    }
+    /// <summary>打开内核目录（源：维护区「打开内核目录」）；与无内核安装引导对话框共用同一入口。</summary>
+    private void OnOpenCoreDirectoryClick(object sender, RoutedEventArgs e) =>
+        ShellNavigator.TryOpenDirectory(ClashBarXPaths.CoreDirectory(), out _);
 
     private void OnImportClick(object sender, RoutedEventArgs e)
     {
