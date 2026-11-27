@@ -2627,7 +2627,7 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
         _subscriptions?.GetSelectedConfigPath(), ClashBarXPaths.DefaultConfigPath());
 
     /// <summary>
-    /// 没有可启动的运行配置：提示先导入订阅，可一键前往订阅设置
+    /// 没有可启动的运行配置：提示先导入订阅，可一键前往网络页订阅区
     /// （源：log.start.no_config + reportCoreStartFailure 的启动失败告警）。
     /// </summary>
     private void ShowNoConfigPrompt()

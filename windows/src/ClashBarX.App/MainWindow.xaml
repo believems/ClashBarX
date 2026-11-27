@@ -7,15 +7,17 @@
         xmlns:core="clr-namespace:ClashBarX.App.Core"
         xmlns:overrides="clr-namespace:ClashBarX.Core.Overrides;assembly=ClashBarX.Core"
         mc:Ignorable="d"
-        Title="ClashBarX" Height="660" Width="760"
-        MinWidth="760" MaxWidth="760" MinHeight="660" MaxHeight="660"
+        Title="ClashBarX" Height="600" Width="760"
+        MinWidth="760" MaxWidth="760" MinHeight="600" MaxHeight="600"
         ResizeMode="CanMinimize"
         WindowStyle="None"
         Background="{DynamicResource ThemeWindowBrush}"
         WindowStartupLocation="CenterScreen">
     <!-- 面板类应用固定尺寸：Min=Max + CanMinimize（禁最大化/缩放，仅保留最小化）——
          自由缩放会让各页布局变形（代理端口框、日志过滤栏、维护卡等）；
-         CaptionHeight=0 全自绘标题栏 -->
+         CaptionHeight=0 全自绘标题栏。
+         高度 660→600（BOSS 定稿 2026-11-27）：网络页双栏压紧、订阅区从设置页挪来后，
+         按各页实测内容高重定；约束页为网络页（双栏卡 + 订阅卡） -->
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="0"
                       ResizeBorderThickness="0"
@@ -1312,7 +1314,12 @@
             <TabItem Header="{DynamicResource TabNetwork}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <Grid Margin="4,8,4,4">
-                    <!-- 双列自然高顶对齐（真机反馈：拉伸到视口高会在左列列表区留大片空白；紧凑优先） -->
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <!-- 双列自然高顶对齐（真机反馈：拉伸到视口高会在左列列表区留大片空白；紧凑优先）。
+                         BOSS 定稿 2026-11-27：双栏行距压紧、列表区压低，腾出的高度给挪入本页第二行的订阅区 -->
                     <Grid Grid.Row="0" VerticalAlignment="Top">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -1351,11 +1358,11 @@
                                     </StackPanel>
                                 </DockPanel>
                                 <!-- 绕过列表：卡内滚动（MaxHeight 控自然高，双列自然高对齐的前提；
-                                     新增行固定卡底） -->
+                                     新增行固定卡底）。224→104：网络页要塞下订阅区，列表多时在卡内滚 -->
                                 <ScrollViewer Grid.Row="2"
                                               VerticalScrollBarVisibility="Auto"
-                                              MinHeight="60"
-                                              MaxHeight="224"
+                                              MinHeight="44"
+                                              MaxHeight="104"
                                               Margin="16,4,0,0">
                                     <ItemsControl ItemsSource="{Binding Exceptions}">
                                     <ItemsControl.ItemTemplate>
@@ -1387,7 +1394,7 @@
                                              VerticalContentAlignment="Center"
                                              Padding="4,2" />
                                 </DockPanel>
-                                <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="16,8,0,0">
+                                <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="16,6,0,0">
                                     <Button Content="{DynamicResource NetworkBypassReset}"
                                             Padding="10,2"
                                             FontSize="11"
@@ -1415,7 +1422,7 @@
                                 BorderThickness="1"
                                 CornerRadius="4"
                                 Background="#FAFAFA"
-                                Margin="0,0,0,8">
+                                Margin="0,0,0,6">
                             <StackPanel>
                                 <!-- 标题括号说明与关闭态说明收进 info 图标 ToolTip；
                                      内容换成容器后勾选框不再有文字名，显式补自动化名称供读屏识别 -->
@@ -1431,7 +1438,7 @@
                                 </CheckBox>
                                 <!-- 配置区常驻：开关关闭时整体置灰（IsEnabled 绑定 + 降低不透明度）而非折叠——
                                      块高不随开关跳动，与左列的底边对齐保持稳定；说明文字在标题 info 图标的 ToolTip -->
-                                <StackPanel Margin="16,8,0,0"
+                                <StackPanel Margin="16,4,0,0"
                                             IsEnabled="{Binding IsGuardEnabled}">
                                     <StackPanel.Style>
                                         <Style TargetType="StackPanel">
@@ -1442,7 +1449,7 @@
                                             </Style.Triggers>
                                         </Style>
                                     </StackPanel.Style>
-                                    <StackPanel Orientation="Horizontal" Margin="0,8">
+                                    <StackPanel Orientation="Horizontal" Margin="0,4">
                                         <TextBlock Text="{DynamicResource NetworkGuardInterval}" VerticalAlignment="Center" FontSize="12" />
                                         <TextBox Text="{Binding IntervalText}"
                                                  Width="64"
@@ -1450,7 +1457,7 @@
                                                  Padding="4,2"
                                                  VerticalContentAlignment="Center" />
                                     </StackPanel>
-                                    <Button Margin="0,10,0,0"
+                                    <Button Margin="0,6,0,0"
                                             Padding="10,2"
                                             MinWidth="96"
                                             HorizontalAlignment="Left"
@@ -1467,7 +1474,7 @@
                                         </Button.Style>
                                     </Button>
                                     <!-- 结果行常驻占位（无结果时留空一行）：结果到达或开关切换时块高都不跳 -->
-                                    <TextBlock Margin="0,10,0,0"
+                                    <TextBlock Margin="0,6,0,0"
                                                FontSize="12"
                                                MinHeight="16"
                                                Text="{Binding OutcomeText}">
@@ -1496,7 +1503,7 @@
                                 Background="#FAFAFA">
                             <StackPanel>
                                 <!-- 标题后缀说明（修改后自动保存）收进 info 图标 ToolTip -->
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                                     <TextBlock Text="{DynamicResource SettingsProxyPorts}"
                                                FontWeight="SemiBold"
                                                FontSize="12"
@@ -1516,35 +1523,148 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
-                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource SettingsMixedPort}" FontSize="12" VerticalAlignment="Center" Margin="0,6,0,6" />
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource SettingsMixedPort}" FontSize="12" VerticalAlignment="Center" Margin="0,2,0,2" />
                                     <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource PortFieldStyle}" Text="{Binding MixedPortText, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource SettingsHttpPort}" FontSize="12" VerticalAlignment="Center" Margin="0,6,0,6" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource SettingsHttpPort}" FontSize="12" VerticalAlignment="Center" Margin="0,2,0,2" />
                                     <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource PortFieldStyle}" Text="{Binding PortText, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource SettingsSocksPort}" FontSize="12" VerticalAlignment="Center" Margin="0,6,0,6" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource SettingsSocksPort}" FontSize="12" VerticalAlignment="Center" Margin="0,2,0,2" />
                                     <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource PortFieldStyle}" Text="{Binding SocksPortText, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="{DynamicResource SettingsRedirPort}" FontSize="12" VerticalAlignment="Center" Margin="0,6,0,6" />
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="{DynamicResource SettingsRedirPort}" FontSize="12" VerticalAlignment="Center" Margin="0,2,0,2" />
                                     <TextBox Grid.Row="3" Grid.Column="1" Style="{StaticResource PortFieldStyle}" Text="{Binding RedirPortText, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="{DynamicResource SettingsTproxyPort}" FontSize="12" VerticalAlignment="Center" Margin="0,6,0,6" />
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="{DynamicResource SettingsTproxyPort}" FontSize="12" VerticalAlignment="Center" Margin="0,2,0,2" />
                                     <TextBox Grid.Row="4" Grid.Column="1" Style="{StaticResource PortFieldStyle}" Text="{Binding TproxyPortText, UpdateSourceTrigger=PropertyChanged}" />
                                 </Grid>
                             </StackPanel>
                         </Border>
                         </Grid>
                     </Grid>
-                    
+
+                    <!-- 订阅管理（M2-3；2026-11-27 BOSS 定稿从设置页挪至网络页第二行——双栏压紧后本页放得下，
+                         订阅与系统代理/代理端口同属网络语义；双栏——左=导入行+订阅列表，右=操作按钮列；
+                         原与按钮同行的说明文字收进各按钮 ToolTip；远程目标时整体只读） -->
+                    <Border x:Name="SubscriptionSectionRoot"
+                            Grid.Row="1"
+                            Padding="8"
+                            Margin="0,8,0,0"
+                            BorderBrush="#DDD"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Background="#FAFAFA">
+                        <StackPanel>
+                            <DockPanel Margin="0,0,0,6">
+                                <TextBlock x:Name="RemoteReadonlyHint"
+                                           DockPanel.Dock="Right"
+                                           Text="{DynamicResource MachineRemoteReadonly}"
+                                           FontSize="11"
+                                           Foreground="#B45309"
+                                           VerticalAlignment="Center"
+                                           Visibility="Collapsed" />
+                                <TextBlock Text="{DynamicResource NetworkSubscriptionTitle}"
+                                           FontWeight="SemiBold"
+                                           FontSize="12" />
+                            </DockPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <!-- 左栏：导入行（订阅链接 + 导入 / 导入本地文件）+ 订阅列表 -->
+                                <DockPanel Grid.Column="0" Margin="0,0,8,0">
+                                    <!-- 导入行独立成一段停靠顶部：两个按钮停靠右侧，输入框作为末子元素占满剩余宽度 -->
+                                    <DockPanel DockPanel.Dock="Top">
+                                        <Button x:Name="ImportLocalButton"
+                                                DockPanel.Dock="Right"
+                                                Content="{DynamicResource NetworkSubscriptionImportLocal}"
+                                                Padding="10,2"
+                                                MinWidth="60"
+                                                Margin="6,0,0,0"
+                                                ToolTip="{DynamicResource NetworkSubscriptionImportLocalHint}"
+                                                Click="OnImportLocalClick" />
+                                        <Button x:Name="ImportButton"
+                                                DockPanel.Dock="Right"
+                                                Content="{DynamicResource NetworkSubscriptionImport}"
+                                                Padding="10,2"
+                                                MinWidth="60"
+                                                ToolTip="{DynamicResource NetworkSubscriptionImportHint}"
+                                                Click="OnImportClick" />
+                                        <!-- 订阅链接输入框：无内容时显示占位提示（引导用户粘贴链接） -->
+                                        <Grid>
+                                            <TextBox x:Name="SubscriptionUrlBox"
+                                                     VerticalContentAlignment="Center"
+                                                     Padding="4,2" />
+                                            <TextBlock x:Name="SubscriptionUrlPlaceholder"
+                                                       Text="{DynamicResource NetworkSubscriptionUrlPlaceholder}"
+                                                       Foreground="#8A93A0"
+                                                       FontSize="12"
+                                                       Margin="6,0,0,0"
+                                                       VerticalAlignment="Center"
+                                                       IsHitTestVisible="False" />
+                                        </Grid>
+                                    </DockPanel>
+                                    <!-- 订阅列表（末子元素占满剩余高度）：为空时显示导入引导（覆盖在列表区上）；列表区 96-160→64-104 配合窗口降高，条目多在卡内滚 -->
+                                    <Grid Margin="0,6,0,0">
+                                        <ListBox x:Name="ConfigFilesBox"
+                                                 MinHeight="64"
+                                                 MaxHeight="104" />
+                                        <TextBlock Text="{DynamicResource NetworkSubscriptionEmptyHint}"
+                                                   Foreground="#8A93A0"
+                                                   FontSize="12"
+                                                   TextWrapping="Wrap"
+                                                   TextAlignment="Center"
+                                                   Margin="12"
+                                                   IsHitTestVisible="False">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Path=HasItems, ElementName=ConfigFilesBox}" Value="False">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Grid>
+                                </DockPanel>
+                                <!-- 右栏：操作按钮列（等宽；更新/启用/删除作用于列表选中行，未选中时置灰） -->
+                                <StackPanel Grid.Column="1" Width="120">
+                                    <!-- 远程订阅更新（源：ProxyTabView 订阅行刷新/更新全部） -->
+                                    <Button x:Name="UpdateSubscriptionButton"
+                                            Content="{DynamicResource SubscriptionUpdate}"
+                                            ToolTip="{DynamicResource SubscriptionUpdateHint}"
+                                            Padding="10,2"
+                                            Margin="0,0,0,6"
+                                            Click="OnRefreshSubscriptionClick" />
+                                    <Button x:Name="UpdateAllSubscriptionsButton"
+                                            Content="{DynamicResource SubscriptionUpdateAll}"
+                                            ToolTip="{DynamicResource SubscriptionUpdateAllHint}"
+                                            Padding="10,2"
+                                            Margin="0,0,0,6"
+                                            Click="OnRefreshAllSubscriptionsClick" />
+                                    <Button x:Name="EnableConfigButton"
+                                            Content="{DynamicResource NetworkSubscriptionEnable}"
+                                            ToolTip="{DynamicResource NetworkSubscriptionEnableHint}"
+                                            Padding="10,2"
+                                            Margin="0,0,0,6"
+                                            Click="OnEnableClick" />
+                                    <Button x:Name="RemoveConfigButton"
+                                            Content="{DynamicResource NetworkSubscriptionRemove}"
+                                            ToolTip="{DynamicResource NetworkSubscriptionRemoveHint}"
+                                            Padding="10,2"
+                                            Click="OnRemoveClick" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
                 </Grid>
                 </ScrollViewer>
             </TabItem>
 
-            <!-- 设置（M4-3）：双列（左=常规+维护，右=核心设置含端口，两列等高）；
-                 关于与更新移出双列独占全宽（内部应用/内核并排 flex 1:1） -->
+            <!-- 设置（M4-3）：双列（左=常规+维护，右=核心设置+SSID，两列自然高）；
+                 订阅区已挪至网络页（BOSS 定稿 2026-11-27），本页不再需要第二行 -->
             <TabItem Header="{DynamicResource TabSettings}">
                 <ScrollViewer x:Name="SettingsRoot" VerticalScrollBarVisibility="Auto" Margin="4,8,4,4">
                     <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
                         <Grid Grid.Row="0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -1814,125 +1934,6 @@
                         </Border>
                         </Grid>
                     </Grid>
-
-                    <!-- 订阅管理（M2-3：设置页全宽行；双栏——左=导入行+订阅列表，右=操作按钮列；
-                         原与按钮同行的说明文字收进各按钮 ToolTip；远程目标时整体只读） -->
-                    <Border x:Name="SubscriptionSectionRoot"
-                            Grid.Row="1"
-                            Padding="8"
-                            Margin="0,8,0,0"
-                            BorderBrush="#DDD"
-                            BorderThickness="1"
-                            CornerRadius="4"
-                            Background="#FAFAFA">
-                        <StackPanel>
-                            <DockPanel Margin="0,0,0,6">
-                                <TextBlock x:Name="RemoteReadonlyHint"
-                                           DockPanel.Dock="Right"
-                                           Text="{DynamicResource MachineRemoteReadonly}"
-                                           FontSize="11"
-                                           Foreground="#B45309"
-                                           VerticalAlignment="Center"
-                                           Visibility="Collapsed" />
-                                <TextBlock Text="{DynamicResource NetworkSubscriptionTitle}"
-                                           FontWeight="SemiBold"
-                                           FontSize="12" />
-                            </DockPanel>
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <!-- 左栏：导入行（订阅链接 + 导入 / 导入本地文件）+ 订阅列表 -->
-                                <DockPanel Grid.Column="0" Margin="0,0,8,0">
-                                    <!-- 导入行独立成一段停靠顶部：两个按钮停靠右侧，输入框作为末子元素占满剩余宽度 -->
-                                    <DockPanel DockPanel.Dock="Top">
-                                        <Button x:Name="ImportLocalButton"
-                                                DockPanel.Dock="Right"
-                                                Content="{DynamicResource NetworkSubscriptionImportLocal}"
-                                                Padding="10,2"
-                                                MinWidth="60"
-                                                Margin="6,0,0,0"
-                                                ToolTip="{DynamicResource NetworkSubscriptionImportLocalHint}"
-                                                Click="OnImportLocalClick" />
-                                        <Button x:Name="ImportButton"
-                                                DockPanel.Dock="Right"
-                                                Content="{DynamicResource NetworkSubscriptionImport}"
-                                                Padding="10,2"
-                                                MinWidth="60"
-                                                ToolTip="{DynamicResource NetworkSubscriptionImportHint}"
-                                                Click="OnImportClick" />
-                                        <!-- 订阅链接输入框：无内容时显示占位提示（引导用户粘贴链接） -->
-                                        <Grid>
-                                            <TextBox x:Name="SubscriptionUrlBox"
-                                                     VerticalContentAlignment="Center"
-                                                     Padding="4,2" />
-                                            <TextBlock x:Name="SubscriptionUrlPlaceholder"
-                                                       Text="{DynamicResource NetworkSubscriptionUrlPlaceholder}"
-                                                       Foreground="#8A93A0"
-                                                       FontSize="12"
-                                                       Margin="6,0,0,0"
-                                                       VerticalAlignment="Center"
-                                                       IsHitTestVisible="False" />
-                                        </Grid>
-                                    </DockPanel>
-                                    <!-- 订阅列表（末子元素占满剩余高度）：为空时显示导入引导（覆盖在列表区上） -->
-                                    <Grid Margin="0,6,0,0">
-                                        <ListBox x:Name="ConfigFilesBox"
-                                                 MinHeight="96"
-                                                 MaxHeight="160" />
-                                        <TextBlock Text="{DynamicResource NetworkSubscriptionEmptyHint}"
-                                                   Foreground="#8A93A0"
-                                                   FontSize="12"
-                                                   TextWrapping="Wrap"
-                                                   TextAlignment="Center"
-                                                   Margin="12"
-                                                   IsHitTestVisible="False">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock">
-                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding Path=HasItems, ElementName=ConfigFilesBox}" Value="False">
-                                                            <Setter Property="Visibility" Value="Visible" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
-                                    </Grid>
-                                </DockPanel>
-                                <!-- 右栏：操作按钮列（等宽；更新/启用/删除作用于列表选中行，未选中时置灰） -->
-                                <StackPanel Grid.Column="1" Width="120">
-                                    <!-- 远程订阅更新（源：ProxyTabView 订阅行刷新/更新全部） -->
-                                    <Button x:Name="UpdateSubscriptionButton"
-                                            Content="{DynamicResource SubscriptionUpdate}"
-                                            ToolTip="{DynamicResource SubscriptionUpdateHint}"
-                                            Padding="10,2"
-                                            Margin="0,0,0,6"
-                                            Click="OnRefreshSubscriptionClick" />
-                                    <Button x:Name="UpdateAllSubscriptionsButton"
-                                            Content="{DynamicResource SubscriptionUpdateAll}"
-                                            ToolTip="{DynamicResource SubscriptionUpdateAllHint}"
-                                            Padding="10,2"
-                                            Margin="0,0,0,6"
-                                            Click="OnRefreshAllSubscriptionsClick" />
-                                    <Button x:Name="EnableConfigButton"
-                                            Content="{DynamicResource NetworkSubscriptionEnable}"
-                                            ToolTip="{DynamicResource NetworkSubscriptionEnableHint}"
-                                            Padding="10,2"
-                                            Margin="0,0,0,6"
-                                            Click="OnEnableClick" />
-                                    <Button x:Name="RemoveConfigButton"
-                                            Content="{DynamicResource NetworkSubscriptionRemove}"
-                                            ToolTip="{DynamicResource NetworkSubscriptionRemoveHint}"
-                                            Padding="10,2"
-                                            Click="OnRemoveClick" />
-                                </StackPanel>
-                            </Grid>
-                        </StackPanel>
-                    </Border>
-                    
-                                            
                 </Grid>
                 </ScrollViewer>
             </TabItem>

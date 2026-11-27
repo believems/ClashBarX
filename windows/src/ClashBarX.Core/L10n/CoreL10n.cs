@@ -234,9 +234,9 @@ public static class CoreL10n
 
         // 首次使用引导链（装内核 → 导订阅 → 启动 → 内容出现）
         ["log.start.no_config"] = "未选择配置文件",
-        ["log.start.no_config_hint"] = "尚未导入订阅：请到「设置 → 订阅」导入后启动内核",
+        ["log.start.no_config_hint"] = "尚未导入订阅：请到「网络 → 订阅」导入后启动内核",
         ["guide.no_config.title"] = "还没有可用的配置",
-        ["guide.no_config.message"] = "还没有可用的运行配置，内核无法启动。\n\n请到「设置 → 订阅」粘贴订阅链接并点「导入」（或点「导入本地文件」选择 YAML 配置），然后再启动内核。\n\n是否现在前往订阅设置？",
+        ["guide.no_config.message"] = "还没有可用的运行配置，内核无法启动。\n\n请到「网络 → 订阅」粘贴订阅链接并点「导入」（或点「导入本地文件」选择 YAML 配置），然后再启动内核。\n\n是否现在前往订阅导入？",
         ["guide.import_success.title"] = "导入成功",
         ["guide.import_success.message"] = "已导入并启用「{0}」。\n\n内核未运行时会自动启动，启动后「代理」页即可看到分组与订阅源。",
         ["guide.import_failed.title"] = "导入失败",
@@ -456,9 +456,9 @@ public static class CoreL10n
 
         // First-run guide chain (install core → import subscription → start → content appears)
         ["log.start.no_config"] = "No config file selected",
-        ["log.start.no_config_hint"] = "No subscription yet: import one under Settings → Subscriptions, then start the core",
+        ["log.start.no_config_hint"] = "No subscription yet: import one under Network → Subscriptions, then start the core",
         ["guide.no_config.title"] = "No config available yet",
-        ["guide.no_config.message"] = "There is no config to run, so the core cannot start.\n\nGo to Settings → Subscriptions, paste a subscription URL and click Import (or use Import Local File to pick a YAML config), then start the core.\n\nGo to the subscription settings now?",
+        ["guide.no_config.message"] = "There is no config to run, so the core cannot start.\n\nGo to Network → Subscriptions, paste a subscription URL and click Import (or use Import Local File to pick a YAML config), then start the core.\n\nGo to the subscription import now?",
         ["guide.import_success.title"] = "Imported",
         ["guide.import_success.message"] = "Imported and activated \"{0}\".\n\nThe core starts automatically if it is not running; proxy groups and providers then appear on the Proxy tab.",
         ["guide.import_failed.title"] = "Import failed",

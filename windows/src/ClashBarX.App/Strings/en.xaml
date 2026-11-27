@@ -92,7 +92,7 @@
     <!-- File name verified against the official zip: it contains mihomo-windows-amd64.exe, which must be renamed to mihomo.exe -->
     <sys:String x:Key="GuideCoreStep1">1. Open github.com/MetaCubeX/mihomo/releases and download the file named mihomo-windows-amd64-vX.Y.Z.zip (for example mihomo-windows-amd64-v1.19.34.zip; names containing compatible, v2, v3 or go1xx are other builds — leave them).</sys:String>
     <sys:String x:Key="GuideCoreStep2">2. Extract mihomo-windows-amd64.exe, rename it to mihomo.exe, and put it into the folder below ("Open core folder" creates and opens it for you):</sys:String>
-    <sys:String x:Key="GuideCoreStep3">3. Back in ClashBarX, click "Start Core". If you have not imported a subscription yet, do that first under Settings → Subscriptions.</sys:String>
+    <sys:String x:Key="GuideCoreStep3">3. Back in ClashBarX, click "Start Core". If you have not imported a subscription yet, do that first under Network → Subscriptions.</sys:String>
     <sys:String x:Key="GuideCoreOpenReleasePage">Open releases page</sys:String>
     <sys:String x:Key="GuideCoreOpenDirectory">Open core folder</sys:String>
     <sys:String x:Key="GuideCoreClose">Close</sys:String>

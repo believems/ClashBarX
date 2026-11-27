@@ -127,8 +127,8 @@ public partial class MainWindow : Window
 
     private void OnCloseClick(object sender, RoutedEventArgs e) => Close();   // OnClosing 取消并隐藏（托盘常驻）
 
-    /// <summary>切换到设置页（应用菜单「关于/检查更新」的落点）。</summary>
-    public void SelectSettingsTab() => MainTabs.SelectedIndex = 5;
+    /// <summary>切换到网络页（订阅区 2026-11-27 起在此页；「去导入」引导的落点）。</summary>
+    public void SelectNetworkTab() => MainTabs.SelectedIndex = 4;
 
     /// <summary>
     /// 切到设置页并滚动到维护卡（应用菜单「检查更新」的落点）：维护卡常在首屏之外，
@@ -194,10 +194,10 @@ public partial class MainWindow : Window
         SubscriptionUrlPlaceholder.Visibility = hasUrl ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    /// <summary>切到设置页并把焦点交给订阅链接输入框（「去导入」引导的落点）。</summary>
+    /// <summary>切到网络页并把焦点交给订阅链接输入框（「去导入」引导的落点；订阅区已挪至网络页）。</summary>
     public void FocusSubscriptionUrlBox()
     {
-        SelectSettingsTab();
+        SelectNetworkTab();
         Dispatcher.BeginInvoke(
             new Action(() =>
             {
