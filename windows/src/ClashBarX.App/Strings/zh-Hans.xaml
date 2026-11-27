@@ -60,6 +60,7 @@
     <sys:String x:Key="SsidStrategyToggle">启用</sys:String>
     <sys:String x:Key="SsidStrategyHint">Wi-Fi 名称变化时自动切换到绑定的配置（热重载）</sys:String>
     <sys:String x:Key="SsidStrategyBindCurrent">绑定当前 Wi-Fi → 当前配置</sys:String>
+    <sys:String x:Key="SsidEmptyHint">暂无 Wi-Fi 绑定：点击下方按钮把当前连接的 Wi-Fi 与生效配置绑定，之后名称变化时自动热重载切换</sys:String>
     <sys:String x:Key="SsidStrategyUnbind">解除绑定</sys:String>
 
     <sys:String x:Key="AboutVersionTooltip">查看发布页</sys:String>

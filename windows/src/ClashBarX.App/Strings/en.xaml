@@ -60,6 +60,7 @@
     <sys:String x:Key="SsidStrategyToggle">Enable</sys:String>
     <sys:String x:Key="SsidStrategyHint">Automatically switch to the bound config when the Wi-Fi name changes (hot reload)</sys:String>
     <sys:String x:Key="SsidStrategyBindCurrent">Bind current Wi-Fi → current config</sys:String>
+    <sys:String x:Key="SsidEmptyHint">No Wi-Fi bindings yet. Use the button below to bind the Wi-Fi you are on to the active config; switching networks then hot-reloads automatically.</sys:String>
     <sys:String x:Key="SsidStrategyUnbind">Unbind</sys:String>
 
     <sys:String x:Key="AboutVersionTooltip">Open the releases page</sys:String>

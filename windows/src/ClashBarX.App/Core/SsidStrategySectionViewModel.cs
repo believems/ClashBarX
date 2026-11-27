@@ -86,6 +86,9 @@ public sealed class SsidStrategySectionViewModel : INotifyPropertyChanged
     /// <summary>SSID 变化回填（监听事件）。</summary>
     public void ApplyCurrentSsid(string? ssid) => CurrentSsid = ssid;
 
+    /// <summary>是否有 Wi-Fi 绑定（空态占位行显隐；兼作卡片内容充实度）。</summary>
+    public bool HasBindings => Bindings.Count > 0;
+
     /// <summary>整体重建绑定行（规则变化后）。</summary>
     public void ApplyBindings(IEnumerable<SsidStrategyRule> rules)
     {
@@ -94,6 +97,8 @@ public sealed class SsidStrategySectionViewModel : INotifyPropertyChanged
         {
             Bindings.Add(new SsidBindingRowViewModel(rule));
         }
+
+        Raise(nameof(HasBindings));
     }
 
     public void RequestBindCurrent() => BindCurrentRequested?.Invoke();

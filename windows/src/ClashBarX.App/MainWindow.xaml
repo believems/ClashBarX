@@ -1372,7 +1372,7 @@
                                           FontSize="12" />
                                 <StackPanel Margin="16,8,0,0"
                                             Visibility="{Binding IsGuardEnabled, Converter={StaticResource BoolToVis}}">
-                                    <StackPanel Orientation="Horizontal" Margin="0,4">
+                                    <StackPanel Orientation="Horizontal" Margin="0,8">
                                         <TextBlock Text="{DynamicResource NetworkGuardInterval}" VerticalAlignment="Center" FontSize="12" />
                                         <TextBox Text="{Binding IntervalText}"
                                                  Width="64"
@@ -1380,7 +1380,7 @@
                                                  Padding="4,2"
                                                  VerticalContentAlignment="Center" />
                                     </StackPanel>
-                                    <Button Margin="0,6,0,0"
+                                    <Button Margin="0,10,0,0"
                                             Padding="10,2"
                                             MinWidth="96"
                                             HorizontalAlignment="Left"
@@ -1396,7 +1396,7 @@
                                             </Style>
                                         </Button.Style>
                                     </Button>
-                                    <TextBlock Margin="0,8,0,0"
+                                    <TextBlock Margin="0,10,0,0"
                                                FontSize="12"
                                                Text="{Binding OutcomeText}"
                                                Visibility="{Binding HasOutcome, Converter={StaticResource BoolToVis}}">
@@ -1460,12 +1460,19 @@
                                 <TextBlock Text="{DynamicResource SsidStrategyHint}"
                                            FontSize="11"
                                            Foreground="#5E6B78"
-                                           Margin="0,4,0,0"
+                                           Margin="0,8,0,0"
                                            TextWrapping="Wrap" />
+                                <!-- 空态占位行（无绑定时给出引导提示，兼作卡片内容充实度） -->
+                                <TextBlock Text="{DynamicResource SsidEmptyHint}"
+                                           FontSize="11"
+                                           Foreground="#8A93A0"
+                                           Margin="0,10,0,0"
+                                           TextWrapping="Wrap"
+                                           Visibility="{Binding HasBindings, Converter={StaticResource InverseBoolToVis}}" />
                                 <ItemsControl ItemsSource="{Binding Bindings}" Margin="0,6,0,0">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <DockPanel Margin="0,1">
+                                            <DockPanel Margin="0,3">
                                                 <Button DockPanel.Dock="Right"
                                                         Content="✕"
                                                         Padding="5,0"
@@ -1485,8 +1492,8 @@
                                 </ItemsControl>
                                 <Button Content="{DynamicResource SsidStrategyBindCurrent}"
                                         FontSize="11"
-                                        Padding="8,1"
-                                        Margin="0,6,0,0"
+                                        Padding="10,4"
+                                        Margin="0,10,0,0"
                                         HorizontalAlignment="Left"
                                         IsEnabled="{Binding IsEnabled}"
                                         Click="OnSsidBindCurrentClick" />
