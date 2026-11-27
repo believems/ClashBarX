@@ -7,8 +7,8 @@
         xmlns:core="clr-namespace:ClashBarX.App.Core"
         xmlns:overrides="clr-namespace:ClashBarX.Core.Overrides;assembly=ClashBarX.Core"
         mc:Ignorable="d"
-        Title="ClashBarX" Height="479" Width="760"
-        MinWidth="760" MaxWidth="760" MinHeight="479" MaxHeight="479"
+        Title="ClashBarX" Height="483" Width="760"
+        MinWidth="760" MaxWidth="760" MinHeight="483" MaxHeight="483"
         ResizeMode="CanMinimize"
         WindowStyle="None"
         Background="{DynamicResource ThemeWindowBrush}"
@@ -16,7 +16,7 @@
     <!-- 面板类应用固定尺寸：Min=Max + CanMinimize（禁最大化/缩放，仅保留最小化）——
          自由缩放会让各页布局变形（代理端口框、日志过滤栏、维护卡等）；
          CaptionHeight=0 全自绘标题栏。
-         高度 660→497（BOSS 定稿 2026-11-27，截图标注：订阅卡与状态栏间的空带「不要」）：
+         高度 660→483（BOSS 定稿 2026-11-27，截图标注：订阅卡与状态栏间的空带「不要」）：
          网络页双栏压紧、守护按钮同行、绕过列表双列化（卡内无滚动条）、订阅区从设置页
          挪来后按实测内容高收口；约束页为网络页（双栏卡 + 订阅卡），真机复测零越界零空带。
          设置页例外：进页收高到实测 402（BOSS 拍板 2026-11-27「按页自动调窗高」），
