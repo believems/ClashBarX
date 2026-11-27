@@ -1349,10 +1349,16 @@
                                 </StackPanel>
                             </Grid>
                         </Border>
-                        <!-- 右列：守护 + SSID 自然高度顶对齐（定稿——高度让给左列系统代理） -->
-                        <StackPanel Grid.Column="1" Margin="4,0,0,0" VerticalAlignment="Top">
+                        <!-- 右列：守护自然高度 + SSID 卡填充剩余高（真机反馈：双列底边需对齐，
+                             右列整体高度与左列系统代理卡拉齐） -->
+                        <Grid Grid.Column="1" Margin="4,0,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
                         <!-- 自动代理守护（M3-3 区块挪入网络页；开关 + 周期 + 立即检查 + 结果反馈行） -->
                         <Border x:Name="GuardSettingsRoot"
+                                Grid.Row="0"
                                 Padding="8"
                                 BorderBrush="#DDD"
                                 BorderThickness="1"
@@ -1424,14 +1430,15 @@
                                 </TextBlock>
                             </StackPanel>
                         </Border>
-                        <!-- SSID 策略（M5-3：源 ProxyTabView 的 ssidStrategy 快捷项——开关 + 当前 SSID + 绑定管理） -->
+                        <!-- SSID 策略（M5-3：源 ProxyTabView 的 ssidStrategy 快捷项——开关 + 当前 SSID + 绑定管理；
+                             填充右列剩余高度使双列底边对齐） -->
                         <Border x:Name="SsidStrategyRoot"
+                                Grid.Row="1"
                                 Padding="8"
                                 BorderBrush="#DDD"
                                 BorderThickness="1"
                                 CornerRadius="4"
-                                Background="#FAFAFA"
-                                Margin="0,0,0,8">
+                                Background="#FAFAFA">
                             <StackPanel>
                                 <DockPanel>
                                     <CheckBox DockPanel.Dock="Right"
@@ -1485,7 +1492,7 @@
                                         Click="OnSsidBindCurrentClick" />
                             </StackPanel>
                         </Border>
-                        </StackPanel>
+                        </Grid>
                     </Grid>
                     <!-- 订阅管理（M2-3 区块挪入网络页；全宽居底；远程目标时整体只读） -->
                     <Border x:Name="SubscriptionSectionRoot"
@@ -1652,7 +1659,8 @@
                                            FontWeight="SemiBold"
                                            FontSize="12"
                                            Margin="0,0,0,6" />
-                                <StackPanel Orientation="Horizontal">
+                                <!-- 维护按钮：WrapPanel 自动换行（窄列下单行会被裁切，真机实测） -->
+                                <WrapPanel Orientation="Horizontal">
                                     <Button Padding="10,2"
                                             FontSize="11"
                                             MinWidth="96"
@@ -1699,7 +1707,7 @@
                                             Margin="8,0,0,0"
                                             Content="{DynamicResource MaintenanceOpenCoreDir}"
                                             Click="OnOpenCoreDirectoryClick" />
-                                </StackPanel>
+                                </WrapPanel>
                                 <TextBlock Margin="0,6,0,0"
                                            FontSize="11"
                                            TextWrapping="Wrap"

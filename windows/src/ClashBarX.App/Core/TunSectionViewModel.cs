@@ -5,20 +5,38 @@ using ClashBarX.Core.Tun;
 
 namespace ClashBarX.App.Core;
 
-/// <summary>stack 选项（mips 门槛不满足时禁选并附升级提示文案）。</summary>
-public sealed class StackOptionViewModel
+/// <summary>stack 选项（mips 门槛不满足时禁选并附升级提示文案）。
+/// IsAvailable 为可变通知属性——门槛变化时就地更新，不重建集合
+/// （重建会触发 ComboBox 异步选中失效把 SelectedItem 回写 null，真机实测下拉永久空白）。</summary>
+public sealed class StackOptionViewModel : System.ComponentModel.INotifyPropertyChanged
 {
+    private bool _isAvailable;
+
     public StackOptionViewModel(string stack, bool isAvailable, string mipsMinimumVersion)
     {
         Stack = stack;
-        IsAvailable = isAvailable;
+        _isAvailable = isAvailable;
         MipsMinimumVersion = mipsMinimumVersion;
     }
 
     public string Stack { get; }
 
     /// <summary>mips 门槛不满足时 false（源：菜单项 disabled）。</summary>
-    public bool IsAvailable { get; }
+    public bool IsAvailable
+    {
+        get => _isAvailable;
+        set
+        {
+            if (_isAvailable == value)
+            {
+                return;
+            }
+
+            _isAvailable = value;
+            PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(IsAvailable)));
+            PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(DisplayText)));
+        }
+    }
 
     public string MipsMinimumVersion { get; }
 
@@ -26,6 +44,11 @@ public sealed class StackOptionViewModel
     public string DisplayText => IsAvailable
         ? Stack
         : $"{Stack} · {ClashBarX.Core.L10n.CoreL10n.T("tun.mips_requires_upgrade", MipsMinimumVersion)}";
+
+    /// <summary>UIA/无障碍与模板失效兜底显示（真机诊断：下拉项 Name 曾为类型全名）。</summary>
+    public override string ToString() => DisplayText;
+
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
 }
 
 /// <summary>
@@ -113,7 +136,8 @@ public sealed class TunSectionViewModel : INotifyPropertyChanged
     /// <summary>当前 stack 名（显示用，实际生效值由运行态回填；由选中项派生）。</summary>
     public string? SelectedStack => _selectedStackOption?.Stack;
 
-    /// <summary>同步内核版本门槛（不满足时 mips 禁选；源：isMipsStackSupported）。</summary>
+    /// <summary>同步内核版本门槛（不满足时 mips 禁选；源：isMipsStackSupported）。
+    /// 就地更新 mips 项可用性——不重建集合，避免 ComboBox 选中被异步失效回写 null。</summary>
     public void SetMipsSupport(bool supported)
     {
         if (_isMipsSupported == supported)
@@ -122,17 +146,17 @@ public sealed class TunSectionViewModel : INotifyPropertyChanged
         }
 
         _isMipsSupported = supported;
-        string? currentStack = _selectedStackOption?.Stack;   // 重建后按 Stack 值恢复选中
-        StackOptions.Clear();
-        foreach (StackOptionViewModel option in BuildStackOptions())
+        foreach (StackOptionViewModel option in StackOptions)
         {
-            StackOptions.Add(option);
+            if (option.Stack == "mips")
+            {
+                option.IsAvailable = supported;
+            }
         }
-
-        _selectedStackOption = StackOptions.FirstOrDefault(option => option.Stack == currentStack);
-        Raise(nameof(SelectedStackOption));
-        Raise(nameof(SelectedStack));
     }
+
+    /// <summary>缺省 stack（源：原型下拉默认 mixed；持久化值为空时的兜底选中）。</summary>
+    private const string DefaultStack = "mixed";
 
     /// <summary>程序化回填运行态（不触发 Toggle/StackSelected 事件；源：fetchRuntimeConfigSnapshot 同步链）。</summary>
     public void ApplySnapshot(bool enabled, string? stack)
@@ -140,10 +164,12 @@ public sealed class TunSectionViewModel : INotifyPropertyChanged
         bool enabledChanged = _isTunEnabled != enabled;
         string? currentStack = _selectedStackOption?.Stack;
         string? nextStack = string.IsNullOrWhiteSpace(stack) ? currentStack : stack.Trim();
+        StackOptionViewModel? fallback =
+            _selectedStackOption ?? StackOptions.FirstOrDefault(option => option.Stack == DefaultStack);
         StackOptionViewModel? nextOption = string.IsNullOrEmpty(nextStack)
-            ? _selectedStackOption
+            ? fallback
             : StackOptions.FirstOrDefault(option => option.Stack == nextStack)
-              ?? _selectedStackOption;   // 面板未就绪时保留旧选中，待 SetMipsSupport/下次快照对齐
+              ?? fallback;   // 面板未就绪或值非法时兜底默认项，杜绝下拉空白
         bool stackChanged = !string.Equals(currentStack, nextOption?.Stack, StringComparison.Ordinal);
         _isTunEnabled = enabled;
         _selectedStackOption = nextOption;
