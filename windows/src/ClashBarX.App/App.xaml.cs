@@ -274,19 +274,25 @@ public partial class App : Application
         var maintenance = new MaintenanceService(_apiClient!);
         _settingsPage.UpgradeGeoRequested = async () =>
         {
-            CoreUpgradeResponse response = await maintenance.UpgradeGeoAsync();
-            string message = string.IsNullOrWhiteSpace(response.Message)
-                ? L("log.maintenance.geo_no_message", response.Status ?? L("log.maintenance.submitted"))
-                : L("log.maintenance.geo", response.Status ?? L("log.maintenance.submitted"), response.Message);
+            // 源：upgradeGeo 的 requestNoResponse——内核回 204 无响应体，2xx 即成功
+            await maintenance.UpgradeGeoAsync();
+            string message = L("log.maintenance.geo_updated");
             _mainWindow?.AppendLog($"[maintenance] {message}");
             return message;
         };
         _settingsPage.UpgradeCoreRequested = async () =>
         {
-            CoreUpgradeResponse response = await maintenance.UpgradeCoreAsync();
-            string message = string.IsNullOrWhiteSpace(response.Message)
-                ? L("log.maintenance.core_no_message", response.Status ?? L("log.maintenance.submitted"))
-                : L("log.maintenance.core", response.Status ?? L("log.maintenance.submitted"), response.Message);
+            CoreUpgradeResult result = await maintenance.UpgradeCoreWithResultAsync();
+            string message = result.Outcome switch
+            {
+                CoreUpgradeOutcome.AlreadyLatest => result.Version is { Length: > 0 } latestVersion
+                    ? L("log.maintenance.core_latest_version", latestVersion)
+                    : L("log.maintenance.core_latest"),
+                CoreUpgradeOutcome.Failed => L("maintenance.failed", result.Message ?? L("log.tun.unknown_error")),
+                _ => result.Message is { Length: > 0 } detail
+                    ? L("log.maintenance.core", result.Status ?? L("log.maintenance.submitted"), detail)
+                    : L("log.maintenance.core_no_message", result.Status ?? L("log.maintenance.submitted")),
+            };
             _mainWindow?.AppendLog($"[maintenance] {message}");
             return message;
         };
