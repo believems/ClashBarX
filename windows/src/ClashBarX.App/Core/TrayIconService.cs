@@ -43,6 +43,9 @@ public sealed class TrayIconService : IDisposable
     /// <summary>用户切换分流模式（托盘菜单子项，参数为 rule/global/direct）。</summary>
     public event Action<string>? ModeChanged;
 
+    /// <summary>用户请求复制代理命令（托盘二级菜单；参数 cmd / powershell）。</summary>
+    public event Action<string>? CopyProxyCommandRequested;
+
     /// <summary>当前托盘图标形态。</summary>
     public TrayIconKind CurrentKind => _kind;
 
@@ -78,6 +81,15 @@ public sealed class TrayIconService : IDisposable
         modeMenu.Items.Add(_modeGlobalItem);
         modeMenu.Items.Add(_modeDirectItem);
 
+        // 复制代理命令（二级菜单：CMD / PowerShell——右键免开主窗即可取命令）
+        var copyMenu = new MenuItem { Header = ClashBarX.Core.L10n.CoreL10n.T("tray.menu.copy_proxy_command") };
+        var cmdItem = new MenuItem { Header = "CMD" };
+        cmdItem.Click += (_, _) => CopyProxyCommandRequested?.Invoke("cmd");
+        var powerShellItem = new MenuItem { Header = "PowerShell" };
+        powerShellItem.Click += (_, _) => CopyProxyCommandRequested?.Invoke("powershell");
+        copyMenu.Items.Add(cmdItem);
+        copyMenu.Items.Add(powerShellItem);
+
         var exitItem = new MenuItem { Header = ClashBarX.Core.L10n.CoreL10n.T("tray.menu.exit") };
         exitItem.Click += (_, _) => ExitRequested?.Invoke();
 
@@ -85,6 +97,7 @@ public sealed class TrayIconService : IDisposable
         menu.Items.Add(showItem);
         menu.Items.Add(_proxyItem);
         menu.Items.Add(modeMenu);
+        menu.Items.Add(copyMenu);
         menu.Items.Add(new Separator());
         menu.Items.Add(exitItem);
 

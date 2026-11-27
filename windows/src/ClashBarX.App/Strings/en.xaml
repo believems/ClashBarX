@@ -134,4 +134,11 @@
     <sys:String x:Key="MaintenanceUpgradeCore">Upgrade core</sys:String>
     <sys:String x:Key="AboutVersionPrefix">Version </sys:String>
     <sys:String x:Key="MachineSecretKeepHint">Leave empty to keep the current secret</sys:String>
+    <sys:String x:Key="NetworkSubscriptionImportLocal">Import Local File</sys:String>
+    <sys:String x:Key="NetworkSubscriptionImportLocalHint">Pick a local YAML config, copy it into the configs folder and activate</sys:String>
+    <sys:String x:Key="NetworkSubscriptionImportHint">Download a subscription from a URL</sys:String>
+    <sys:String x:Key="SubscriptionUpdateHint">Re-download the selected subscription (the highlighted row)</sys:String>
+    <sys:String x:Key="SubscriptionUpdateAllHint">Re-download all subscriptions</sys:String>
+    <sys:String x:Key="NetworkSubscriptionEnableHint">Activate the selected config row</sys:String>
+    <sys:String x:Key="NetworkSubscriptionRemoveHint">Delete the selected config file</sys:String>
 </ResourceDictionary>

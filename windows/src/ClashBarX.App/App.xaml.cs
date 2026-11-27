@@ -167,7 +167,8 @@ public partial class App : Application
         _mainWindow.CoreRestartRequested += () => _ = RestartCoreManualAsync();
         _mainWindow.SubscriptionRefreshRequested += OnSubscriptionRefreshRequested;
         _mainWindow.SubscriptionRefreshAllRequested += OnSubscriptionRefreshAllRequested;
-        _mainWindow.CopyProxyCommandRequested += OnCopyProxyCommandRequested;
+        _mainWindow.CopyProxyCommandRequested += () => _ = OnCopyProxyCommandRequestedAsync("bash");
+        _tray!.CopyProxyCommandRequested += shell => _ = OnCopyProxyCommandRequestedAsync(shell);
         _mainWindow.MachineTargetSwitchRequested += machineId => _ = SwitchMachineTargetAsync(machineId);
         _mainWindow.ManageMachinesRequested += OpenRemoteMachineManager;
         _mainWindow.OpenWebUIRequested += OpenControllerWebUI;
@@ -2280,8 +2281,11 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
         }
     }
 
-    /// <summary>复制终端代理命令（源：copyLocalProxyCommand——export http/https/all_proxy）。</summary>
-    private async void OnCopyProxyCommandRequested()
+    /// <summary>
+    /// 复制终端代理命令（源：copyLocalProxyCommand）。shell 决定格式：
+    /// bash=export（代理页按钮）、cmd=set、powershell=$env:（托盘二级菜单）。
+    /// </summary>
+    private async Task OnCopyProxyCommandRequestedAsync(string shell)
     {
         try
         {
@@ -2294,7 +2298,7 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
             }
 
             string endpoint = $"http://127.0.0.1:{mixedPort}";
-            string command = $"export http_proxy={endpoint} https_proxy={endpoint} all_proxy={endpoint}";
+            string command = BuildProxyCommand(shell, endpoint);
             await Dispatcher.BeginInvoke(() =>
             {
                 try
@@ -2314,6 +2318,14 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
             _mainWindow?.AppendLog(L("log.proxy.copy_failed", error.Message));
         }
     }
+
+    /// <summary>按 shell 生成代理命令（bash=export / cmd=set / powershell=$env:）。</summary>
+    private static string BuildProxyCommand(string shell, string endpoint) => shell switch
+    {
+        "cmd" => $"set http_proxy={endpoint} && set https_proxy={endpoint} && set all_proxy={endpoint}",
+        "powershell" => $"$env:http_proxy=\"{endpoint}\"; $env:https_proxy=\"{endpoint}\"; $env:all_proxy=\"{endpoint}\"",
+        _ => $"export http_proxy={endpoint} https_proxy={endpoint} all_proxy={endpoint}",
+    };
 
     /// <summary>
     /// 配置目录监控（源：AppViewModel+ConfigMonitoring——目录变化 350ms 防抖后，

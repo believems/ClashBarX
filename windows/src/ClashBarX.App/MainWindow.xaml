@@ -50,7 +50,10 @@
                 <TextBlock x:Name="CoreStatusText"
                            Text="{DynamicResource CoreStatusDefault}"
                            FontSize="14" FontWeight="SemiBold"
-                           VerticalAlignment="Center" />
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"
+                       MaxWidth="330"
+                       ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
                 <!-- 手动内核生命周期（源：MenuBarHeaderView 的启动/停止/重启动作；远程目标禁用） -->
                 <Button x:Name="StartCoreButton"
                         Content="{DynamicResource CoreStart}"
@@ -113,6 +116,9 @@
                                    FontSize="13"
                                    FontWeight="SemiBold"
                                    VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"
+                                   MaxWidth="300"
+                                   ToolTip="{Binding TrafficSummary}"
                                    Visibility="{Binding ShowTrafficOverview, Converter={StaticResource BoolToVis}}" />
                     </DockPanel>
                     <!-- TUN 快捷区（源：ProxyTabView.tunModeQuickToggleRow + tunStackMenu：
@@ -458,8 +464,7 @@
                                   Margin="8,0,0,0"
                                   ItemsSource="{Binding PolicyOptions}"
                                   DisplayMemberPath="Label"
-                                  SelectedValuePath="Value"
-                                  SelectedValue="{Binding PolicyFilter}" />
+                                  SelectedItem="{Binding PolicySelection}" />
                         <ComboBox DockPanel.Dock="Right"
                                   Width="84"
                                   ItemsSource="{Binding TypeFilterOptions}"
@@ -1199,11 +1204,20 @@
                                                FontSize="12" />
                                 </DockPanel>
                                 <DockPanel Margin="0,0,0,6">
+                                    <Button x:Name="ImportLocalButton"
+                                            DockPanel.Dock="Right"
+                                            Content="{DynamicResource NetworkSubscriptionImportLocal}"
+                                            Padding="10,2"
+                                            MinWidth="60"
+                                            Margin="6,0,0,0"
+                                            ToolTip="{DynamicResource NetworkSubscriptionImportLocalHint}"
+                                            Click="OnImportLocalClick" />
                                     <Button x:Name="ImportButton"
                                             DockPanel.Dock="Right"
                                             Content="{DynamicResource NetworkSubscriptionImport}"
                                             Padding="10,2"
                                             MinWidth="60"
+                                            ToolTip="{DynamicResource NetworkSubscriptionImportHint}"
                                             Click="OnImportClick" />
                                     <TextBox x:Name="SubscriptionUrlBox"
                                              VerticalContentAlignment="Center"
@@ -1250,9 +1264,15 @@
                         Background="#FAFAFA"
                         Margin="4,8,4,4"
                         HorizontalAlignment="Left"
-                        VerticalAlignment="Top"
-                        MinWidth="380">
-                    <StackPanel>
+                        VerticalAlignment="Stretch"
+                        MinWidth="620">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <Grid MaxWidth="860" HorizontalAlignment="Left">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,14,0">
                         <TextBlock Text="{DynamicResource SettingsAppearanceTitle}"
                                    FontWeight="SemiBold"
                                    FontSize="12"
@@ -1295,7 +1315,8 @@
                         <CheckBox Content="{DynamicResource SettingsTrafficOverviewHint}"
                                   FontSize="12"
                                   IsChecked="{Binding ShowTrafficOverview}" />
-
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Margin="14,0,0,0">
                         <!-- 核心设置（源：SystemTabView 核心设置区；经 PATCH /configs 即时生效） -->
                         <Border Padding="8"
                                 BorderBrush="#DDD"
@@ -1492,8 +1513,21 @@
                             </TextBlock.Style>
                         </TextBlock>
                     </StackPanel>
+                    </Grid>
+                </ScrollViewer>
                 </Border>
             </TabItem>
         </TabControl>
+
+        <!-- 底部状态栏（Boss 建议：API 状态/内核/版本常驻展示，与头部状态行同源） -->
+        <StatusBar DockPanel.Dock="Bottom">
+            <StatusBarItem>
+                <TextBlock x:Name="StatusStripText" Text="{DynamicResource CoreStatusDefault}" FontSize="11" />
+            </StatusBarItem>
+            <Separator />
+            <StatusBarItem>
+                <TextBlock x:Name="StatusStripVersion" FontSize="11" Foreground="#5E6B78" />
+            </StatusBarItem>
+        </StatusBar>
     </DockPanel>
 </Window>

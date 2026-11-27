@@ -99,7 +99,7 @@ public sealed class RulesPageViewModel : INotifyPropertyChanged
     public string? PolicyFilter
     {
         get => _policyFilter;
-        set
+        private set
         {
             if (SetProperty(ref _policyFilter, value))
             {
@@ -107,6 +107,28 @@ public sealed class RulesPageViewModel : INotifyPropertyChanged
             }
         }
     }
+
+    /// <summary>
+    /// 策略下拉选中项（对象级绑定——SelectedValue 反查在重建的 ItemsSource 上有
+    /// 时序空选中坑，与 TUN stack 下拉同根因）。
+    /// </summary>
+    public PolicyOption? PolicySelection
+    {
+        get => _policySelection;
+        set
+        {
+            if (value is null || ReferenceEquals(_policySelection, value))
+            {
+                return;
+            }
+
+            _policySelection = value;
+            Raise(nameof(PolicySelection));
+            PolicyFilter = value.Value;
+        }
+    }
+
+    private PolicyOption? _policySelection;
 
     /// <summary>按策略分组（默认关；源：clashbar.rules.group_by_policy.v1）。</summary>
     public bool GroupByPolicy
@@ -204,12 +226,10 @@ public sealed class RulesPageViewModel : INotifyPropertyChanged
             PolicyOptions.Add(new PolicyOption(policy, policy));
         }
 
-        // 选中策略从列表消失自动回落「全部」（源：policyFilter 回落）
-        if (current is { Length: > 0 }
-            && PolicyOptions.All(option => option.Value != current))
-        {
-            PolicyFilter = null;
-        }
+        // 选中项按值恢复（对象更替不丢选中；规则集为空时回落「全部」显示占位）
+        _policySelection = PolicyOptions.FirstOrDefault(option => option.Value == current)
+            ?? PolicyOptions.FirstOrDefault(option => option.Value is null);
+        Raise(nameof(PolicySelection));
     }
 
     private void RebuildRows()
@@ -310,6 +330,9 @@ public sealed class RulesPageViewModel : INotifyPropertyChanged
             hidePolicy ? null : rule.Proxy,
             statsText);
     }
+
+    private void Raise(string? propertyName) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
     public event PropertyChangedEventHandler? PropertyChanged;
 

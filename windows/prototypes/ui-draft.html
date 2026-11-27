@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>ClashBarX UI 交互稿 v1</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; }
+  body { background: #2b2f36; padding: 24px; display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+
+  /* ===== 窗口框 ===== */
+  .window { width: 860px; background: #f3f4f6; border: 1px solid #1b1e24; border-radius: 8px; box-shadow: 0 12px 40px rgba(0,0,0,.45); overflow: hidden; }
+  .titlebar { background: #ffffff; border-bottom: 1px solid #e2e5ea; display: flex; align-items: center; height: 34px; padding: 0 10px; gap: 8px; }
+  .titlebar .app { font-size: 12px; font-weight: 600; color: #3b4048; }
+  .appicon { width: 20px; height: 20px; border-radius: 4px; background: linear-gradient(135deg, #2563eb, #0ea5e9); display: grid; place-items: center; cursor: pointer; position: relative; }
+  .appicon .iconmark { color: #fff; font-size: 11px; }
+  .appmenu { display: none; position: absolute; top: 30px; left: 8px; z-index: 50; background: #fff; border: 1px solid #c3c9d1; border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.25); width: 268px; padding: 4px; color: #2b2f36; }
+  .appmenu .mi { display: flex; align-items: center; gap: 8px; padding: 7px 10px; font-size: 12px; border-radius: 4px; cursor: pointer; }
+  .appmenu .mi:hover { background: #eef1f5; }
+  .appmenu .sep { height: 1px; background: #e4e7eb; margin: 4px 6px; }
+  .titlebar .winbtns { margin-left: auto; display: flex; gap: 2px; }
+  .titlebar .winbtns span { width: 34px; height: 24px; display: grid; place-items: center; font-size: 10px; color: #5e6b78; cursor: default; }
+  .titlebar .winbtns span:hover { background: #eef1f5; }
+
+  /* ===== 头部行 ===== */
+  .header { display: flex; align-items: center; padding: 10px 14px; gap: 10px; background: #fff; border-bottom: 1px solid #e2e5ea; }
+  .header .status { font-size: 13px; font-weight: 600; color: #1f2329; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 330px; }
+  .header .corebtns { display: flex; gap: 6px; }
+  .btn { border: 1px solid #cdd4dc; background: #fff; border-radius: 4px; padding: 3px 10px; font-size: 11px; color: #3b4048; cursor: default; }
+  .btn:hover { background: #f0f3f7; }
+  .btn.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+  .header .right { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #34a853; }
+  select { border: 1px solid #cdd4dc; border-radius: 4px; padding: 3px 6px; font-size: 11px; background: #fff; color: #3b4048; }
+
+  /* ===== Tabs ===== */
+  .tabs { display: flex; background: #fff; border-bottom: 1px solid #d6dade; padding: 0 8px; }
+  .tab { padding: 8px 16px; font-size: 12.5px; color: #5e6b78; cursor: pointer; border-bottom: 2px solid transparent; }
+  .tab.active { color: #1f2329; font-weight: 600; border-bottom-color: #2563eb; }
+  .content { height: 480px; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; }
+  .page { display: none; }
+  .page.active { display: block; flex: 1; min-height: 0; }
+  #page-connections.active { display: flex; }
+
+  /* ===== 通用卡片/行 ===== */
+  .card { background: #fafafa; border: 1px solid #ddd; border-radius: 4px; padding: 10px; margin-bottom: 8px; }
+  .card h3 { font-size: 12px; font-weight: 600; color: #1f2329; margin-bottom: 8px; }
+  .row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+  .muted { font-size: 11px; color: #5e6b78; }
+  .small { font-size: 11px; }
+  .checkbox { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; cursor: pointer; }
+  .checkbox .box { width: 13px; height: 13px; border: 1px solid #9aa4af; border-radius: 3px; display: inline-block; }
+  .checkbox.on .box { background: #2563eb; border-color: #2563eb; position: relative; }
+  .checkbox.on .box::after { content: "✓"; color: #fff; font-size: 10px; position: absolute; inset: 0; display: grid; place-items: center; }
+  .toggle { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 2px 8px; border: 1px solid #cdd4dc; border-radius: 3px; background: #fff; cursor: pointer; }
+  .toggle.on { background: #2563eb; color: #fff; border-color: #2563eb; }
+  .progress { height: 5px; background: #e4e7eb; border-radius: 3px; overflow: hidden; flex: 1; min-width: 120px; }
+  .progress .fill { height: 100%; background: #5e6b78; border-radius: 3px; }
+
+  /* ===== 日志页 ===== */
+  .chip { font-size: 11px; padding: 2px 10px; border-radius: 99px; border: 1px solid #cdd4dc; background: #fff; color: #5e6b78; cursor: pointer; }
+  .chip.on { border-color: var(--c); color: var(--c); background: color-mix(in srgb, var(--c) 10%, #fff); font-weight: 600; }
+  .chipsep { width: 1px; height: 16px; background: #d9dee4; margin: 0 4px; }
+  .logtable { background: #fff; border: 1px solid #ddd; border-radius: 6px; overflow: hidden; display: flex; flex-direction: column; height: 356px; }
+  .logrow { display: grid; grid-template-columns: 64px 84px 56px 1fr; align-items: center; gap: 8px; padding: 6px 12px; font-size: 11.5px; border-bottom: 1px solid #f0f2f5; }
+  .logrow:last-child { border-bottom: none; }
+  .loghead { background: #f7f8fa; font-size: 10.5px; color: #8a93a0; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid #e4e7eb; position: sticky; top: 0; }
+  .logbody { flex: 1; overflow-y: auto; }
+  .logbody .logrow:nth-child(even) { background: #fbfcfd; }
+  .logbody .logrow:hover { background: #eef4ff; }
+  .c-time { font-family: Consolas, monospace; color: #8a93a0; font-size: 10.5px; }
+  .c-msg { font-family: Consolas, monospace; color: #3b4048; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .badge { font-style: normal; font-size: 10px; padding: 1px 8px; border-radius: 99px; color: var(--c); background: color-mix(in srgb, var(--c) 12%, #fff); border: 1px solid color-mix(in srgb, var(--c) 30%, #fff); }
+  .lv { font-style: normal; font-size: 10px; padding: 1px 8px; border-radius: 3px; font-family: Consolas, monospace; font-weight: 600; color: var(--c); background: color-mix(in srgb, var(--c) 10%, #fff); }
+
+  /* ===== 底部状态栏 ===== */
+  .statusbar { display: flex; align-items: center; gap: 10px; background: #fff; border-top: 1px solid #e2e5ea; padding: 5px 12px; font-size: 11px; color: #3b4048; }
+  .statusbar .sep { color: #c3c9d1; }
+  .statusbar .version { color: #5e6b78; }
+
+  /* ===== 代理页 ===== */
+  .proxy-top { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+  .modes { display: flex; gap: 10px; font-size: 12px; }
+  .modes label { cursor: pointer; color: #5e6b78; }
+  .modes label.on { color: #2563eb; font-weight: 600; }
+  .traffic { font-size: 12.5px; font-weight: 600; color: #1f2329; margin-left: auto; white-space: nowrap; }
+  .tun-row { display: flex; align-items: center; gap: 10px; background: #fafafa; border: 1px solid #ddd; border-radius: 4px; padding: 8px 10px; margin-bottom: 8px; }
+  .tun-row .title { font-size: 12px; font-weight: 600; }
+  .group-tools { display: flex; align-items: center; gap: 8px; margin: 8px 0 6px; flex-wrap: wrap; }
+  .group-card { border: 1px solid #ddd; border-radius: 4px; background: #fff; margin-bottom: 6px; }
+  .group-card .head { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-bottom: 1px solid #e8ebee; }
+  .group-card .head .name { font-weight: 600; font-size: 12px; }
+  .group-card .head .cur { color: #5e6b78; font-size: 11px; margin-left: auto; }
+  .group-card .head .delay { color: #34a853; font-size: 11px; min-width: 48px; text-align: right; }
+  .node { display: flex; align-items: center; gap: 8px; padding: 4px 10px 4px 24px; font-size: 11.5px; border-bottom: 1px dashed #eef1f4; }
+  .node:last-child { border-bottom: none; }
+  .node .type { color: #8a93a0; font-size: 10.5px; min-width: 72px; }
+  .node .bars { display: flex; align-items: flex-end; gap: 2px; height: 13px; margin-left: auto; }
+  .node .bars i { width: 3px; border-radius: 1px; display: inline-block; }
+  .node .delay { min-width: 52px; text-align: right; color: #5e6b78; font-size: 11px; }
+
+  /* ===== 网络页订阅 ===== */
+  .sub-list { border: 1px solid #d9dee4; border-radius: 4px; background: #fff; margin: 6px 0; max-height: 130px; overflow-y: auto; }
+  .sub-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; font-size: 11.5px; border-bottom: 1px solid #eef1f4; }
+  .sub-row:last-child { border-bottom: none; }
+  .sub-row.on { background: #eef4ff; }
+  .input { border: 1px solid #cdd4dc; border-radius: 4px; padding: 5px 8px; font-size: 12px; flex: 1; background: #fff; color: #3b4048; }
+
+  /* ===== 网络页双列 ===== */
+  /* 网络页：page 撑满 tab 高，net-grid 吃剩余高——系统代理随 tab 高度展开列表 */
+  #page-network.active { display: flex; flex-direction: column; min-height: 0; }
+  #page-network .net-grid { flex: 1 1 0; min-height: 0; }
+  .net-grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: minmax(0, 1fr); gap: 8px; align-items: stretch; }
+  .net-grid > div { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow: hidden; }
+  .net-grid > div > .card { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .net-grid > div > .card:last-child { flex: 1; min-height: 0; }
+  /* 右列保持自然高度（守护+SSID 合理高度），高度让给左列系统代理 */
+  .net-grid > div:nth-child(2) { align-self: start; overflow: visible; }
+
+  /* ===== 设置页双列 ===== */
+  .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; align-items: stretch; }
+  .settings-grid .col { display: flex; flex-direction: column; gap: 8px; }
+  .settings-grid .col > .card { display: flex; flex-direction: column; }
+  .settings-grid .col > .card:last-child { flex: 1; }
+  .about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .kv { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; font-size: 12px; }
+
+  /* ===== 右侧讨论面板 ===== */
+  .side { width: 380px; display: flex; flex-direction: column; gap: 16px; }
+  .panel { background: #f3f4f6; border: 1px solid #454b54; border-radius: 8px; padding: 14px; color: #dfe3e8; }
+  .panel h2 { font-size: 13px; margin-bottom: 10px; color: #fff; }
+  .panel .note { font-size: 11.5px; line-height: 1.7; color: #c3c9d1; }
+  .panel .note b { color: #7fa8d9; font-weight: 600; }
+
+  /* ===== 托盘菜单预览 ===== */
+  .tray-menu { background: #fff; border: 1px solid #c3c9d1; border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.25); width: 230px; padding: 4px; color: #2b2f36; }
+  .tray-menu .mi { display: flex; align-items: center; gap: 8px; padding: 7px 10px; font-size: 12px; border-radius: 4px; }
+  .tray-menu .mi:hover { background: #eef1f5; }
+  .tray-menu .mi .check { width: 14px; color: #2563eb; font-size: 11px; }
+  .tray-menu .sep { height: 1px; background: #e4e7eb; margin: 4px 6px; }
+  .tray-menu .submenu { margin: 2px 0 2px 18px; border-left: 2px solid #e4e7eb; padding-left: 6px; }
+  .tray-menu .mi.sub { padding: 5px 8px; font-size: 11.5px; }
+  .tray-menu .submenu-label { font-size: 11px; color: #8a93a0; padding: 4px 10px 0; }
+  .tag { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 3px; background: #2f6b46; color: #b8e6c9; margin-left: 6px; }
+  .tag.new { background: #5b3a11; color: #ffd9a0; }
+  .tag.q { background: #4b2f5e; color: #dcb8ff; }
+</style>
+</head>
+<body>
+
+<!-- ================= 主窗口 ================= -->
+<div class="window">
+  <div class="titlebar">
+    <span class="appicon" id="appicon" title="应用菜单">
+      <!-- App 图标占位（正式用 tray.ico 同源 32px 资产） -->
+      <span class="iconmark">⚡</span>
+    </span>
+    <span class="app">ClashBarX</span>
+
+    <!-- 左上角应用菜单：关于 / 检查更新 / 关闭窗口（收起到任务栏） -->
+    <div class="appmenu" id="appmenu">
+      <div class="mi"><span class="check"></span>关于 ClashBarX</div>
+      <div class="mi"><span class="check"></span>检查更新</div>
+      <div class="sep"></div>
+      <div class="mi"><span class="check"></span>关闭窗口</div>
+    </div>
+
+    <span class="winbtns"><span>—</span><span>▢</span><span>✕</span></span>
+  </div>
+
+  <!-- 头部 -->
+  <div class="header">
+    <!-- 状态点：绿=运行+API正常 / 黄=运行但API未就绪 / 灰=未运行；文本细节全部下沉底部状态栏 -->
+    <span class="dot" id="hdr-dot" style="width:10px;height:10px" title="内核运行中 · API 正常 · v1.19.34"></span>
+    <!-- 互斥按钮：未运行=启动；运行中=停止+重启（Mac primaryCoreAction 语义） -->
+    <span class="corebtns" id="hdr-btns"><span class="btn">停止内核</span><span class="btn">重启内核</span></span>
+    <span class="right">
+      <span class="dot"></span>
+      <select><option>本机 · 127.0.0.1:9090</option><option>demo-remote</option></select>
+      <span class="btn">管理</span>
+      <span class="btn">WebUI</span>
+    </span>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" data-page="proxy">代理</div>
+    <div class="tab" data-page="rules">规则</div>
+    <div class="tab" data-page="connections">连接</div>
+    <div class="tab" data-page="logs">日志</div>
+    <div class="tab" data-page="network">网络</div>
+    <div class="tab" data-page="settings">设置</div>
+  </div>
+
+  <div class="content">
+    <!-- ============ 代理页 ============ -->
+    <div class="page active" id="page-proxy">
+      <div class="proxy-top">
+        <span class="modes"><label class="on">● 规则</label><label>全局</label><label>直连</label></span>
+        <span style="margin-left:auto; display:flex; gap:4px; align-items:center">
+        <span class="small muted">复制代理命令</span>
+        <span class="btn">CMD</span><span class="btn">PowerShell</span><span class="btn">Bash</span>
+      </span>
+      </div>
+
+      <div class="tun-row">
+        <span class="title">TUN 模式</span>
+        <select style="width:110px"><option selected>mixed</option><option>system</option><option>gvisor</option><option>mips</option></select>
+        <span style="margin-left:auto" class="checkbox"><span class="box"></span>启用</span>
+      </div>
+
+      <div class="card">
+        <div class="row" style="margin-bottom:0">
+          <h3 style="margin:0">订阅源 <span class="small muted">2 个</span></h3>
+          <span style="margin-left:auto; display:flex; gap:6px">
+            <span class="btn">更新全部</span><span class="btn toggle-collapse">▲▼</span>
+          </span>
+        </div>
+        <div class="collapsible" style="margin-top:8px; border:1px solid #e2e5ea; border-radius:4px; background:#fff; padding:8px 10px;">
+          <div class="row"><b style="font-size:12px">Demo Group</b><span class="small muted">2 节点</span><span class="small muted" style="color:#8a93a0">739946 天前</span><span style="margin-left:auto; display:flex; gap:4px"><span class="btn">⚡</span><span class="btn">⟳</span></span></div>
+          <div class="row" style="margin-bottom:0"><span class="small" style="color:#b45309">10 天后到期</span><span class="small muted" style="margin-left:auto">80GB / 100GB</span></div>
+          <div class="row" style="margin-bottom:0"><div class="progress"><div class="fill" style="width:80%; background:#b45309"></div></div></div>
+        </div>
+      </div>
+
+      <div class="group-tools">
+        <b style="font-size:12px">分组 <span class="small muted">1 个</span></b>
+        <span class="toggle">延迟排序</span><span class="toggle on">延迟历史</span><span class="toggle">显示隐藏分组</span><span class="toggle">隐藏不可用节点</span>
+        <span class="btn" style="margin-left:auto">⚡ 全部测速</span>
+        <span class="btn toggle-collapse">▲▼</span>
+      </div>
+      <div class="collapsible group-wrap">
+
+      <div class="group-card">
+        <div class="head">
+          <img src="" alt="" style="width:16px;height:16px;background:#e4e7eb;border-radius:3px">
+          <span class="name">Demo Group</span>
+          <span class="cur">demo-node</span>
+          <span class="delay">—</span>
+          <span class="btn">测速</span>
+        </div>
+        <div class="node"><span class="type">Shadowsocks</span><span>demo-node</span>
+          <span class="bars"><i style="height:4px;background:#b8bec6"></i><i style="height:4px;background:#b8bec6"></i><i style="height:4px;background:#b8bec6"></i><i style="height:4px;background:#b8bec6"></i><i style="height:7px;background:#34a853"></i></span>
+          <span class="delay">142 ms</span><span class="btn">⚡</span></div>
+        <div class="node"><span class="type">Shadowsocks</span><span>demo-node-2</span><span class="bars"></span><span class="delay">—</span><span class="btn">⚡</span></div>
+      </div>
+      </div>
+    </div>
+
+    <!-- ============ 规则页 ============ -->
+    <div class="page" id="page-rules">
+      <div class="card">
+        <div class="row" style="margin-bottom:0">
+          <span class="small muted" style="margin-right:auto">规则 0 · 规则集 0</span>
+          <select style="width:96px"><option selected>全部策略</option><option>DIRECT</option><option>Demo Group</option></select>
+          <select style="width:84px"><option selected>全部</option><option>域名</option><option>IP</option><option>规则集</option></select>
+          <input class="input" style="max-width:180px" placeholder="搜索规则…">
+          <span class="btn">刷新规则集</span>
+          <span class="toggle">按策略分组</span>
+        </div>
+      </div>
+      <div class="card"><div class="row"><span class="muted" style="margin:auto; padding: 40px 0">（规则列表——当前 demo 配置规则集为空）</span></div></div>
+      <div class="card">
+        <h3>规则覆写</h3>
+        <div class="row" style="margin-bottom:0"><span class="checkbox" id="override-toggle"><span class="box"></span>启用</span><span class="small muted">开启后把 overrides/ 下的三份文件拼进运行时配置，原配置不会被修改</span></div>
+        <!-- 启用后才展开编辑区与动作行（未启用只留开关与说明） -->
+        <div class="collapsible" id="override-body" style="display:none">
+          <div style="margin-top:6px; border:1px solid #e2e5ea; border-radius:4px; background:#fff; padding:6px 8px; margin-bottom:4px">
+            <div class="row" style="margin-bottom:0"><b class="small">↑ 前置规则（插在订阅 rules 最前）</b><span class="small muted" style="margin-left:auto">0 条</span></div>
+            <textarea rows="3" style="margin-top:4px; resize:vertical; font-size:11px; width:100%; border:1px solid #cdd4dc; border-radius:4px; padding:5px 8px; font-family:Consolas,monospace"></textarea>
+          </div>
+          <div style="border:1px solid #e2e5ea; border-radius:4px; background:#fff; padding:6px 8px; margin-bottom:4px">
+            <div class="row" style="margin-bottom:0"><b class="small">↓ 追加规则（插在 MATCH/FINAL 之前）</b><span class="small muted" style="margin-left:auto">0 条</span></div>
+            <textarea rows="3" style="margin-top:4px; resize:vertical; font-size:11px; width:100%; border:1px solid #cdd4dc; border-radius:4px; padding:5px 8px; font-family:Consolas,monospace"></textarea>
+          </div>
+          <div class="row" style="margin-top:6px"><span class="btn">保存</span><span class="btn">还原</span><span class="btn">立即应用</span><span class="btn" style="margin-left:auto">打开覆写目录</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 连接页（列表占满剩余高度） ============ -->
+    <div class="page" id="page-connections" style="height:100%; flex-direction:column">
+      <div class="row">
+        <span class="toggle on" id="conn-view-list">列表</span>
+        <span class="toggle" id="conn-view-stats">统计</span>
+        <span class="btn" style="margin-left:auto">关闭全部</span>
+      </div>
+      <!-- 列表视图：每条活动连接的实时明细（主机/网络/规则/上下行速率/时长/关闭） -->
+      <div class="card" id="conn-list" style="flex:1; min-height:0; display:flex; flex-direction:column; overflow:hidden">
+        <div class="row" style="margin-bottom:0"><b class="small">合计</b><span class="small muted" style="margin-left:auto">3 条</span></div>
+        <div style="margin-top:8px; flex:1; overflow-y:auto; font-size:11.5px">
+          <div class="node" style="padding:5px 8px">
+            <span style="min-width:200px; font-weight:600">api.github.com</span>
+            <span class="type" style="min-width:56px">TCP</span>
+            <span class="type" style="min-width:64px">demo-node</span>
+            <span class="type" style="min-width:120px">DOMAIN-SUFFIX,github.com</span>
+            <span class="delay" style="min-width:110px; color:#1b7f3b">↑ 12 KB/s ↓ 340 KB/s</span>
+            <span class="delay" style="min-width:52px">32s</span>
+            <span class="btn">✕</span>
+          </div>
+          <div class="node" style="padding:5px 8px">
+            <span style="min-width:200px; font-weight:600">cdn.jsdelivr.net:443</span>
+            <span class="type" style="min-width:56px">TCP</span>
+            <span class="type" style="min-width:64px">DIRECT</span>
+            <span class="type" style="min-width:120px">GEOIP,CN</span>
+            <span class="delay" style="min-width:110px; color:#1b7f3b">↑ 2 KB/s ↓ 1.1 MB/s</span>
+            <span class="delay" style="min-width:52px">5s</span>
+            <span class="btn">✕</span>
+          </div>
+          <div class="node" style="padding:5px 8px">
+            <span style="min-width:200px; font-weight:600">223.5.5.5:53</span>
+            <span class="type" style="min-width:56px">UDP</span>
+            <span class="type" style="min-width:64px">DIRECT</span>
+            <span class="type" style="min-width:120px">GEOIP,CN</span>
+            <span class="delay" style="min-width:110px; color:#1b7f3b">↑ 0.4 KB/s ↓ 0.2 KB/s</span>
+            <span class="delay" style="min-width:52px">1s</span>
+            <span class="btn">✕</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 统计视图：按维度聚合的流量排名（节点 / 应用 / 域名，可切换维度） -->
+      <div class="card" id="conn-stats" style="flex:1; min-height:0; display:none; flex-direction:column; overflow:hidden">
+        <div class="row" style="margin-bottom:0">
+          <span class="toggle on">节点</span><span class="toggle">应用</span><span class="toggle">域名</span>
+          <span class="small muted" style="margin-left:auto">窗口 30s · 点维度切换聚合口径</span>
+        </div>
+        <div style="margin-top:8px; flex:1; overflow-y:auto; font-size:11.5px">
+          <div style="padding:6px 4px">
+            <div class="row" style="margin-bottom:4px"><b>demo-node</b><span class="small muted" style="margin-left:auto">↓ 341 KB/s · ↑ 12 KB/s</span></div>
+            <div class="progress"><div class="fill" style="width:86%; background:#2563eb"></div></div>
+          </div>
+          <div style="padding:6px 4px">
+            <div class="row" style="margin-bottom:4px"><b>DIRECT</b><span class="small muted" style="margin-left:auto">↓ 1.1 MB/s · ↑ 2 KB/s</span></div>
+            <div class="progress"><div class="fill" style="width:64%; background:#34a853"></div></div>
+          </div>
+          <div style="padding:6px 4px">
+            <div class="row" style="margin-bottom:4px"><b>demo-node-2</b><span class="small muted" style="margin-left:auto">— 无流量</span></div>
+            <div class="progress"><div class="fill" style="width:2%"></div></div>
+          </div>
+          <div class="small muted" style="padding:8px 4px">「应用」维度按进程聚合（需开启 find-process-mode）；「域名」按 host/SNI 聚合</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 日志页 ============ -->
+    <div class="page" id="page-logs">
+      <!-- 过滤栏：来源/等级胶囊 + 搜索 + 动作 -->
+      <div class="row">
+        <span class="chip on" style="--c:#2563eb">Mihomo</span>
+        <span class="chip on" style="--c:#5e6b78">ClashBarX</span>
+        <span class="chipsep"></span>
+        <span class="chip on" style="--c:#c0392b">错误</span>
+        <span class="chip on" style="--c:#b45309">警告</span>
+        <span class="chip on" style="--c:#1b7f3b">信息</span>
+        <input class="input" style="max-width:160px; margin-left:auto" placeholder="🔍 搜索日志…">
+        <span class="btn">复制全部</span><span class="btn">清空</span>
+      </div>
+
+      <!-- 日志表格：时间 | 来源 | 等级 | 消息 -->
+      <div class="logtable">
+        <div class="logrow loghead">
+          <span class="c-time">时间</span><span class="c-src">来源</span><span class="c-lv">等级</span><span class="c-msg">消息</span>
+        </div>
+        <div class="logbody">
+          <div class="logrow"><span class="c-time">23:12:38</span><span class="c-src"><i class="badge" style="--c:#5e6b78">ClashBarX</i></span><span class="c-lv"><i class="lv" style="--c:#1b7f3b">info</i></span><span class="c-msg">[guard] 代理守护已启动</span></div>
+          <div class="logrow"><span class="c-time">23:12:38</span><span class="c-src"><i class="badge" style="--c:#2563eb">Mihomo</i></span><span class="c-lv"><i class="lv" style="--c:#1b7f3b">info</i></span><span class="c-msg">[mihomo started] pid=13292 controller=127.0.0.1:9090 binary=…\core\mihomo.exe</span></div>
+          <div class="logrow"><span class="c-time">23:12:38</span><span class="c-src"><i class="badge" style="--c:#2563eb">Mihomo</i></span><span class="c-lv"><i class="lv" style="--c:#1b7f3b">info</i></span><span class="c-msg">RESTful API listening at: 127.0.0.1:9090</span></div>
+          <div class="logrow"><span class="c-time">23:12:38</span><span class="c-src"><i class="badge" style="--c:#2563eb">Mihomo</i></span><span class="c-lv"><i class="lv" style="--c:#1b7f3b">info</i></span><span class="c-msg">Mixed(http+socks) proxy listening at: 127.0.0.1:7890</span></div>
+          <div class="logrow"><span class="c-time">23:12:40</span><span class="c-src"><i class="badge" style="--c:#2563eb">Mihomo</i></span><span class="c-lv"><i class="lv" style="--c:#b45309">warn</i></span><span class="c-msg">provider default: health check timeout (5s)</span></div>
+          <div class="logrow"><span class="c-time">23:12:41</span><span class="c-src"><i class="badge" style="--c:#5e6b78">ClashBarX</i></span><span class="c-lv"><i class="lv" style="--c:#c0392b">error</i></span><span class="c-msg">[provider] Demo Group 更新失败：connection refused</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 网络页（双列紧凑：左=系统代理，右=守护+SSID，订阅全宽） ============ -->
+    <div class="page" id="page-network">
+      <div class="net-grid">
+      <div><!-- 左列 -->
+      <div class="card">
+        <div class="row" style="margin-bottom:8px">
+          <h3 style="margin:0">系统代理</h3>
+          <span class="checkbox" style="margin-left:auto"><span class="box"></span>启用</span>
+        </div>
+        <div class="row"><span class="small muted">绕过列表（写入 Windows 代理例外，不在列表内的地址才走代理）</span></div>
+        <div class="sub-list" style="flex:1 1 0; min-height:0; max-height:none; overflow-y:auto">
+          <div class="sub-row"><span style="flex:1">&lt;local&gt;</span><span class="btn">✕</span></div>
+          <div class="sub-row"><span style="flex:1">localhost</span><span class="btn">✕</span></div>
+          <div class="sub-row"><span style="flex:1">127.0.0.1</span><span class="btn">✕</span></div>
+          <div class="sub-row"><span style="flex:1">192.168.0.0/16</span><span class="btn">✕</span></div>
+          <div class="sub-row"><span style="flex:1">10.0.0.0/8</span><span class="btn">✕</span></div>
+          <div class="sub-row"><span style="flex:1">172.16.0.0/12</span><span class="btn">✕</span></div>
+          <div class="sub-row"><span style="flex:1">*.local</span><span class="btn">✕</span></div>
+          <div class="sub-row"><span style="flex:1">::1</span><span class="btn">✕</span></div>
+        </div>
+        <div class="row" style="margin-top:6px"><input class="input" placeholder="新增绕过项…"><span class="btn">新增</span><span class="btn" style="margin-left:auto">恢复默认</span><span class="btn">保存</span></div>
+      </div>
+
+      </div><!-- /左列 -->
+
+      <div><!-- 右列 -->
+      <div class="card">
+        <h3>自动代理守护（自动切换可用节点）</h3>
+        <div class="row"><span class="checkbox"><span class="box"></span>启用</span><span class="small muted">开启后自动检测连通性，故障时切换组内节点并自愈订阅</span></div>
+        <div class="row" style="margin-top:4px"><span class="small muted">探测周期（秒）</span><input class="input" style="max-width:80px" value="300"><span class="btn" style="margin-left:auto">立即检查</span></div>
+      </div>
+
+      <div class="card">
+        <h3>SSID 自动切换</h3>
+        <div class="row"><span class="checkbox"><span class="box"></span>启用</span><span class="small muted" style="margin-left:10px">test-guding</span></div>
+        <div class="row" style="margin-top:4px"><span class="small muted">Wi-Fi 名称变化时自动切换到绑定的配置（热重载）</span></div>
+        <div class="row"><span class="small"><b>test-guding</b> → 127.0.0.1.yaml</span><span class="btn" style="margin-left:auto">✕</span></div>
+        <div class="row"><span class="btn">绑定当前 Wi-Fi → 当前配置</span></div>
+      </div>
+
+      </div><!-- /右列 -->
+      </div><!-- /net-grid -->
+
+      <div class="card">
+        <h3>订阅</h3>
+        <div class="row">
+          <input class="input" placeholder="订阅 URL…">
+          <span class="btn">导入本地文件</span><span class="btn">导入</span>
+        </div>
+        <div class="sub-list">
+          <div class="sub-row on"><span class="small" style="color:#2563eb">✓</span><span style="flex:1">127.0.0.1.yaml</span></div>
+          <div class="sub-row"><span style="flex:1">second.yaml</span></div>
+        </div>
+        <div class="row" style="margin-top:4px">
+          <span class="small muted">按钮作用于列表选中行：更新=重下载 · 启用=切换生效 · 删除=删除文件</span>
+          <span style="margin-left:auto; display:flex; gap:6px">
+            <span class="btn">更新</span><span class="btn">更新全部</span><span class="btn">启用</span><span class="btn">删除</span>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 设置页（双列） ============ -->
+    <div class="page" id="page-settings">
+      <div class="settings-grid">
+        <!-- 左列：常规（外观/语言/自启/流量概览）+ 关于与更新 -->
+        <div class="col">
+          <div class="card">
+            <h3>常规</h3>
+            <div class="kv"><span>外观</span><span class="small muted">跟随系统 ▾</span></div>
+            <div class="kv"><span>语言</span><span class="small muted">简体中文 ▾</span></div>
+            <div class="kv"><span>开机自启</span><span class="checkbox"><span class="box"></span>登录 Windows 时自动启动</span></div>
+            <div class="kv"><span>流量概览</span><span class="checkbox on"><span class="box"></span>代理页顶部实时速率</span></div>
+          </div>
+          <div class="card">
+            <h3>维护</h3>
+            <div class="row"><span class="btn">更新 GEO 数据</span><span class="btn">升级内核</span><span class="btn">清 FakeIP 缓存</span><span class="btn">清 DNS 缓存</span><span class="btn">打开内核目录</span></div>
+          </div>
+        </div>
+
+        <!-- 右列：核心设置（含端口）+ 维护 -->
+        <div class="col">
+          <div class="card">
+            <h3>核心设置</h3>
+            <div class="kv"><span>允许局域网连接 <span class="muted">（allow-lan）</span></span><span class="checkbox"><span class="box"></span></span></div>
+            <div class="kv"><span>TCP 并发 <span class="muted">（tcp-concurrent）</span></span><span class="checkbox"><span class="box"></span></span></div>
+            <div class="kv"><span>切换节点时关闭旧连接</span><span class="checkbox"><span class="box"></span></span></div>
+            <div class="kv"><span>日志等级</span><span class="small muted">info ▾</span></div>
+            <div class="kv" style="margin-top:6px; border-top:1px solid #eef1f4; padding-top:8px"><span>混合端口</span><span class="small">7890</span></div>
+            <div class="kv"><span>HTTP 代理端口</span><span class="small muted">0</span></div>
+            <div class="kv"><span>SOCKS5 端口</span><span class="small muted">0</span></div>
+            <div class="kv"><span>透明代理端口</span><span class="small muted">0</span></div>
+            <div class="kv"><span>TProxy 端口</span><span class="small muted">0</span></div>
+          </div>
+        </div>
+      </div><!-- /settings-grid：关于卡移出双列，独占全宽 -->
+
+        <!-- 关于与更新：全宽行，内部应用 / 内核两块并排 -->
+        <div class="card" style="margin-top:8px">
+          <div style="display:flex; gap:16px; align-items:stretch">
+            <div style="min-width:0; flex:1">
+              <div class="kv" style="margin-bottom:4px">
+                <span class="row" style="margin:0">
+                  <span class="appicon" style="width:24px; height:24px; border-radius:5px"><span class="iconmark" style="font-size:12px">⚡</span></span>
+                  <span style="font-size:12.5px; font-weight:600; margin-left:6px">ClashBarX <span class="small muted">v1.0.0</span></span>
+                </span>
+                <span class="btn">检查更新</span>
+              </div>
+              <div class="row" style="margin:0 0 0 30px">
+                <span class="small" style="color:#1b7f3b">✓ 已是最新版本</span>
+                <a class="small" href="#" style="color:#2563eb; text-decoration:none; margin-left:auto">发布页 ↗</a>
+              </div>
+            </div>
+            <div style="border-left:1px solid #eef1f4; padding-left:16px; min-width:0; flex:1">
+              <!-- 与应用同语义：检查发现新版本后才出现升级按钮（默认只有检查按钮 + 状态） -->
+              <div class="kv" style="margin-bottom:4px">
+                <span class="row" style="margin:0">
+                  <span style="width:24px; height:24px; border-radius:5px; background:#eef1f5; display:grid; place-items:center; font-size:12px">🧩</span>
+                  <span style="font-size:12.5px; font-weight:600; margin-left:6px">mihomo 内核 <span class="small muted">v1.19.34</span></span>
+                </span>
+                <span class="btn" id="kernel-check">检查更新</span>
+                <span class="btn" id="kernel-upgrade" style="display:none; color:#0b6bcb; font-weight:600">⬇ 升级到 v1.19.35</span>
+              </div>
+              <div class="row" style="margin:0 0 0 30px">
+                <span class="small muted" id="kernel-status">运行中（pid=13292）· 运行时长 0:42:17</span>
+                <span class="small" style="color:#0b6bcb; display:none" id="kernel-new">发现新版本 v1.19.35</span>
+                <a class="small" href="#" style="color:#2563eb; text-decoration:none; margin-left:auto">发布页 ↗</a>
+              </div>
+            </div>
+          </div>
+        </div>
+    </div>
+    </div><!-- /content -->
+
+  <!-- 底部状态栏 -->
+  <div class="statusbar">
+    <span id="sb-state">内核运行中（pid=13292）· API 正常 · v1.19.34</span>
+    <span class="sep">|</span>
+    <span class="version" id="sb-rate">↑ 3.2 KB/s ↓ 45.6 KB/s</span>
+    <span class="sep">|</span>
+    <span class="version" style="margin-left:auto" id="sb-misc">连接 3 · 内存 46.5MB</span>
+  </div>
+</div>
+
+<!-- ================= 右侧讨论区 ================= -->
+<div class="side">
+  <div class="panel">
+    <h2>📋 交互稿说明（v1）</h2>
+    <div class="note">
+      左侧为<b>当前真实界面的还原</b>（含本轮已修：设置双列+滚动、底部状态栏、订阅「导入本地文件」、头部截断防重叠、TUN/策略下拉显示修复）。<br><br>
+      用法：Boss 对左侧任何区域提意见 → 小T 改本页 → <b>浏览器刷新即见</b> → 定稿后一次性落回 WPF。<br><br>
+      <b>首页调整（本轮已改，看左侧）</b>：
+      <ul style="margin-left:16px; margin-top:4px">
+        <li>内核按钮互斥：运行中=停止+重启；未运行=启动（切换自）</li>
+        <li>头部状态长文本 → 彩色状态点（悬停看详情，绿/黄/灰）；文本全下沉底部状态栏。
+            <b class="tag q">备选</b> 头部完全不放状态、只留按钮——Boss 定</li>
+        <li>复制代理命令 = CMD / PowerShell / Bash 三按钮（与托盘右键二级一致；Bash 保留请 Boss 确认）</li>
+        <li>订阅源卡、分组区均可折叠（点 ▲▼ 试试）；分组区补了「分组 N」标题</li>
+        <li>左上角 App 图标 → 应用菜单：关于 / 检查更新 / 关闭窗口（关闭=收起到任务栏托盘常驻，非退出；真退出走托盘菜单）</li>
+      </ul>
+      其他待讨论：
+      <ul style="margin-left:16px; margin-top:4px">
+        <li>设置页双列分栏方式</li>
+        <li>底部状态栏内容取舍</li>
+        <li>托盘菜单加项（TUN/重启内核）</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div style="margin-bottom:12px">
+      <b style="font-size:12px">演示：内核状态切换</b><br>
+      <button class="btn" id="demo-toggle" style="margin-top:6px; background:#2563eb; color:#fff; border-color:#2563eb; cursor:pointer">⏻ 切换 运行中 ⇄ 已停止</button>
+    </div>
+    <h2>🖱 托盘右键菜单（讨论稿）</h2>
+    <!-- 定稿结构：采纳建议——加 TUN 开关 + 重启内核；不加 tab 直达/SSID -->
+    <div class="tray-menu" style="margin:8px 0">
+      <div class="mi"><span class="check"></span>显示主窗</div>
+      <div class="sep"></div>
+      <div class="mi"><span class="check">✓</span>系统代理</div>
+      <div class="mi"><span class="check">✓</span>TUN 模式 <span style="margin-left:auto">▸</span></div>
+      <!-- TUN 二级菜单展开预览：关/开 + 四种 stack 选择 -->
+      <div class="submenu">
+        <div class="mi sub"><span class="check"></span>关闭 TUN</div>
+        <div class="sep"></div>
+        <div class="mi sub"><span class="check"></span>system</div>
+        <div class="mi sub"><span class="check"></span>gvisor</div>
+        <div class="mi sub"><span class="check">✓</span>mixed <span class="muted" style="margin-left:auto; font-size:10px">当前</span></div>
+        <div class="mi sub" style="color:#b0b7c0"><span class="check"></span>mips <span style="margin-left:auto; font-size:10px">需内核 1.19.31+</span></div>
+      </div>
+      <div class="mi"><span class="check"></span>分流模式 <span style="margin-left:auto">▸</span></div>
+      <div class="mi"><span class="check"></span>复制代理命令 <span style="margin-left:auto">▸</span></div>
+      <!-- 内核操作组（状态感知）：运行中=停止+重启；未运行=启动 -->
+      <div class="mi"><span class="check"></span>停止内核 <span class="muted" style="margin-left:auto; font-size:10px">运行中</span></div>
+      <div class="mi"><span class="check"></span>重启内核 <span class="muted" style="margin-left:auto; font-size:10px">运行中</span></div>
+      <div class="mi" style="color:#8a93a0"><span class="check"></span>启动内核 <span class="muted" style="margin-left:auto; font-size:10px">未运行时仅此一项</span></div>
+      <div class="sep"></div>
+      <div class="mi"><span class="check"></span>退出</div>
+    </div>
+    <div class="note">
+      <b>二级菜单展开</b>：<br>
+      · 分流模式 → 规则 / 全局 / 直连<br>
+      · 复制代理命令 → CMD / PowerShell / Bash（export 格式）<br><br>
+      <b>交互语义</b>：<br>
+      · TUN 模式（二级）：「关闭 TUN」+ 四种 stack 单选（当前项打勾）；选 stack=开启并切换，走与主窗同链路（未提权弹 UAC 确认）；mips 不满足内核版本时置灰<br>
+      · 内核操作组按状态动态：未运行=「启动内核」单项；运行中=「停止内核」+「重启内核」两项——与主窗互斥按钮同语义；远程目标下整组置灰<br>
+      · 退出：真退出（关内核+清系统代理）；「关闭窗口」仅收起（应用菜单里）<br><br>
+      <span class="muted" style="color:#8a93a0">已按 Boss 决定移除：tab 直达、SSID/切配置（主窗内已有，托盘保持精简）</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('page-' + t.dataset.page).classList.add('active');
+  }));
+  document.querySelectorAll('.toggle, .modes label').forEach(el => el.addEventListener('click', () => {
+    if (el.parentElement.classList.contains('modes')) {
+      el.parentElement.querySelectorAll('label').forEach(l => l.classList.remove('on'));
+      el.classList.add('on');
+    } else { el.classList.toggle('on'); }
+  }));
+  document.querySelectorAll('.checkbox').forEach(el => el.addEventListener('click', () => el.classList.toggle('on')));
+  function connView(showList) {
+    document.getElementById('conn-view-list').classList.toggle('on', showList);
+    document.getElementById('conn-view-stats').classList.toggle('on', !showList);
+    document.getElementById('conn-list').style.display = showList ? 'flex' : 'none';
+    document.getElementById('conn-stats').style.display = showList ? 'none' : 'flex';
+  }
+  document.getElementById('conn-view-list').addEventListener('click', () => connView(true));
+  document.getElementById('conn-view-stats').addEventListener('click', () => connView(false));
+  document.querySelectorAll('.chip').forEach(el => el.addEventListener('click', () => el.classList.toggle('on')));
+  let coreRunning = true;
+  document.getElementById('demo-toggle').addEventListener('click', () => {
+    coreRunning = !coreRunning;
+    const dot = document.getElementById('hdr-dot');
+    dot.style.background = coreRunning ? '#34a853' : '#b0b7c0';
+    dot.title = coreRunning ? '内核运行中 · API 正常 · v1.19.34' : '内核未运行 · v1.19.34';
+    document.getElementById('hdr-btns').innerHTML = coreRunning
+      ? '<span class="btn">停止内核</span><span class="btn">重启内核</span>'
+      : '<span class="btn" style="border-color:#2563eb; color:#2563eb; font-weight:600">启动内核</span>';
+    document.getElementById('sb-state').textContent = coreRunning ? '内核运行中（pid=13292）· API 正常 · v1.19.34' : '内核未运行 · v1.19.34';
+    document.getElementById('kernel-status').textContent = coreRunning ? '运行中（pid=13292）· 运行时长 0:42:17' : '未运行 · 二进制 v1.19.34';
+    document.getElementById('sb-rate').textContent = coreRunning ? '↑ 3.2 KB/s ↓ 45.6 KB/s' : '—';
+    document.getElementById('sb-misc').textContent = coreRunning ? '连接 3 · 内存 46.5MB' : '连接 0 · 内存 —';
+  });
+  document.getElementById('kernel-check').addEventListener('click', () => {
+    document.getElementById('kernel-check').style.display = 'none';
+    document.getElementById('kernel-upgrade').style.display = '';
+    document.getElementById('kernel-new').style.display = '';
+  });
+  document.getElementById('appicon').addEventListener('click', e => {
+    e.stopPropagation();
+    const m = document.getElementById('appmenu');
+    m.style.display = m.style.display === 'block' ? 'none' : 'block';
+  });
+  document.addEventListener('click', () => document.getElementById('appmenu').style.display = 'none');
+  document.getElementById('override-toggle').addEventListener('click', () => {
+    const on = document.getElementById('override-toggle').classList.contains('on');
+    document.getElementById('override-body').style.display = on ? '' : 'none';
+  });
+  document.querySelectorAll('.toggle-collapse').forEach(el => el.addEventListener('click', () => {
+    let target = el.closest('.card')?.querySelector('.collapsible') || el.closest('.group-tools')?.nextElementSibling;
+    if (target) target.style.display = target.style.display === 'none' ? '' : 'none';
+    el.textContent = target && target.style.display === 'none' ? '▶' : '▲▼';
+  }));
+</script>
+</body>
+</html>
