@@ -3,9 +3,16 @@
 ; 安装位置：{localappdata}\Programs\ClashBarX（用户级——无需管理员权限，
 ; 与 HKCU 自启、%APPDATA%\ClashBarX 数据目录的用户级链路一致）
 
-#define Version "1.0.0"
+; 命令行 /D 注入优先（build-installer.ps1 传 /DVersion /DPublishDir）：
+; Inno 的 /D 等效于在文件头插入 define，iss 内再 #define 会覆盖它——
+; 故用 #ifndef 条件定义兜底，本地直接 ISCC 编译时走默认值。
+#ifndef Version
+  #define Version "1.0.0"
+#endif
+#ifndef PublishDir
+  #define PublishDir "publish"
+#endif
 #define Publisher "ClashBarX"
-#define PublishDir "publish"
 
 [Setup]
 AppId={{8B3C9F2A-6D5E-4A7B-9C1D-2E4F5A6B7C8D}
