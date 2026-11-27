@@ -260,13 +260,6 @@ public partial class MainWindow : Window
 
     private SettingsPageViewModel? _settingsPage;
 
-    /// <summary>打开发布页（有更新 → release 页；否则 → releases 列表；源：footer 链接语义）。</summary>
-    private void OnOpenReleasePageClick(object sender, RoutedEventArgs e) =>
-        _settingsPage?.OpenReleasePage();
-
-    /// <summary>打开 mihomo 内核发布页（关于卡内核块固定链接）。</summary>
-    private void OnOpenKernelReleasePageClick(object sender, RoutedEventArgs e) =>
-        _settingsPage?.OpenKernelReleasePage();
 
     public void SetConnectionsPage(ConnectionsPageViewModel viewModel)
     {

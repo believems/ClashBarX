@@ -1326,7 +1326,8 @@
             <TabItem Header="{DynamicResource TabNetwork}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <Grid Margin="4,8,4,4">
-                    <Grid Grid.Row="0">
+                    <!-- 双列自然高顶对齐（真机反馈：拉伸到视口高会在左列列表区留大片空白；紧凑优先） -->
+                    <Grid Grid.Row="0" VerticalAlignment="Top">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="*" />
@@ -1344,7 +1345,7 @@
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
@@ -1369,6 +1370,7 @@
                                 <ScrollViewer Grid.Row="2"
                                               VerticalScrollBarVisibility="Auto"
                                               MinHeight="60"
+                                              MaxHeight="224"
                                               Margin="16,4,0,0">
                                     <ItemsControl ItemsSource="{Binding Exceptions}">
                                     <ItemsControl.ItemTemplate>
@@ -1418,7 +1420,7 @@
                         <Grid Grid.Column="1" Margin="4,0,0,0">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                         <!-- 自动代理守护（M3-3 区块挪入网络页；开关 + 周期 + 立即检查 + 结果反馈行） -->
                         <Border x:Name="GuardSettingsRoot"
@@ -1546,7 +1548,6 @@
                 <ScrollViewer x:Name="SettingsRoot" VerticalScrollBarVisibility="Auto" Margin="4,8,4,4">
                     <Grid>
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
@@ -1875,140 +1876,8 @@
                             </DockPanel>
                         </StackPanel>
                     </Border>
-                    <!-- 关于与更新（定稿：移出双列独占全宽；内部应用/内核两块并排 flex 1:1） -->
-                    <Border Grid.Row="2"
-                            Margin="0,8,0,0"
-                            Padding="8"
-                            BorderBrush="#DDD"
-                            BorderThickness="1"
-                            CornerRadius="4"
-                            Background="#FAFAFA">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <!-- 应用块（源：MenuBarCommonViews footer——版本 + 检查更新 + 发布页链接） -->
-                            <StackPanel Grid.Column="0" Margin="0,0,16,0">
-                                <!-- 标题行（检查更新入口已移维护卡；升级入口在状态行） -->
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Image Source="/Assets/tray.ico"
-                                               Width="24" Height="24"
-                                               RenderOptions.BitmapScalingMode="HighQuality" />
-                                        <TextBlock FontSize="12.5"
-                                                   FontWeight="SemiBold"
-                                                   Margin="6,0,0,0"
-                                                   VerticalAlignment="Center">
-                                            <Run Text="ClashBarX " />
-                                            <Run Text="{Binding CurrentVersionText, Mode=OneWay}" Foreground="#5E6B78" FontSize="11" FontWeight="Normal" />
-                                        </TextBlock>
-                                </StackPanel>
-                                <Grid Margin="0,6,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Button Grid.Column="1"
-                                            Content="{DynamicResource AboutOpenRelease}"
-                                            FontSize="11"
-                                            Foreground="#0B6BCB"
-                                            Padding="2,0"
-                                            Margin="8,0,0,0"
-                                            Background="Transparent"
-                                            BorderThickness="0"
-                                            Cursor="Hand"
-                                            VerticalAlignment="Center"
-                                            Click="OnOpenReleasePageClick" />
-                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
-                                        <Button Visibility="{Binding HasAvailableUpdate, Converter={StaticResource BoolToVis}}"
-                                                Click="OnOpenReleasePageClick"
-                                                FontSize="11"
-                                                FontWeight="SemiBold"
-                                                Foreground="#0B6BCB"
-                                                Padding="2,0"
-                                                Background="Transparent"
-                                                BorderThickness="0"
-                                                Cursor="Hand">
-                                            <TextBlock>
-                                                <Run Text="⬇ " />
-                                                <Run Text="{Binding AvailableUpdateVersionText, Mode=OneWay}" />
-                                            </TextBlock>
-                                        </Button>
-                                        <TextBlock Margin="4,0,0,0"
-                                                   FontSize="11"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   Text="{Binding UpdateStatusText}"
-                                                   Visibility="{Binding HasUpdateStatus, Converter={StaticResource BoolToVis}}">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock">
-                                                    <Setter Property="Foreground" Value="#1B7F3B" />
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding UpdateStatusLevel}" Value="info">
-                                                            <Setter Property="Foreground" Value="#8A93A0" />
-                                                        </DataTrigger>
-                                                        <DataTrigger Binding="{Binding UpdateCheckFailed}" Value="True">
-                                                            <Setter Property="Foreground" Value="#C0392B" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
-                                    </StackPanel>
-                                </Grid>
-                            </StackPanel>
-                            <!-- 内核块（定稿：检查发现新版本后才显示升级按钮 + 发布页链接） -->
-                            <Border Grid.Column="1"
-                                    BorderBrush="#EEF1F4"
-                                    BorderThickness="1,0,0,0"
-                                    Padding="16,0,0,0">
-                                <StackPanel>
-                                    <!-- 标题行（检查/升级入口已移维护卡） -->
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Border Width="24" Height="24"
-                                                    CornerRadius="5"
-                                                    Background="#EEF1F5"
-                                                    VerticalAlignment="Center">
-                                                <TextBlock Text="🧩"
-                                                           FontSize="12"
-                                                           HorizontalAlignment="Center"
-                                                           VerticalAlignment="Center" />
-                                            </Border>
-                                            <TextBlock FontSize="12.5"
-                                                       FontWeight="SemiBold"
-                                                       Margin="6,0,0,0"
-                                                       VerticalAlignment="Center">
-                                                <Run Text="{DynamicResource AboutKernelTitle}" />
-                                                <Run Text="{Binding KernelVersionText, Mode=OneWay}" Foreground="#5E6B78" FontSize="11" FontWeight="Normal" />
-                                            </TextBlock>
-                                    </StackPanel>
-                                    <Grid Margin="0,6,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <Button Grid.Column="1"
-                                                Content="{DynamicResource AboutOpenRelease}"
-                                                FontSize="11"
-                                                Foreground="#0B6BCB"
-                                                Padding="2,0"
-                                                Margin="8,0,0,0"
-                                                Background="Transparent"
-                                                BorderThickness="0"
-                                                Cursor="Hand"
-                                                VerticalAlignment="Center"
-                                                Click="OnOpenKernelReleasePageClick" />
-                                        <StackPanel Grid.Column="0" Orientation="Horizontal">
-                                            <TextBlock FontSize="11"
-                                                       Foreground="#5E6B78"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       Text="{Binding KernelStatusText}"
-                                                       Visibility="{Binding HasKernelStatus, Converter={StaticResource BoolToVis}}" />
-                                        </StackPanel>
-                                    </Grid>
-                                </StackPanel>
-                            </Border>
-                        </Grid>
-                    </Border>
+                    
+                                            
                 </Grid>
                 </ScrollViewer>
             </TabItem>

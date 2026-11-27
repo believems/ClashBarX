@@ -170,7 +170,6 @@ public sealed class TrayIconService : IDisposable
             Source = new System.Uri("pack://application:,,,/Themes/TrayMenu.xaml", System.UriKind.Absolute),
         });
         menu.Items.Add(showItem);
-        menu.Items.Add(new Separator());
         menu.Items.Add(_proxyItem);
         menu.Items.Add(tunMenu);
         menu.Items.Add(modeMenu);
@@ -178,7 +177,6 @@ public sealed class TrayIconService : IDisposable
         menu.Items.Add(_coreStartItem);
         menu.Items.Add(_coreStopItem);
         menu.Items.Add(_coreRestartItem);
-        menu.Items.Add(new Separator());
         menu.Items.Add(exitItem);
 
         _logoIcon = LoadEmbeddedIcon("tray.ico");
