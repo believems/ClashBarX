@@ -6,6 +6,7 @@ struct AppReleaseInfo: Decodable, Equatable {
     let releaseURL: URL
     let isDraft: Bool
     let isPrerelease: Bool
+    let assets: [AppReleaseAsset]
 
     private enum CodingKeys: String, CodingKey {
         case tagName = "tag_name"
@@ -13,10 +14,28 @@ struct AppReleaseInfo: Decodable, Equatable {
         case releaseURL = "html_url"
         case isDraft = "draft"
         case isPrerelease = "prerelease"
+        case assets
     }
 
     var displayVersion: String {
         AppSemanticVersion.normalizedDisplayVersion(from: self.tagName)
+    }
+
+    /// 双平台共用一条发版线后，/releases/latest 只按时间取「最新非预发布」，
+    /// 会把 Windows 平台的 release（含 setup.exe/portable zip）当成 macOS 的
+    /// 新版本。按资产过滤：含 DMG 才是 macOS 可用的发版。
+    var hasMacInstaller: Bool {
+        self.assets.contains { $0.name.hasSuffix(".dmg") }
+    }
+}
+
+struct AppReleaseAsset: Decodable, Equatable {
+    let name: String
+    let browserDownloadURL: URL
+
+    private enum CodingKeys: String, CodingKey {
+        case name
+        case browserDownloadURL = "browser_download_url"
     }
 }
 
