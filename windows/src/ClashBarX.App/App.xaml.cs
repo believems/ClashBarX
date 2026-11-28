@@ -553,6 +553,14 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
             {
                 Dispatcher.BeginInvoke(() => _ = LoadCoreSettingsSnapshotAsync());
             }
+
+            // API 转健康即刷规则页（源：就绪即拉）：启动后首轮数据不再等 20s 定时器第二跳
+            // ——定时器首跳 3s 常早于内核就绪而静默失败，用户要盯 20 秒空页；
+            // 刷新内部自判可见性，规则页不在前台时零开销
+            if (status == ApiHealth.Healthy && _rulesBoard is not null)
+            {
+                Dispatcher.BeginInvoke(() => _ = RefreshRulesAsync(useProvidersRefresh: false));
+            }
         };
         _poller.VersionChanged += _ => Dispatcher.BeginInvoke(() =>
         {
@@ -1697,6 +1705,11 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
             null,
             TimeSpan.FromSeconds(3),
             TimeSpan.FromSeconds(20));
+
+        // tab 激活即刷（源：RulesTabView onAppear——切到规则页立即拉取，不等下一个 20s 周期；
+        // 刷新内部自判「窗口可见 + 规则页选中 + 内核在跑」，其余 tab 上零开销）
+        _mainWindow.TabSelectionChanged += (_, _) =>
+            Dispatcher.BeginInvoke(() => _ = RefreshRulesAsync(useProvidersRefresh: false));
 
         SetupRuleOverride();
     }
