@@ -19,7 +19,12 @@ public sealed record AppSettings(
     string TunStack = "mixed",
     bool SsidStrategyEnabled = false,
     string SsidStrategyRulesJson = "[]",
-    bool CoreSetupGuideShown = false)
+    bool CoreSetupGuideShown = false,
+    bool CorpProxyEnabled = false,
+    string CorpProxyHost = "",
+    int CorpProxyPort = 8080,
+    string CorpProxyUsername = "",
+    string CorpProxyPassword = "")
 {
     public static readonly AppSettings Default = new(false);
 }

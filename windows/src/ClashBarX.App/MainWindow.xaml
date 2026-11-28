@@ -7,8 +7,8 @@
         xmlns:core="clr-namespace:ClashBarX.App.Core"
         xmlns:overrides="clr-namespace:ClashBarX.Core.Overrides;assembly=ClashBarX.Core"
         mc:Ignorable="d"
-        Title="ClashBarX" Height="483" Width="760"
-        MinWidth="760" MaxWidth="760" MinHeight="483" MaxHeight="483"
+        Title="ClashBarX" Height="486" Width="760"
+        MinWidth="760" MaxWidth="760" MinHeight="486" MaxHeight="486"
         ResizeMode="CanMinimize"
         WindowStyle="None"
         Background="{DynamicResource ThemeWindowBrush}"
@@ -1321,7 +1321,8 @@
                 <Grid Margin="4,4,4,2">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
+                        <!-- 订阅行 *：列表弹性填满，吸收页间高度差（BOSS 2026-11-28 面板高度一致化） -->
+                        <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <!-- 双列自然高顶对齐（真机反馈：拉伸到视口高会在左列列表区留大片空白；紧凑优先）。
                          BOSS 定稿 2026-11-27：双栏行距压紧、列表区压低，腾出的高度给挪入本页第二行的订阅区 -->
@@ -1563,8 +1564,9 @@
                             BorderThickness="1"
                             CornerRadius="4"
                             Background="#FAFAFA">
-                        <StackPanel>
-                            <DockPanel Margin="0,0,0,6">
+                        <!-- DockPanel：标题停靠顶部、内容 Grid 末子元素填满卡高（列表弹性吸收页高差） -->
+                        <DockPanel>
+                            <DockPanel Margin="0,0,0,6" DockPanel.Dock="Top">
                                 <TextBlock x:Name="RemoteReadonlyHint"
                                            DockPanel.Dock="Right"
                                            Text="{DynamicResource MachineRemoteReadonly}"
@@ -1617,8 +1619,7 @@
                                     <!-- 订阅列表（末子元素占满剩余高度）：为空时显示导入引导（覆盖在列表区上）；列表区 96-160→64-104 配合窗口降高，条目多在卡内滚 -->
                                     <Grid Margin="0,6,0,0">
                                         <ListBox x:Name="ConfigFilesBox"
-                                                 MinHeight="64"
-                                                 MaxHeight="104" />
+                                                 MinHeight="64" />
                                         <TextBlock Text="{DynamicResource NetworkSubscriptionEmptyHint}"
                                                    Foreground="#8A93A0"
                                                    FontSize="12"
@@ -1667,26 +1668,33 @@
                                             Click="OnRemoveClick" />
                                 </StackPanel>
                             </Grid>
-                        </StackPanel>
+                        </DockPanel>
                     </Border>
                 </Grid>
                 </ScrollViewer>
             </TabItem>
 
-            <!-- 设置（M4-3）：双列（左=常规+维护，右=核心设置+SSID，两列自然高）；
+            <!-- 设置（M4-3）：2×2 网格（BOSS 2026-11-28：常规与核心设置同行等高、维护与 SSID 同行等高）；
                  订阅区已挪至网络页（BOSS 定稿 2026-11-27），本页不再需要第二行 -->
             <TabItem Header="{DynamicResource TabSettings}">
                 <ScrollViewer x:Name="SettingsRoot" VerticalScrollBarVisibility="Auto" Margin="4,8,4,4">
                     <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <!-- 2×2 网格（BOSS 2026-11-28：常规与核心设置同行等高、维护与 SSID 同行等高；
+                             Border 行内默认拉伸齐平，矮卡内部留呼吸空间） -->
                         <Grid Grid.Row="0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                        <!-- 左列：常规卡 + 维护卡（均自然高——真机反馈：拉伸维护卡凑底边对齐会留大片空白，
-                             宁可两列底边略有参差也不在卡内留白） -->
-                        <StackPanel Grid.Column="0" Margin="0,0,6,0">
-                        <Border Padding="8"
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                        <Border Grid.Row="0" Grid.Column="0" Margin="0,0,6,8" Padding="8"
                                 BorderBrush="#DDD"
                                 BorderThickness="1"
                                 CornerRadius="4"
@@ -1696,7 +1704,7 @@
                                        FontWeight="SemiBold"
                                        FontSize="12"
                                        Margin="0,0,0,6" />
-                            <DockPanel Margin="0,8">
+                            <DockPanel Margin="0,6">
                                 <ComboBox DockPanel.Dock="Right"
                                           Width="150"
                                           ItemsSource="{Binding AppearanceOptions}"
@@ -1707,7 +1715,7 @@
                                            FontSize="12"
                                            VerticalAlignment="Center" />
                             </DockPanel>
-                            <DockPanel Margin="0,8">
+                            <DockPanel Margin="0,6">
                                 <ComboBox DockPanel.Dock="Right"
                                           Width="150"
                                           ItemsSource="{Binding LanguageOptions}"
@@ -1719,7 +1727,7 @@
                                            VerticalAlignment="Center" />
                             </DockPanel>
                             <!-- 开机自启说明文字收进 info 图标 ToolTip；勾选框文案统一为「启用」 -->
-                            <DockPanel Margin="0,8">
+                            <DockPanel Margin="0,6">
                                 <CheckBox DockPanel.Dock="Right"
                                           Content="{DynamicResource CommonEnable}"
                                           FontSize="12"
@@ -1735,7 +1743,7 @@
                                        Foreground="#C0392B"
                                        Margin="0,2,0,0"
                                        Visibility="{Binding LaunchAtLoginFailed, Converter={StaticResource BoolToVis}}" />
-                            <DockPanel Margin="0,8">
+                            <DockPanel Margin="0,6">
                                 <CheckBox DockPanel.Dock="Right"
                                           Content="{DynamicResource SettingsTrafficOverviewShort}"
                                           FontSize="11"
@@ -1750,8 +1758,8 @@
                              六按钮 UniformGrid 3×2 等大；升级/检查反馈走对话框，卡内不留状态行）。
                              x:Name 供应用菜单「检查更新」跳转后 BringIntoView 滚到本卡 -->
                         <Border x:Name="MaintenanceCard"
+                                Grid.Row="1" Grid.Column="0" Margin="0,0,6,0"
                                 Padding="8"
-                                Margin="0,10,0,0"
                                 BorderBrush="#DDD"
                                 BorderThickness="1"
                                 CornerRadius="4"
@@ -1835,15 +1843,8 @@
                                 </UniformGrid>
                             </StackPanel>
                         </Border>
-                    </StackPanel>
-                        <!-- 右列：核心设置卡 + SSID 策略卡（均自然高；窗口进设置页时按内容自动收高，
-                             不再拉伸配平——拉伸会把留白藏进卡内，BOSS 截图圈过） -->
-                        <Grid Grid.Column="1" Margin="6,0,0,0">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                        <Border Grid.Row="0"
+                        <!-- 右列两卡并入 2×2 网格：核心设置 row0col1、SSID row1col1（同行等高） -->
+                        <Border Grid.Row="0" Grid.Column="1" Margin="6,0,0,8"
                                 Padding="8"
                                 BorderBrush="#DDD"
                                 BorderThickness="1"
@@ -1860,17 +1861,17 @@
                                           IsChecked="{Binding AllowLan}" />
                                 <CheckBox Content="IPv6"
                                           FontSize="12"
-                                          Margin="0,12,0,0"
+                                          Margin="0,10,0,0"
                                           IsChecked="{Binding Ipv6}" />
                                 <CheckBox Content="{DynamicResource SettingsTcpConcurrent}"
                                           FontSize="12"
-                                          Margin="0,12,0,0"
+                                          Margin="0,10,0,0"
                                           IsChecked="{Binding TcpConcurrent}" />
                                 <CheckBox Content="{DynamicResource SettingsCloseConnections}"
                                           FontSize="12"
-                                          Margin="0,12,0,0"
+                                          Margin="0,10,0,0"
                                           IsChecked="{Binding CloseConnections}" />
-                                <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                                     <TextBlock Text="{DynamicResource SettingsLogLevel}"
                                                FontSize="12"
                                                VerticalAlignment="Center" />
@@ -1887,9 +1888,9 @@
                         <!-- SSID 策略（M5-3：源 ProxyTabView 的 ssidStrategy 快捷项——开关 + 当前 SSID + 绑定管理；
                              设置页右列第二卡——Mac 的 ssidStrategy 设置语义归位） -->
                         <Border x:Name="SsidStrategyRoot"
-                                Grid.Row="1"
+                                Grid.Row="1" Grid.Column="1"
                                 Padding="8"
-                                Margin="0,8,0,0"
+                                Margin="6,0,0,0"
                                 BorderBrush="#DDD"
                                 BorderThickness="1"
                                 CornerRadius="4"
@@ -1946,8 +1947,84 @@
                                         Click="OnSsidBindCurrentClick" />
                             </StackPanel>
                         </Border>
-                        </Grid>
                     </Grid>
+
+                    <!-- 内网前置代理（Issue #2，源：macOS SystemTabView corp 区块；BOSS 2026-11-28 定稿落设置页第二行）：
+                         全宽单行紧凑卡；未启用置灰不收起（B4 口径）；字段回车/失焦确认并热重载（源：onSubmit） -->
+                    <Border x:Name="CorpProxySectionRoot"
+                            Grid.Row="1"
+                            Padding="8"
+                            Margin="0,8,0,0"
+                            BorderBrush="#DDD"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Background="#FAFAFA">
+                        <StackPanel>
+                            <DockPanel Margin="0,0,0,6">
+                                <CheckBox DockPanel.Dock="Right"
+                                          Content="{DynamicResource CorpProxyEnable}"
+                                          FontSize="12"
+                                          VerticalAlignment="Center"
+                                          IsChecked="{Binding IsEnabled}" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{DynamicResource CorpProxyTitle}"
+                                               FontWeight="SemiBold"
+                                               FontSize="12"
+                                               VerticalAlignment="Center" />
+                                    <ContentControl Style="{StaticResource InfoHintStyle}"
+                                                    ToolTip="{DynamicResource CorpProxyHint}" />
+                                </StackPanel>
+                            </DockPanel>
+                            <!-- 配置区常驻：开关关闭时整体置灰而非折叠（B4 口径，块高不跳） -->
+                            <StackPanel Orientation="Horizontal"
+                                        IsEnabled="{Binding IsEnabled}">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Style.Triggers>
+                                            <Trigger Property="IsEnabled" Value="False">
+                                                <Setter Property="Opacity" Value="0.45" />
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock Text="{DynamicResource CorpProxyHost}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <Grid Width="180" Margin="0,0,12,0">
+                                    <TextBox x:Name="CorpHostBox"
+                                             VerticalContentAlignment="Center"
+                                             Padding="4,2" />
+                                    <TextBlock x:Name="CorpHostPlaceholder"
+                                               Text="{DynamicResource CorpProxyHostPlaceholder}"
+                                               Foreground="#8A93A0"
+                                               FontSize="12"
+                                               Margin="6,0,0,0"
+                                               VerticalAlignment="Center"
+                                               IsHitTestVisible="False" />
+                                </Grid>
+                                <TextBlock Text="{DynamicResource CorpProxyPort}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <TextBox x:Name="CorpPortBox"
+                                         Style="{StaticResource PortFieldStyle}"
+                                         Margin="0,0,12,0" />
+                                <TextBlock Text="{DynamicResource CorpProxyUsername}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <Grid Width="140" Margin="0,0,12,0">
+                                    <TextBox x:Name="CorpUserBox"
+                                             VerticalContentAlignment="Center"
+                                             Padding="4,2" />
+                                    <TextBlock x:Name="CorpUserPlaceholder"
+                                               Text="{DynamicResource CorpProxyOptionalPlaceholder}"
+                                               Foreground="#8A93A0"
+                                               FontSize="12"
+                                               Margin="6,0,0,0"
+                                               VerticalAlignment="Center"
+                                               IsHitTestVisible="False" />
+                                </Grid>
+                                <TextBlock Text="{DynamicResource CorpProxyPassword}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <PasswordBox x:Name="CorpPassBox"
+                                             Width="140"
+                                             VerticalContentAlignment="Center"
+                                             Padding="4,2" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
                 </Grid>
                 </ScrollViewer>
             </TabItem>

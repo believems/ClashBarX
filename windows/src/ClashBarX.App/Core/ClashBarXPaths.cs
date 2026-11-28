@@ -28,6 +28,10 @@ public static class ClashBarXPaths
         Path.Combine(AppDataRoot(overrideBase), "overrides");
 
     /// <summary>覆写生成的运行时配置目录（源：stateDirectory/runtime）。</summary>
+    /// <summary>前置代理注入版运行时配置目录（源：macOS stateDirectory/corp）。</summary>
+    public static string CorpProxyDirectory(string? overrideBase = null) =>
+        Path.Combine(AppDataRoot(overrideBase), "state", "corp");
+
     public static string RuntimeConfigDirectory(string? overrideBase = null) =>
         Path.Combine(AppDataRoot(overrideBase), "state", "runtime");
 }

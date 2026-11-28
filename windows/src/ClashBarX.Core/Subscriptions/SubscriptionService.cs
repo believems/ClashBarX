@@ -38,6 +38,22 @@ public sealed class SubscriptionService
         };
     }
 
+    /// <summary>
+    /// 订阅下载代理决议（Issue #2 决策点 3，源：macOS corpProxySubscriptionEndpoint）：
+    /// 返回非 null 时本次下载经该代理拨出；未启用前置代理时返回 null 走默认 handler。
+    /// 由 App 层按当前设置注入，Core 不感知设置存储。
+    /// </summary>
+    public Func<System.Net.IWebProxy?>? ProxyResolver { get; set; }
+
+    /// <summary>按次构造下载 handler：有企业代理时独立 handler（用完即弃），避免污染共享 handler。</summary>
+    private HttpMessageHandler ResolveDownloadHandler()
+    {
+        System.Net.IWebProxy? proxy = ProxyResolver?.Invoke();
+        return proxy is null
+            ? _handler
+            : new HttpClientHandler { Proxy = proxy, UseProxy = true };
+    }
+
     /// <summary>当前订阅记录列表。</summary>
     public IReadOnlyList<SubscriptionInfo> List()
     {
@@ -203,7 +219,8 @@ public sealed class SubscriptionService
     private async Task<byte[]> DownloadRemoteConfigAsync(
         Uri remoteUrl, string? userAgent, CancellationToken cancellationToken)
     {
-        using var client = new HttpClient(_handler, disposeHandler: false) { Timeout = DownloadTimeout };
+        HttpMessageHandler handler = ResolveDownloadHandler();
+        using var client = new HttpClient(handler, disposeHandler: handler != _handler) { Timeout = DownloadTimeout };
         if (!string.IsNullOrWhiteSpace(userAgent))
         {
             client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", userAgent.Trim());
