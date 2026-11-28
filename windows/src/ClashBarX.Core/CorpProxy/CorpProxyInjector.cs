@@ -156,8 +156,8 @@ public static class CorpProxyInjector
         };
         if (settings.HasCredentials)
         {
-            corpNode.Add(Scalar("username"), Scalar(settings.Username));
-            corpNode.Add(Scalar("password"), Scalar(settings.Password));
+            corpNode.Add(Scalar("username"), QuotedScalar(settings.Username));
+            corpNode.Add(Scalar("password"), QuotedScalar(settings.Password));
         }
 
         sequence.Add(corpNode);
@@ -175,4 +175,10 @@ public static class CorpProxyInjector
     }
 
     private static YamlScalarNode Scalar(string value) => new(value);
+
+    /// <summary>
+    /// 用户手输的字符串字段用双引号标量（源：Yams Node+Tag(.str) 输出时对歧义值加引号的语义）：
+    /// 纯数字密码/用户名按 plain 输出会被 YAML 解析成数值，mihomo 解 http 节点 string 字段直接报错。
+    /// </summary>
+    private static YamlScalarNode QuotedScalar(string value) => new(value) { Style = ScalarStyle.DoubleQuoted };
 }

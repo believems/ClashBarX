@@ -509,10 +509,9 @@ public partial class App : Application
         MihomoProcessManager manager = _processManager!;
         try
         {
-            // 优先订阅选中配置；否则根目录手工 config.yaml；覆写启用时换 runtime 配置
+            // 优先订阅选中配置；否则根目录手工 config.yaml；组装链按需换覆写 runtime / 前置代理注入版
             string configPath = _subscriptions?.GetSelectedConfigPath() ?? ClashBarXPaths.DefaultConfigPath();
             (string launchPath, string? workingDirectory) = ResolveCoreLaunchConfig(configPath);
-            (launchPath, workingDirectory) = ApplyCorpProxyToLaunch(launchPath, workingDirectory);
             CoreLifecycleStatus status = await manager.StartAsync(
                 launchPath,
                 workingDirectory,
@@ -1746,36 +1745,48 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
     }
 
     /// <summary>
-    /// 启动/重启内核的配置解析（源：prepareCoreLaunchConfig）：覆写启用且内容非空时
-    /// 生成 runtime 配置（沿用原文件名），工作目录保持原配置目录（相对路径资源解析一致）。
-    /// 生成失败抛错不回退（源语义：避免用户误以为覆写已生效）。
+    /// 启动/手动启动/重启/热重载共用的配置组装链（源：prepareCoreLaunchConfig）：覆写启用且
+    /// 内容非空时生成 runtime 配置（沿用原文件名），工作目录保持原配置目录（相对路径资源解析
+    /// 一致）。末段统一过内网前置代理注入（Issue #2）：启用时在覆写产物之上再生成 state/corp
+    /// 注入版——所有调用方共用同一条组装链，任一生效路径都不会漏注入。
+    /// 覆写生成失败抛错不回退（源语义：避免用户误以为覆写已生效）；注入失败降级原配置不阻塞。
     /// </summary>
     private (string LaunchPath, string? WorkingDirectory) ResolveCoreLaunchConfig(string configPath)
     {
-        if (!_settingsStore.Load().RuleOverrideEnabled)
+        string launchPath = configPath;
+        string? workingDirectory = null;
+        if (_settingsStore.Load().RuleOverrideEnabled)
         {
-            return (configPath, null);
+            RuleOverrideContent content = _ruleOverride!.LoadContent();
+            if (!content.Counts.IsEmpty)
+            {
+                launchPath = _ruleOverride.WriteRuntimeConfig(configPath, content);
+                workingDirectory = Path.GetDirectoryName(Path.GetFullPath(configPath));
+                RuleOverrideCounts counts = content.Counts;
+                Dispatcher.BeginInvoke(() =>
+                {
+                    _ruleOverridePage?.MarkApplied(Path.GetFileName(configPath), counts);
+                    _mainWindow?.AppendLog(L(
+                        "log.override.runtime_generated",
+                        Path.GetFileName(launchPath),
+                        counts.Prepend,
+                        counts.Append,
+                        counts.RuleProviders));
+                });
+            }
         }
 
-        RuleOverrideContent content = _ruleOverride!.LoadContent();
-        if (content.Counts.IsEmpty)
+        (launchPath, workingDirectory) = ApplyCorpProxyToLaunch(launchPath, workingDirectory);
+        // 注入版必须显式携带原配置目录作 -d：进程管理器对 null 会从（注入版）路径推导工作目录，
+        // 内核 home 漂到 state/corp 后，按路径 PUT 重载会被 SAFE_PATHS 拒绝（真机 400 实证）、
+        // provider 等相对路径资源也错位。未生成时保持 null 交由进程管理器按原路径推导。
+        if (workingDirectory is null
+            && !string.Equals(launchPath, configPath, StringComparison.OrdinalIgnoreCase))
         {
-            return (configPath, null);
+            workingDirectory = Path.GetDirectoryName(Path.GetFullPath(configPath));
         }
 
-        string runtimePath = _ruleOverride.WriteRuntimeConfig(configPath, content);
-        RuleOverrideCounts counts = content.Counts;
-        Dispatcher.BeginInvoke(() =>
-        {
-            _ruleOverridePage?.MarkApplied(Path.GetFileName(configPath), counts);
-            _mainWindow?.AppendLog(L(
-                "log.override.runtime_generated",
-                Path.GetFileName(runtimePath),
-                counts.Prepend,
-                counts.Append,
-                counts.RuleProviders));
-        });
-        return (runtimePath, Path.GetDirectoryName(Path.GetFullPath(configPath)));
+        return (launchPath, workingDirectory);
     }
 
     /// <summary>运行中应用覆写（源：applyRuleOverridesIfRunning——PUT /configs 推 payload 全文；远程禁用）。</summary>
@@ -1802,16 +1813,18 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
                 return;
             }
 
-            string runtimePath = _ruleOverride.WriteRuntimeConfig(configPath, content);
-            string payload = await File.ReadAllTextAsync(runtimePath).ConfigureAwait(false);
+            // 重载走完整组装链（覆写 → 前置代理注入，源：putSelectedConfig 经 prepareCoreLaunchConfig）：
+            // 生成版（覆写 runtime 或 state/corp 注入版）不在内核 -d 之内，必须推 payload 全文
+            (string launchPath, string? _) = ResolveCoreLaunchConfig(configPath);
+            string payload = await File.ReadAllTextAsync(launchPath).ConfigureAwait(false);
             await _apiClient!.RequestNoResponseAsync(
-                MihomoEndpoint.PutConfigs(force: false, path: runtimePath, payload: payload))
+                MihomoEndpoint.PutConfigs(force: false, path: launchPath, payload: payload))
                 .ConfigureAwait(false);
             RuleOverrideCounts counts = content.Counts;
             await Dispatcher.BeginInvoke(() =>
             {
                 _ruleOverridePage?.MarkApplied(Path.GetFileName(configPath), counts);
-                _mainWindow?.AppendLog(L("log.override.applied_running", Path.GetFileName(runtimePath)));
+                _mainWindow?.AppendLog(L("log.override.applied_running", Path.GetFileName(launchPath)));
             });
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -2804,8 +2817,11 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
     /// <summary>区块 VM 装配：恢复设置、字段变化持久化、提交语义热重载（源：onSubmit/onChange）。</summary>
     private void SetupCorpProxy()
     {
+        // 须在给 _corpProxy 赋值前读：CurrentCorpProxySettings 对非空 VM 优先返回，
+        // 赋值后调用会把刚 new 出的空 VM 当作现状——持久化设置被静默重置（真机实证）。
+        CorpProxySettings restored = CurrentCorpProxySettings();
         _corpProxy = new CorpProxySectionViewModel();
-        _corpProxy.Restore(CurrentCorpProxySettings());
+        _corpProxy.Restore(restored);
         _corpProxy.Changed += SaveCurrentSettings;
         _corpProxy.Committed += () => _ = ReloadForCorpProxyChangeAsync();
         _mainWindow!.SetCorpProxySection(_corpProxy);
@@ -2860,7 +2876,9 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
             string directory = ClashBarXPaths.CorpProxyDirectory();
             Directory.CreateDirectory(directory);
             string target = Path.Combine(directory, "runtime-" + Path.GetFileName(launchPath));
-            File.WriteAllText(target, injected, new System.Text.UTF8Encoding(false));
+            string temporary = target + ".tmp";
+            File.WriteAllText(temporary, injected, new System.Text.UTF8Encoding(false));
+            File.Move(temporary, target, overwrite: true);
             _mainWindow?.AppendLog(L("log.corpproxy.applied", settings.TrimmedHost, settings.Port));
             return (target, workingDirectory);
         }
@@ -2895,7 +2913,6 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
         try
         {
             (string launchPath, string? workingDirectory) = ResolveCoreLaunchConfig(configPath);
-            (launchPath, workingDirectory) = ApplyCorpProxyToLaunch(launchPath, workingDirectory);
             if (_processManager is { IsRunning: true })
             {
                 // 生成版配置（覆写或前置代理注入）必须推 payload 全文，否则内核按原配置重载丢注入（源：isGenerated 统一判定）

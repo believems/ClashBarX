@@ -68,6 +68,24 @@ public class CorpProxyInjectorTests
     }
 
     [Fact]
+    public void 纯数字用户名与密码输出为带引号字符串()
+    {
+        // YamlDotNet plain 标量会把 123/456 解析回数值，mihomo 的 string 字段解码会失败；
+        // 引号标量保证回读为字符串（源：Yams Node+Tag(.str) 对歧义值加引号的语义）
+        const string yaml = "proxies:\n  - { name: a, type: ss, server: s, port: 1 }\n";
+        var settings = new CorpProxySettings(true, "10.1.2.3", 8080, "123", "456");
+
+        string injected = CorpProxyInjector.Inject(yaml, settings)!;
+
+        Assert.Contains("username: \"123\"", injected);
+        Assert.Contains("password: \"456\"", injected);
+        var proxies = (YamlSequenceNode)Parse(injected).Children[new YamlScalarNode("proxies")];
+        YamlMappingNode corp = (YamlMappingNode)proxies.Children[1];
+        Assert.Equal("123", Scalar(corp, "username"));
+        Assert.Equal("456", Scalar(corp, "password"));
+    }
+
+    [Fact]
     public void 已有dialer被全量接管覆盖()
     {
         const string yaml = "proxies:\n  - { name: a, type: ss, server: s, port: 1, dialer-proxy: other }\n";
