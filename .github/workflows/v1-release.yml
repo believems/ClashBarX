@@ -44,5 +44,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh workflow run release-dmg.yml --repo "${GITHUB_REPOSITORY}" --ref main -f tag=v1.0.0 -f bump=patch
+          gh workflow run release-both.yml --repo "${GITHUB_REPOSITORY}" --ref main -f tag=v1.0.1 -f bump=patch
           echo "Release v1.0.0 dispatched (build + test + release 双架构 no-core)."

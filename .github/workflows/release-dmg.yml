@@ -1,10 +1,8 @@
 name: Release DMG
 
 on:
-  push:
-    tags:
-      - 'v*'
-      - '*.*.*'
+  # 双平台统一发版改走 release-both.yml（v1.0.1 起）；本工作流转 manual-only，
+  # 保留作 macOS 单平台补发/回退通道（workflow_dispatch 指定 tag 即可）。
   workflow_dispatch:
     inputs:
       tag:

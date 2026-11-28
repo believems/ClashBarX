@@ -5,9 +5,8 @@ name: Release Windows
 # 产物：ClashBarX-<版本>-setup.exe（Inno Setup 自包含）+ ClashBarX-<版本>-setup-lite.exe
 #      （框架依赖，需 .NET 8 Desktop Runtime）+ portable zip + 三者各自的 sha256，共 6 个资产。
 on:
-  push:
-    tags:
-      - 'win-v*'
+  # 双平台统一发版改走 release-both.yml（v1.0.1 起）；本工作流转 manual-only，
+  # 保留作 Windows 单平台补发/回退通道（workflow_dispatch 指定 tag 即可）。
   workflow_dispatch:
     inputs:
       tag:

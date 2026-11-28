@@ -1,0 +1,411 @@
+name: Release Both Platforms
+
+# 双平台同 tag 统一发版（v1.0.1 起启用）：推 v* tag 或手动触发，一次运行
+# 同时构建 macOS（DMG×2）与 Windows（setup/lite/portable）并发布单一 Release。
+# 构建步骤逐段复用 release-dmg.yml / release-win.yml 的成熟实现；
+# 单一 release 创建点，杜绝双工作流并发建 release 的竞态。
+# 旧工作流已改为 workflow_dispatch-only（单平台补发/回退用），防 tag 双触发。
+concurrency:
+  group: release-both
+  cancel-in-progress: false
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Optional explicit tag (v1.2.3 or 1.2.3). Leave empty to auto-increment.'
+        required: false
+        type: string
+      bump:
+        description: 'Version bump when tag is empty.'
+        required: false
+        default: auto
+        type: choice
+        options:
+          - auto
+          - patch
+          - minor
+          - major
+
+jobs:
+  prepare-version:
+    if: github.event_name != 'push' || github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+      build_number: ${{ steps.version.outputs.build_number }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        env:
+          INPUT_TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || '' }}
+          INPUT_BUMP: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.bump || 'auto' }}
+        run: |
+          set -euo pipefail
+
+          # 本仓库自 v1.0.0 起独立编号，不同步上游 ClashBar 的版本序列。
+          MINIMUM_VERSION="1.0.0"
+
+          assert_version_floor() {
+            local candidate_tag="$1"
+            local candidate_version="$2"
+            if [[ "${candidate_version%%.*}" -lt "${MINIMUM_VERSION%%.*}" ]]; then
+              echo "Refusing to release ${candidate_tag}: ClashBarX numbers versions independently from v${MINIMUM_VERSION} and never reuses upstream's v0.x tags." >&2
+              exit 1
+            fi
+          }
+
+          extract_version() {
+            local raw="$1"
+            if [[ "$raw" =~ ^v?([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+              echo "${BASH_REMATCH[1]}"
+              return 0
+            fi
+            return 1
+          }
+
+          normalize_manual_tag() {
+            local raw="$1"
+            if ! extract_version "$raw" >/dev/null; then
+              return 1
+            fi
+            echo "$raw"
+          }
+
+          tag=""
+          version=""
+
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            tag="${GITHUB_REF_NAME}"
+            if ! version="$(extract_version "$tag")"; then
+              echo "Tag '$tag' is not valid (expected v1.2.3 or 1.2.3)." >&2
+              exit 1
+            fi
+            assert_version_floor "$tag" "$version"
+          else
+            git fetch --tags --force
+
+            if [[ -n "${INPUT_TAG:-}" ]]; then
+              if ! tag="$(normalize_manual_tag "$INPUT_TAG")"; then
+                echo "Input tag '$INPUT_TAG' is not valid (expected v1.2.3 or 1.2.3)." >&2
+                exit 1
+              fi
+              version="$(extract_version "$tag")"
+            else
+              # 本仓库版本号自 v1.0.0 起独立编号，不跟随上游 ClashBar 的 v0.x 序列。
+              # tag 匹配用 'v[1-9]*'，从上游同步过来的 v0.x 标签会被直接忽略。
+              last_tag="$(git tag -l 'v[1-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1 || true)"
+
+              if [[ -z "$last_tag" ]]; then
+                tag="v${MINIMUM_VERSION}"
+                version="${MINIMUM_VERSION}"
+                echo "No ClashBarX release yet, starting at $tag"
+              else
+                base_version="${last_tag#v}"
+                range="${last_tag}..HEAD"
+
+                bump="${INPUT_BUMP:-auto}"
+                if [[ "$bump" == "auto" || -z "$bump" ]]; then
+                  chmod +x Scripts/resolve_version_bump.sh
+                  if ! bump="$(git log --format='%s%n%b' $range | Scripts/resolve_version_bump.sh)"; then
+                    echo "No releasable commits found since ${last_tag}. Set bump manually." >&2
+                    exit 1
+                  fi
+                fi
+
+                if [[ "$bump" != "major" && "$bump" != "minor" && "$bump" != "patch" ]]; then
+                  echo "Unsupported bump type: $bump" >&2
+                  exit 1
+                fi
+
+                IFS='.' read -r major minor patch <<< "$base_version"
+                case "$bump" in
+                  major)
+                    major=$((major + 1))
+                    minor=0
+                    patch=0
+                    ;;
+                  minor)
+                    minor=$((minor + 1))
+                    patch=0
+                    ;;
+                  patch)
+                    patch=$((patch + 1))
+                    ;;
+                esac
+                tag="v${major}.${minor}.${patch}"
+                version="${major}.${minor}.${patch}"
+                echo "Auto-calculated tag: $tag (bump: $bump, base: ${last_tag})"
+              fi
+            fi
+
+            assert_version_floor "$tag" "$version"
+
+            if git ls-remote --tags origin "refs/tags/${tag}" | grep -q .; then
+              echo "Tag ${tag} already exists on origin, reusing it."
+            else
+              git config user.name "github-actions[bot]"
+              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+              git tag "$tag"
+              git push origin "$tag"
+              echo "Created and pushed tag: $tag"
+            fi
+          fi
+
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "build_number=${version}" >> "$GITHUB_OUTPUT"
+
+  build-macos:
+    needs: prepare-version
+    # 单 job 串行构建双架构（发布策略：不打包 mihomo 内核，保留 arm64 与 intel）：
+    # 矩阵并行会在 macOS runner 池紧张时出现「整组排队被丢」（免费优先级排队上限
+    # 约 15 分钟）；串行只需一个排队窗口，arm64 优先构建并顺带跑测试，intel 交叉编译随后。
+    # macos-26 镜像（Xcode 27 / Swift 6.4）：Xcode 26.3/Swift 6.2 的 swift test
+    # 执行层有输出转发死锁（外层文件重定向也无法规避）；Xcode 27.2 本机实测
+    # 94 测试 6 秒全绿。arm64 单 runner 串行构建双架构（Intel 为交叉编译）。
+    runs-on: macos-26
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare-version.outputs.tag }}
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Verify Swift toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          swift --version
+          if ! swift --version | grep -Eq 'Swift version (6\.[2-9]|[7-9]\.)'; then
+            echo "Swift 6.2+ is required by Package.swift (// swift-tools-version: 6.2)." >&2
+            exit 1
+          fi
+
+      - name: Build both architectures serially
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_one() {
+            local arch="$1" suffix="$2"
+            echo "::group::Build $arch ($suffix)"
+            APP_VERSION="${{ needs.prepare-version.outputs.version }}" \
+            BUILD_NUMBER="${{ needs.prepare-version.outputs.build_number }}" \
+            PREPARE_MIHOMO_BINARY=0 \
+            BUNDLE_MIHOMO_BINARY=0 \
+            TARGET_ARCH="$arch" \
+            ./Scripts/build.sh app
+            # hdiutil 的 verify 在 runner 上偶发 Resource temporarily unavailable
+            # （diskimages-helper 服务未就绪/未释放），重试三次并间隔等待。
+            local attempt
+            for attempt in 1 2 3; do
+              if APP_VERSION="${{ needs.prepare-version.outputs.version }}" \
+                 DMG_SUFFIX="$suffix" \
+                 ./Scripts/build.sh dmg; then
+                break
+              fi
+              if [ "$attempt" -eq 3 ]; then
+                echo "DMG creation failed after 3 attempts ($suffix)." >&2
+                exit 1
+              fi
+              echo "DMG attempt $attempt failed; retrying in 30s…"
+              sleep 30
+            done
+            echo "::endgroup::"
+          }
+          build_one arm64 apple-silicon
+          build_one x86_64 intel
+          ls -la dist/
+
+      # 测试与构建同 runner（仅一次排队）；失败即 job 失败，阻塞 release——测试仍是发版门槛。
+      - name: Run Swift tests
+        # 输出落文件 + 后台 30 秒监控 tail：hang 时日志尾部实时可见；
+        # 超时被杀后日志文件仍可由下方 always() 上传步取证。
+        timeout-minutes: 12
+        run: |
+          set +e
+          swift test --no-parallel > test-output.log 2>&1 &
+          test_pid=$!
+          elapsed=0
+          while kill -0 "$test_pid" 2>/dev/null; do
+            sleep 30
+            elapsed=$((elapsed + 30))
+            echo "[monitor] ${elapsed}s elapsed, log tail:"
+            tail -n 4 test-output.log
+            echo "[monitor] ---"
+          done
+          wait "$test_pid"
+          status=$?
+          set -e
+          echo "[monitor] tests exited with ${status} after ${elapsed}s"
+          cat test-output.log
+          exit $status
+
+      - name: Upload test output
+        # 超时被杀时 cat 不会执行，此步兜底取证 hang 位置
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mac-test-output
+          path: test-output.log
+          if-no-files-found: warn
+
+      - name: Upload dmg artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: dmg-both-arch
+          path: |
+            dist/*.dmg
+            dist/*.dmg.sha256
+          if-no-files-found: error
+
+  build-windows:
+    needs: prepare-version
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare-version.outputs.tag }}
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      # 测试与构建同 job；失败即阻塞 release——测试是发版门槛（对齐 macOS 侧语义）
+      - name: Run all tests
+        shell: pwsh
+        run: dotnet test windows/ClashBarX.sln --configuration Release
+
+      - name: Build portable zip
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          powershell -NoProfile -ExecutionPolicy Bypass -File windows/installer/build-portable.ps1 `
+            -Version "${{ needs.prepare-version.outputs.version }}"
+
+      - name: Build setup installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $iscc = (Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup*\ISCC.exe", "${env:ProgramFiles}\Inno Setup*\ISCC.exe" -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $iscc) { throw "ISCC.exe not found" }
+          powershell -NoProfile -ExecutionPolicy Bypass -File windows/installer/build-installer.ps1 `
+            -Version "${{ needs.prepare-version.outputs.version }}" -IsccPath "$iscc"
+
+      - name: Build lite setup installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $iscc = (Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup*\ISCC.exe", "${env:ProgramFiles}\Inno Setup*\ISCC.exe" -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $iscc) { throw "ISCC.exe not found" }
+          powershell -NoProfile -ExecutionPolicy Bypass -File windows/installer/build-installer.ps1 `
+            -Version "${{ needs.prepare-version.outputs.version }}" -IsccPath "$iscc" -Lite
+
+      - name: Generate sha256
+        shell: pwsh
+        run: |
+          $dist = "windows/dist"
+          Get-ChildItem "$dist\*.exe", "$dist\*.zip" | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
+            "$hash  $($_.Name)" | Set-Content -Path "$($_.FullName).sha256" -NoNewline
+            Write-Host "$($_.Name): $hash"
+          }
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: win-release
+          path: |
+            windows/dist/*.exe
+            windows/dist/*.zip
+            windows/dist/*.sha256
+          if-no-files-found: error
+
+  release:
+    needs: [prepare-version, build-macos, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare-version.outputs.tag }}
+
+      - name: Download dmg artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: dmg-*
+          merge-multiple: true
+          path: dist
+
+      - name: Download windows artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: win-release
+          path: dist
+
+      - name: Compose release body
+        shell: bash
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          chmod +x Scripts/generate_release_notes.sh
+          Scripts/generate_release_notes.sh \
+            "${{ needs.prepare-version.outputs.tag }}" \
+            "${{ needs.prepare-version.outputs.version }}" \
+            release.md
+          # 追加 Windows 资产说明（对齐 release-win.yml 的模板段）
+          cat >> release.md <<EOF
+
+          ## Windows
+
+          - **安装版**：\`ClashBarX-${{ needs.prepare-version.outputs.version }}-setup.exe\` —— Inno Setup，用户级安装（%LOCALAPPDATA%\Programs），无需管理员；含开始菜单快捷方式与卸载。
+          - **轻量安装版**：\`ClashBarX-${{ needs.prepare-version.outputs.version }}-setup-lite.exe\` —— 安装体验与安装版相同，但不随包自带 .NET 运行时（体积小得多）；**需要已安装 [.NET 8 Desktop Runtime（Windows x64）](https://dotnet.microsoft.com/download/dotnet/8.0)**，未安装请先到该页面下载「.NET Desktop Runtime 8.0.x」再运行。
+          - **绿色便携版**：\`ClashBarX-${{ needs.prepare-version.outputs.version }}-portable-win-x64.zip\` —— 自包含 .NET 8，解压即用。
+          - 数据目录 \`%APPDATA%\ClashBarX\`（配置/订阅/内核），卸载与升级均保留。
+          - 首次使用请导入订阅，并将 \`mihomo.exe\` 放入 \`%APPDATA%\ClashBarX\core\\\`。
+          EOF
+
+      - name: Publish release assets
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.prepare-version.outputs.tag }}
+          name: ClashBarX ${{ needs.prepare-version.outputs.version }}
+          body_path: release.md
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/*.dmg
+            dist/*.dmg.sha256
+            dist/*.exe
+            dist/*.zip
+            dist/*.sha256
