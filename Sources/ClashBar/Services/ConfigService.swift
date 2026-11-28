@@ -370,10 +370,25 @@ struct ConfigImportService {
         return scheme == "http" || scheme == "https"
     }
 
-    func downloadRemoteConfigData(from remoteURL: URL, userAgent: String? = nil) async throws -> Data {
-        let session = URLSessionFactory.makeEphemeralSession(options: .init(
-            timeoutIntervalForRequest: 15,
-            timeoutIntervalForResource: 30))
+    func downloadRemoteConfigData(
+        from remoteURL: URL,
+        userAgent: String? = nil,
+        proxy: CorpProxyEndpoint? = nil) async throws -> Data
+    {
+        // 前置代理端点非空时自建会话（内网企业代理通道，Issue #2）；
+        // 代理字典在当前并发域内构造，避免 Any 跨域。
+        let session: URLSession
+        if let proxy {
+            let configuration = URLSessionConfiguration.ephemeral
+            configuration.timeoutIntervalForRequest = 15
+            configuration.timeoutIntervalForResource = 30
+            configuration.connectionProxyDictionary = proxy.urlSessionProxyDictionary
+            session = URLSession(configuration: configuration)
+        } else {
+            session = URLSessionFactory.makeEphemeralSession(options: .init(
+                timeoutIntervalForRequest: 15,
+                timeoutIntervalForResource: 30))
+        }
         defer { session.finishTasksAndInvalidate() }
 
         var request = URLRequest(url: remoteURL)
@@ -478,7 +493,14 @@ final class ConfigService {
         self.configImportService.isSupportedRemoteConfigURL(url)
     }
 
-    func downloadRemoteConfigData(from remoteURL: URL, userAgent: String? = nil) async throws -> Data {
-        try await self.configImportService.downloadRemoteConfigData(from: remoteURL, userAgent: userAgent)
+    func downloadRemoteConfigData(
+        from remoteURL: URL,
+        userAgent: String? = nil,
+        proxy: CorpProxyEndpoint? = nil) async throws -> Data
+    {
+        try await self.configImportService.downloadRemoteConfigData(
+            from: remoteURL,
+            userAgent: userAgent,
+            proxy: proxy)
     }
 }

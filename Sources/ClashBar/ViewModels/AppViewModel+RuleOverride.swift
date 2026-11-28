@@ -1,14 +1,24 @@
 import AppKit
 import Foundation
 
-/// 交给 mihomo 的实际配置：覆写生效时是 state/runtime/ 下的生成文件，工作目录仍取原配置的。
+/// 交给 mihomo 的实际配置：覆写生效时是 state/runtime/ 下的生成文件，
+/// 内网前置代理启用时是 state/corp/ 下的注入文件，工作目录仍取原配置的。
 struct CoreLaunchConfig {
     let path: String
     let workingDirectory: URL?
     let overrideContent: RuleOverrideContent?
+    /// 前置代理注入版（Issue #2）。
+    var isCorpInjected = false
 
     var isOverridden: Bool {
         self.overrideContent?.counts.isEmpty == false
+    }
+
+    /// path 指向生成文件（覆写或前置代理注入）而非用户配置文件：
+    /// PUT /configs 重载必须推送内容而不是路径——配置目录可由用户自选，
+    /// state 下的生成文件不在 mihomo 的 -d 之内，按路径加载会被拒绝。
+    var isGenerated: Bool {
+        self.isOverridden || self.isCorpInjected
     }
 }
 
@@ -22,28 +32,31 @@ extension AppViewModel {
 
     /// 覆写开启且有内容时生成运行时配置，否则原样返回。生成失败会抛出，调用方按启动失败处理——
     /// 不悄悄退回原配置，免得用户以为规则已经生效。
+    /// 末段统一过内网前置代理注入（Issue #2）：启用时在覆写产物之上再生成注入版。
     func prepareCoreLaunchConfig(configPath: String) throws -> CoreLaunchConfig {
         let original = CoreLaunchConfig(path: configPath, workingDirectory: nil, overrideContent: nil)
         guard !self.isRemoteTarget else { return original }
-        guard self.ruleOverrideStore.isEnabled else { return original }
-
-        do {
-            let service = self.ruleOverrideService
-            let content = try service.loadContent()
-            self.ruleOverrideStore.counts = content.counts
-            guard !content.counts.isEmpty else {
-                return CoreLaunchConfig(path: configPath, workingDirectory: nil, overrideContent: content)
+        var launch = original
+        if self.ruleOverrideStore.isEnabled {
+            do {
+                let service = self.ruleOverrideService
+                let content = try service.loadContent()
+                self.ruleOverrideStore.counts = content.counts
+                if content.counts.isEmpty {
+                    launch = CoreLaunchConfig(path: configPath, workingDirectory: nil, overrideContent: content)
+                } else {
+                    let runtimeURL = try service.writeRuntimeConfig(originalConfigPath: configPath, content: content)
+                    launch = CoreLaunchConfig(
+                        path: runtimeURL.path,
+                        workingDirectory: MihomoProcessManager.resolveWorkingDirectoryURL(configPath: configPath),
+                        overrideContent: content)
+                }
+            } catch {
+                self.markRuleOverrideFailed(error.localizedDescription)
+                throw error
             }
-
-            let runtimeURL = try service.writeRuntimeConfig(originalConfigPath: configPath, content: content)
-            return CoreLaunchConfig(
-                path: runtimeURL.path,
-                workingDirectory: MihomoProcessManager.resolveWorkingDirectoryURL(configPath: configPath),
-                overrideContent: content)
-        } catch {
-            self.markRuleOverrideFailed(error.localizedDescription)
-            throw error
         }
+        return self.applyCorpProxyToLaunch(launch)
     }
 
     func validateCoreLaunchConfig(_ launch: CoreLaunchConfig) async -> Bool {
@@ -99,7 +112,7 @@ extension AppViewModel {
     }
 
     private func submitCoreLaunchConfig(_ launch: CoreLaunchConfig, client: MihomoAPIService) async throws {
-        let payload = launch.isOverridden ? try String(contentsOfFile: launch.path, encoding: .utf8) : nil
+        let payload = launch.isGenerated ? try String(contentsOfFile: launch.path, encoding: .utf8) : nil
         self.ruleOverrideStore.applyingContent = launch.overrideContent
         defer { self.ruleOverrideStore.applyingContent = nil }
         try await client.requestNoResponse(.putConfigs(force: false, path: launch.path, payload: payload))

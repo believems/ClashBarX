@@ -474,6 +474,19 @@
 "fmt.remote_config.next_update_hours" = "Auto in %dh";
 
 "ui.section.proxy_guard" = "Auto Proxy Guard";
+"ui.section.corp_proxy" = "Corporate Forward Proxy";
+"ui.settings.corp_proxy_enabled" = "Enable Forward Proxy";
+"ui.settings.corp_proxy_host" = "Server";
+"ui.placeholder.corp_proxy_host" = "Corporate proxy host";
+"ui.settings.corp_proxy_port" = "Port";
+"ui.settings.corp_proxy_username" = "Username";
+"ui.settings.corp_proxy_password" = "Password";
+"ui.placeholder.corp_proxy_optional" = "Optional";
+"ui.settings.corp_proxy_hint" = "Node connections and subscription downloads dial out through the corporate proxy; name resolution happens on the proxy side";
+"log.corpproxy.applied" = "Forward proxy injected: %1$@:%2$d";
+"log.corpproxy.failed" = "Forward proxy injection failed: %1$@";
+"log.corpproxy.unreadable" = "Forward proxy injection failed: configuration unreadable";
+"log.corpproxy.reload_failed" = "Reload after forward proxy change failed: %1$@";
 "ui.settings.proxy_guard_enabled" = "Switch to a usable node automatically";
 "ui.settings.proxy_guard_interval" = "Probe interval (seconds)";
 "ui.action.proxy_guard_check_running" = "Checking…";

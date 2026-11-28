@@ -530,7 +530,11 @@ extension AppViewModel {
     }
 
     private func downloadRemoteConfigData(from remoteURL: URL, userAgent: String? = nil) async throws -> Data {
-        try await configService.downloadRemoteConfigData(from: remoteURL, userAgent: userAgent)
+        // 内网前置代理启用时，App 层订阅拉取同样经企业代理（Issue #2 决策点 3）。
+        try await configService.downloadRemoteConfigData(
+            from: remoteURL,
+            userAgent: userAgent,
+            proxy: self.corpProxySubscriptionEndpoint)
     }
 
     private static let defaultMihomoVersionForUserAgent = "v1.19.27"

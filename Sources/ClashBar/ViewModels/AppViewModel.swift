@@ -302,6 +302,13 @@ final class AppViewModel: ObservableObject {
 
     // —— 自动代理守护（组内切换 + 订阅自愈 + CLI --proxy-guard 触发）——
     @AppStorage("clashbar.proxyguard.enabled") var proxyGuardEnabled: Bool = false
+
+    // —— 内网前置代理（Issue #2）：组装逻辑见 AppViewModel+CorpProxy.swift ——
+    @AppStorage("clashbar.corpproxy.enabled") var corpProxyEnabled: Bool = false
+    @AppStorage("clashbar.corpproxy.host") var corpProxyHost: String = ""
+    @AppStorage("clashbar.corpproxy.port") var corpProxyPort: Int = 8080
+    @AppStorage("clashbar.corpproxy.username") var corpProxyUsername: String = ""
+    @AppStorage("clashbar.corpproxy.password") var corpProxyPassword: String = ""
     /// 探测周期（秒），下限 30。
     @AppStorage("clashbar.proxyguard.interval.seconds") var proxyGuardIntervalSeconds: Int = 300
     var proxyGuardTask: Task<Void, Never>?

@@ -474,6 +474,19 @@
 "fmt.remote_config.next_update_hours" = "自动 %d 小时后";
 
 "ui.section.proxy_guard" = "自动代理守护";
+"ui.section.corp_proxy" = "内网前置代理";
+"ui.settings.corp_proxy_enabled" = "启用前置代理";
+"ui.settings.corp_proxy_host" = "服务器";
+"ui.placeholder.corp_proxy_host" = "企业代理地址";
+"ui.settings.corp_proxy_port" = "端口";
+"ui.settings.corp_proxy_username" = "用户名";
+"ui.settings.corp_proxy_password" = "密码";
+"ui.placeholder.corp_proxy_optional" = "可选";
+"ui.settings.corp_proxy_hint" = "启用后节点连接与订阅拉取经企业代理拨出，域名解析由代理端完成";
+"log.corpproxy.applied" = "前置代理已注入：%1$@:%2$d";
+"log.corpproxy.failed" = "前置代理注入失败：%1$@";
+"log.corpproxy.unreadable" = "前置代理注入失败：无法读取配置文件";
+"log.corpproxy.reload_failed" = "前置代理变更后重载失败：%1$@";
 "ui.settings.proxy_guard_enabled" = "自动切换可用节点";
 "ui.settings.proxy_guard_interval" = "探测周期（秒）";
 "ui.action.proxy_guard_check_running" = "检查中…";

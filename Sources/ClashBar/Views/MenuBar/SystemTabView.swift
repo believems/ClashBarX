@@ -57,6 +57,16 @@ struct SystemTabView: TranslatingView {
             })
     }
 
+    private var corpProxyPortText: Binding<String> {
+        Binding(
+            get: { String(self.appViewModel.corpProxyPort) },
+            set: { text in
+                guard let value = Int(text.trimmingCharacters(in: .whitespaces)),
+                      (1...65_535).contains(value) else { return }
+                self.appViewModel.corpProxyPort = value
+            })
+    }
+
     func settingsRowLabel(symbol: String, title: String) -> some View {
         HStack(spacing: T.space6) {
             Image(systemName: symbol)
@@ -598,6 +608,72 @@ struct SystemTabView: TranslatingView {
                 } else {
                     self.appViewModel.stopProxyGuard()
                 }
+            }
+
+            // 内网前置代理（Issue #2）：置灰不收起（高度恒定），字段回车确认后重载生效。
+            self.settingsSection(self.tr("ui.section.corp_proxy")) {
+                self.settingsToggleRow(
+                    self.tr("ui.settings.corp_proxy_enabled"),
+                    symbol: "building.columns",
+                    isOn: self.$appViewModel.corpProxyEnabled)
+
+                VStack(alignment: .leading, spacing: T.space4) {
+                    HStack(spacing: T.space8) {
+                        self.settingsRowLabel(symbol: "server.rack", title: self.tr("ui.settings.corp_proxy_host"))
+                            .layoutPriority(1)
+                        Spacer(minLength: 0)
+                        TextField(self.tr("ui.placeholder.corp_proxy_host"), text: self.$appViewModel.corpProxyHost)
+                            .appTextField()
+                            .frame(width: 180, alignment: .trailing)
+                            .onSubmit {
+                                Task { await self.appViewModel.reloadForCorpProxyChange() }
+                            }
+                    }
+
+                    self.settingsPortFieldRow(
+                        self.tr("ui.settings.corp_proxy_port"),
+                        symbol: "number",
+                        text: self.corpProxyPortText)
+
+                    HStack(spacing: T.space8) {
+                        self.settingsRowLabel(symbol: "person.text.rectangle", title: self.tr("ui.settings.corp_proxy_username"))
+                            .layoutPriority(1)
+                        Spacer(minLength: 0)
+                        TextField(self.tr("ui.placeholder.corp_proxy_optional"), text: self.$appViewModel.corpProxyUsername)
+                            .appTextField()
+                            .frame(width: 180, alignment: .trailing)
+                            .onSubmit {
+                                Task { await self.appViewModel.reloadForCorpProxyChange() }
+                            }
+                    }
+
+                    HStack(spacing: T.space8) {
+                        self.settingsRowLabel(symbol: "lock.rectangle", title: self.tr("ui.settings.corp_proxy_password"))
+                            .layoutPriority(1)
+                        Spacer(minLength: 0)
+                        SecureField(self.tr("ui.placeholder.corp_proxy_optional"), text: self.$appViewModel.corpProxyPassword)
+                            .appTextField()
+                            .frame(width: 180, alignment: .trailing)
+                            .onSubmit {
+                                Task { await self.appViewModel.reloadForCorpProxyChange() }
+                            }
+                    }
+
+                    HStack(spacing: T.space6) {
+                        Image(systemName: "info.circle")
+                            .foregroundStyle(nativeTertiaryLabel)
+                        Text(self.tr("ui.settings.corp_proxy_hint"))
+                            .font(.app(size: T.FontSize.caption, weight: .regular))
+                            .foregroundStyle(nativeSecondaryLabel)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .menuRowPadding(vertical: T.space4)
+                .opacity(self.appViewModel.corpProxyEnabled ? 1 : 0.5)
+                .disabled(!self.appViewModel.corpProxyEnabled)
+            }
+            .onChange(of: self.appViewModel.corpProxyEnabled) { _ in
+                Task { await self.appViewModel.reloadForCorpProxyChange() }
             }
 
             self.settingsSection(
