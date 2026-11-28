@@ -64,7 +64,6 @@ public partial class MainWindow : Window
         });
         InitializeComponent();
         MainTabs.SelectionChanged += (_, _) => TabSelectionChanged?.Invoke(this, EventArgs.Empty);
-        MainTabs.SelectionChanged += (_, _) => ApplyTabWindowHeight();
         ConfigFilesBox.SelectionChanged += (_, _) => RefreshSubscriptionActionState();
         SubscriptionUrlBox.TextChanged += (_, _) => RefreshImportActionState();
         RefreshImportActionState();
@@ -139,26 +138,6 @@ public partial class MainWindow : Window
     /// <summary>切换到网络页（订阅区 2026-11-27 起在此页；「去导入」引导的落点）。</summary>
     public void SelectNetworkTab() => MainTabs.SelectedIndex = 4;
 
-    /// <summary>设置页窗高（2026-11-28 真机二分收敛：以「启用态滚动条节点」为判据，416 有条、420 无条，取 420）；内容长高（如 SSID 绑定增多）时走页内滚动。</summary>
-    private const double SettingsTabWindowHeight = 420;
-
-    /// <summary>其余页窗高（2026-11-28 真机二分收敛：479 有页级滚动条、483 无，取 483；列表类页面靠内部滚动填满）。</summary>
-    private const double DefaultWindowHeight = 483;
-
-    /// <summary>
-    /// 窗高按页切换（BOSS 拍板 2026-11-27「按页自动调窗高」）：设置页内容比网络页矮约 120 逻辑像素，
-    /// 统一窗高下这份结构性剩余只能变成留白（BOSS 两度截图圈出）；进设置页收高到实测值，
-    /// 切回其余页恢复 520。顶边不动、底边收放。
-    /// 注：SizeToContent=Height 与 WindowChrome 全自绘标题栏组合测量不准（实测少算约 98 逻辑像素
-    /// 导致裁切），故用实测常量而非自动测量。
-    /// </summary>
-    private void ApplyTabWindowHeight()
-    {
-        double height = MainTabs.SelectedIndex == 5 ? SettingsTabWindowHeight : DefaultWindowHeight;
-        Height = height;
-        MinHeight = height;
-        MaxHeight = height;
-    }
 
     /// <summary>
     /// 切到设置页并滚动到维护卡（应用菜单「检查更新」的落点）：维护卡常在首屏之外，
@@ -272,6 +251,94 @@ public partial class MainWindow : Window
     /// <summary>注入网络页 SSID 策略区模型。调用方负责 UI 线程编组。</summary>
     public void SetSsidStrategySection(SsidStrategySectionViewModel viewModel) =>
         SsidStrategyRoot.DataContext = viewModel;
+
+    /// <summary>
+    /// 注入网络页内网前置代理区块模型（Issue #2）。提交语义在此落地（源：macOS onSubmit）：
+    /// 服务器/用户名/密码回车或失焦回写 VM 并 Commit；端口文本变化即回写（VM 内校验）失焦/回车 Commit；
+    /// VM→输入框单向同步靠 PropertyChanged（值相等时 VM 不回环）。调用方负责 UI 线程编组。
+    /// </summary>
+    public void SetCorpProxySection(CorpProxySectionViewModel viewModel)
+    {
+        CorpProxySectionRoot.DataContext = viewModel;
+
+        CorpHostBox.Text = viewModel.Host;
+        CorpPortBox.Text = viewModel.PortText;
+        CorpUserBox.Text = viewModel.Username;
+        CorpPassBox.Password = viewModel.Password;
+        RefreshCorpPlaceholders();
+
+        viewModel.PropertyChanged += (_, e) =>
+        {
+            switch (e.PropertyName)
+            {
+                case nameof(viewModel.Host):
+                    CorpHostBox.Text = viewModel.Host;
+                    break;
+                case nameof(viewModel.Port):
+                    CorpPortBox.Text = viewModel.PortText;
+                    break;
+                case nameof(viewModel.Username):
+                    CorpUserBox.Text = viewModel.Username;
+                    break;
+                case nameof(viewModel.Password):
+                    CorpPassBox.Password = viewModel.Password;
+                    break;
+            }
+
+            RefreshCorpPlaceholders();
+        };
+
+        CorpHostBox.TextChanged += (_, _) => RefreshCorpPlaceholders();
+        CorpUserBox.TextChanged += (_, _) => RefreshCorpPlaceholders();
+        CorpHostBox.LostFocus += (_, _) => CommitCorpHost(viewModel);
+        CorpUserBox.LostFocus += (_, _) => CommitCorpUser(viewModel);
+        CorpPassBox.LostFocus += (_, _) => CommitCorpPass(viewModel);
+        CorpPortBox.LostFocus += (_, _) => viewModel.Commit();
+        CorpHostBox.KeyDown += (_, e) => OnCorpEnter(e, () => CommitCorpHost(viewModel));
+        CorpUserBox.KeyDown += (_, e) => OnCorpEnter(e, () => CommitCorpUser(viewModel));
+        CorpPassBox.KeyDown += (_, e) => OnCorpEnter(e, () => CommitCorpPass(viewModel));
+        CorpPortBox.KeyDown += (_, e) => OnCorpEnter(e, viewModel.Commit);
+        CorpPortBox.TextChanged += (_, _) => viewModel.PortText = CorpPortBox.Text;
+        CorpHostBox.TextChanged += (_, _) => viewModel.Host = CorpHostBox.Text;
+        CorpUserBox.TextChanged += (_, _) => viewModel.Username = CorpUserBox.Text;
+        CorpPassBox.PasswordChanged += (_, _) => viewModel.Password = CorpPassBox.Password;
+    }
+
+    private static void OnCorpEnter(System.Windows.Input.KeyEventArgs e, Action commit)
+    {
+        if (e.Key == System.Windows.Input.Key.Enter)
+        {
+            commit();
+        }
+    }
+
+    private void CommitCorpHost(CorpProxySectionViewModel viewModel)
+    {
+        viewModel.Host = CorpHostBox.Text;
+        viewModel.Commit();
+    }
+
+    private void CommitCorpUser(CorpProxySectionViewModel viewModel)
+    {
+        viewModel.Username = CorpUserBox.Text;
+        viewModel.Commit();
+    }
+
+    private void CommitCorpPass(CorpProxySectionViewModel viewModel)
+    {
+        viewModel.Password = CorpPassBox.Password;
+        viewModel.Commit();
+    }
+
+    private void RefreshCorpPlaceholders()
+    {
+        CorpHostPlaceholder.Visibility = string.IsNullOrWhiteSpace(CorpHostBox.Text)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        CorpUserPlaceholder.Visibility = string.IsNullOrWhiteSpace(CorpUserBox.Text)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
 
     /// <summary>注入代理页 Provider 区模型。调用方负责 UI 线程编组。</summary>
     public void SetProxyProvidersSection(ProxyProvidersSectionViewModel viewModel) =>

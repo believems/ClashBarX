@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Threading;
 using ClashBarX.App.Core;
 using ClashBarX.Core.Connections;
+using ClashBarX.Core.CorpProxy;
 using ClashBarX.Core.Json;
 using ClashBarX.Core.Logging;
 using ClashBarX.Core.Maintenance;
@@ -78,6 +79,7 @@ public partial class App : Application
     private RulesPageViewModel? _rulesPage;
     private RuleOverrideService? _ruleOverride;
     private RuleOverrideViewModel? _ruleOverridePage;
+    private CorpProxySectionViewModel? _corpProxy;
     private SettingsPageViewModel? _settingsPage;
     private bool _coreSettingsLoaded;
     private FileSystemWatcher? _configWatcher;
@@ -158,6 +160,19 @@ public partial class App : Application
         _subscriptions = new SubscriptionService(
             Path.Combine(ClashBarXPaths.AppDataRoot(), "configs"),
             Path.Combine(ClashBarXPaths.AppDataRoot(), "subscriptions.json"));
+        // 订阅下载经企业代理（Issue #2 决策点 3，源：corpProxySubscriptionEndpoint）；未启用返回 null 走默认
+        _subscriptions.ProxyResolver = () =>
+        {
+            CorpProxySettings proxySettings = CurrentCorpProxySettings();
+            return proxySettings.IsReady
+                ? new System.Net.WebProxy(proxySettings.TrimmedHost, proxySettings.Port)
+                {
+                    Credentials = proxySettings.HasCredentials
+                        ? new System.Net.NetworkCredential(proxySettings.Username, proxySettings.Password)
+                        : null,
+                }
+                : null;
+        };
 
         _mainWindow = new MainWindow();
         _mainWindow.SubscriptionImportRequested += OnSubscriptionImportRequested;
@@ -494,7 +509,7 @@ public partial class App : Application
         MihomoProcessManager manager = _processManager!;
         try
         {
-            // 优先订阅选中配置；否则根目录手工 config.yaml；覆写启用时换 runtime 配置
+            // 优先订阅选中配置；否则根目录手工 config.yaml；组装链按需换覆写 runtime / 前置代理注入版
             string configPath = _subscriptions?.GetSelectedConfigPath() ?? ClashBarXPaths.DefaultConfigPath();
             (string launchPath, string? workingDirectory) = ResolveCoreLaunchConfig(configPath);
             CoreLifecycleStatus status = await manager.StartAsync(
@@ -602,6 +617,7 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
             }
         };
         _mainWindow!.SetSystemProxySection(_systemProxySection);
+        SetupCorpProxy();
     }
 
     /// <summary>保存绕过列表：持久化到设置；系统代理开着时用新列表重写（源：setExceptionsList 语义）。</summary>
@@ -1729,36 +1745,48 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
     }
 
     /// <summary>
-    /// 启动/重启内核的配置解析（源：prepareCoreLaunchConfig）：覆写启用且内容非空时
-    /// 生成 runtime 配置（沿用原文件名），工作目录保持原配置目录（相对路径资源解析一致）。
-    /// 生成失败抛错不回退（源语义：避免用户误以为覆写已生效）。
+    /// 启动/手动启动/重启/热重载共用的配置组装链（源：prepareCoreLaunchConfig）：覆写启用且
+    /// 内容非空时生成 runtime 配置（沿用原文件名），工作目录保持原配置目录（相对路径资源解析
+    /// 一致）。末段统一过内网前置代理注入（Issue #2）：启用时在覆写产物之上再生成 state/corp
+    /// 注入版——所有调用方共用同一条组装链，任一生效路径都不会漏注入。
+    /// 覆写生成失败抛错不回退（源语义：避免用户误以为覆写已生效）；注入失败降级原配置不阻塞。
     /// </summary>
     private (string LaunchPath, string? WorkingDirectory) ResolveCoreLaunchConfig(string configPath)
     {
-        if (!_settingsStore.Load().RuleOverrideEnabled)
+        string launchPath = configPath;
+        string? workingDirectory = null;
+        if (_settingsStore.Load().RuleOverrideEnabled)
         {
-            return (configPath, null);
+            RuleOverrideContent content = _ruleOverride!.LoadContent();
+            if (!content.Counts.IsEmpty)
+            {
+                launchPath = _ruleOverride.WriteRuntimeConfig(configPath, content);
+                workingDirectory = Path.GetDirectoryName(Path.GetFullPath(configPath));
+                RuleOverrideCounts counts = content.Counts;
+                Dispatcher.BeginInvoke(() =>
+                {
+                    _ruleOverridePage?.MarkApplied(Path.GetFileName(configPath), counts);
+                    _mainWindow?.AppendLog(L(
+                        "log.override.runtime_generated",
+                        Path.GetFileName(launchPath),
+                        counts.Prepend,
+                        counts.Append,
+                        counts.RuleProviders));
+                });
+            }
         }
 
-        RuleOverrideContent content = _ruleOverride!.LoadContent();
-        if (content.Counts.IsEmpty)
+        (launchPath, workingDirectory) = ApplyCorpProxyToLaunch(launchPath, workingDirectory);
+        // 注入版必须显式携带原配置目录作 -d：进程管理器对 null 会从（注入版）路径推导工作目录，
+        // 内核 home 漂到 state/corp 后，按路径 PUT 重载会被 SAFE_PATHS 拒绝（真机 400 实证）、
+        // provider 等相对路径资源也错位。未生成时保持 null 交由进程管理器按原路径推导。
+        if (workingDirectory is null
+            && !string.Equals(launchPath, configPath, StringComparison.OrdinalIgnoreCase))
         {
-            return (configPath, null);
+            workingDirectory = Path.GetDirectoryName(Path.GetFullPath(configPath));
         }
 
-        string runtimePath = _ruleOverride.WriteRuntimeConfig(configPath, content);
-        RuleOverrideCounts counts = content.Counts;
-        Dispatcher.BeginInvoke(() =>
-        {
-            _ruleOverridePage?.MarkApplied(Path.GetFileName(configPath), counts);
-            _mainWindow?.AppendLog(L(
-                "log.override.runtime_generated",
-                Path.GetFileName(runtimePath),
-                counts.Prepend,
-                counts.Append,
-                counts.RuleProviders));
-        });
-        return (runtimePath, Path.GetDirectoryName(Path.GetFullPath(configPath)));
+        return (launchPath, workingDirectory);
     }
 
     /// <summary>运行中应用覆写（源：applyRuleOverridesIfRunning——PUT /configs 推 payload 全文；远程禁用）。</summary>
@@ -1785,16 +1813,18 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
                 return;
             }
 
-            string runtimePath = _ruleOverride.WriteRuntimeConfig(configPath, content);
-            string payload = await File.ReadAllTextAsync(runtimePath).ConfigureAwait(false);
+            // 重载走完整组装链（覆写 → 前置代理注入，源：putSelectedConfig 经 prepareCoreLaunchConfig）：
+            // 生成版（覆写 runtime 或 state/corp 注入版）不在内核 -d 之内，必须推 payload 全文
+            (string launchPath, string? _) = ResolveCoreLaunchConfig(configPath);
+            string payload = await File.ReadAllTextAsync(launchPath).ConfigureAwait(false);
             await _apiClient!.RequestNoResponseAsync(
-                MihomoEndpoint.PutConfigs(force: false, path: runtimePath, payload: payload))
+                MihomoEndpoint.PutConfigs(force: false, path: launchPath, payload: payload))
                 .ConfigureAwait(false);
             RuleOverrideCounts counts = content.Counts;
             await Dispatcher.BeginInvoke(() =>
             {
                 _ruleOverridePage?.MarkApplied(Path.GetFileName(configPath), counts);
-                _mainWindow?.AppendLog(L("log.override.applied_running", Path.GetFileName(runtimePath)));
+                _mainWindow?.AppendLog(L("log.override.applied_running", Path.GetFileName(launchPath)));
             });
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -2179,6 +2209,11 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
             TunEnabled = _tunSection?.IsTunEnabled ?? saved.TunEnabled,
             TunStack = string.IsNullOrWhiteSpace(_tunSection?.SelectedStack) ? saved.TunStack : _tunSection!.SelectedStack!,
             SsidStrategyEnabled = _ssidStrategy?.IsEnabled ?? saved.SsidStrategyEnabled,
+            CorpProxyEnabled = _corpProxy?.IsEnabled ?? saved.CorpProxyEnabled,
+            CorpProxyHost = _corpProxy?.Host ?? saved.CorpProxyHost,
+            CorpProxyPort = _corpProxy?.Port ?? saved.CorpProxyPort,
+            CorpProxyUsername = _corpProxy?.Username ?? saved.CorpProxyUsername,
+            CorpProxyPassword = _corpProxy?.Password ?? saved.CorpProxyPassword,
         });
     }
 
@@ -2777,6 +2812,101 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
     /// （源：submitCoreLaunchConfig——覆写时推 payload 全文、否则推 path；连接不断、
     /// 进程不重启）；未运行时启动；热重载失败记错误日志（内核继续用旧配置，源语义）。
     /// </summary>
+    // ---- 内网前置代理（Issue #2，源：macOS AppViewModel+CorpProxy） ----
+
+    /// <summary>区块 VM 装配：恢复设置、字段变化持久化、提交语义热重载（源：onSubmit/onChange）。</summary>
+    private void SetupCorpProxy()
+    {
+        // 须在给 _corpProxy 赋值前读：CurrentCorpProxySettings 对非空 VM 优先返回，
+        // 赋值后调用会把刚 new 出的空 VM 当作现状——持久化设置被静默重置（真机实证）。
+        CorpProxySettings restored = CurrentCorpProxySettings();
+        _corpProxy = new CorpProxySectionViewModel();
+        _corpProxy.Restore(restored);
+        _corpProxy.Changed += SaveCurrentSettings;
+        _corpProxy.Committed += () => _ = ReloadForCorpProxyChangeAsync();
+        _mainWindow!.SetCorpProxySection(_corpProxy);
+    }
+
+    /// <summary>当前前置代理设置（VM 未装配时回退设置文件）。</summary>
+    private CorpProxySettings CurrentCorpProxySettings()
+    {
+        if (_corpProxy is { } viewModel)
+        {
+            return viewModel.ToSettings();
+        }
+
+        AppSettings saved = _settingsStore.Load();
+        return new CorpProxySettings(
+            saved.CorpProxyEnabled, saved.CorpProxyHost, saved.CorpProxyPort,
+            saved.CorpProxyUsername, saved.CorpProxyPassword);
+    }
+
+    /// <summary>
+    /// 配置组装链末段注入（源：applyCorpProxyToLaunch）：启用且有效时读组装产物、注入三处、
+    /// 写 state/corp/runtime-<名> 并改用该路径；注入失败降级原配置不阻塞启动（家用误开有错误日志可查）。
+    /// </summary>
+    private (string LaunchPath, string? WorkingDirectory) ApplyCorpProxyToLaunch(
+        string launchPath, string? workingDirectory)
+    {
+        CorpProxySettings settings = CurrentCorpProxySettings();
+        if (!settings.IsReady)
+        {
+            return (launchPath, workingDirectory);
+        }
+
+        string raw;
+        try
+        {
+            raw = File.ReadAllText(launchPath);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            _mainWindow?.AppendLog(L("log.corpproxy.unreadable"));
+            return (launchPath, workingDirectory);
+        }
+
+        try
+        {
+            string? injected = CorpProxyInjector.Inject(raw, settings);
+            if (injected is null)
+            {
+                return (launchPath, workingDirectory);   // 无注入对象：沿用原配置
+            }
+
+            string directory = ClashBarXPaths.CorpProxyDirectory();
+            Directory.CreateDirectory(directory);
+            string target = Path.Combine(directory, "runtime-" + Path.GetFileName(launchPath));
+            string temporary = target + ".tmp";
+            File.WriteAllText(temporary, injected, new System.Text.UTF8Encoding(false));
+            File.Move(temporary, target, overwrite: true);
+            _mainWindow?.AppendLog(L("log.corpproxy.applied", settings.TrimmedHost, settings.Port));
+            return (target, workingDirectory);
+        }
+        catch (Exception error)
+        {
+            _mainWindow?.AppendLog(L("log.corpproxy.failed", error.Message));
+            return (launchPath, workingDirectory);
+        }
+    }
+
+    /// <summary>设置变更后让内核立即重载（组装链会重新注入）；内核未跑或远程目标时静默（源：reloadForCorpProxyChange）。</summary>
+    private async Task ReloadForCorpProxyChangeAsync()
+    {
+        if (_processManager?.IsRunning != true || _remoteStore?.IsRemoteTarget == true)
+        {
+            return;
+        }
+
+        try
+        {
+            await ApplySelectedConfigAsync();
+        }
+        catch (Exception error)
+        {
+            _mainWindow?.AppendLog(L("log.corpproxy.reload_failed", error.Message));
+        }
+    }
+
     private async Task ApplySelectedConfigAsync()
     {
         string configPath = _subscriptions?.GetSelectedConfigPath() ?? ClashBarXPaths.DefaultConfigPath();
@@ -2785,13 +2915,18 @@ _mainWindow?.AppendLog(L("log.core.startup_hint", ClashBarXPaths.CoreDirectory()
             (string launchPath, string? workingDirectory) = ResolveCoreLaunchConfig(configPath);
             if (_processManager is { IsRunning: true })
             {
-                bool overrideEnabled = _settingsStore.Load().RuleOverrideEnabled;
-                if (overrideEnabled)
+                // 生成版配置（覆写或前置代理注入）必须推 payload 全文，否则内核按原配置重载丢注入（源：isGenerated 统一判定）
+                bool generated = !string.Equals(launchPath, configPath, StringComparison.OrdinalIgnoreCase);
+                if (generated)
                 {
                     string payload = await File.ReadAllTextAsync(launchPath);
                     await _apiClient!.RequestNoResponseAsync(
                         MihomoEndpoint.PutConfigs(force: false, path: launchPath, payload: payload));
-                    _mainWindow?.AppendLog(L("log.config.hot_reloaded_override", Path.GetFileName(launchPath)));
+                    _mainWindow?.AppendLog(L(
+                        _settingsStore.Load().RuleOverrideEnabled
+                            ? "log.config.hot_reloaded_override"
+                            : "log.config.hot_reloaded_corp",
+                        Path.GetFileName(launchPath)));
                 }
                 else
                 {

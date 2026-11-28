@@ -86,6 +86,17 @@
     <sys:String x:Key="AboutDataDirLabel">数据目录</sys:String>
     <sys:String x:Key="AboutClose">关闭</sys:String>
 
+    <!-- 内网前置代理（Issue #2，源：ui.section.corp_proxy 等 13 key 的 Windows 侧 9 条） -->
+    <sys:String x:Key="CorpProxyTitle">内网前置代理</sys:String>
+    <sys:String x:Key="CorpProxyEnable">启用前置代理</sys:String>
+    <sys:String x:Key="CorpProxyHost">服务器</sys:String>
+    <sys:String x:Key="CorpProxyHostPlaceholder">企业代理地址</sys:String>
+    <sys:String x:Key="CorpProxyPort">端口</sys:String>
+    <sys:String x:Key="CorpProxyUsername">用户名</sys:String>
+    <sys:String x:Key="CorpProxyPassword">密码</sys:String>
+    <sys:String x:Key="CorpProxyOptionalPlaceholder">可选</sys:String>
+    <sys:String x:Key="CorpProxyHint">启用后节点连接与订阅拉取经企业代理拨出，域名解析由代理端完成</sys:String>
+
     <!-- 无内核安装引导对话框（源：app.core.setup_required.*） -->
     <sys:String x:Key="GuideCoreTitle">安装 Mihomo 内核</sys:String>
     <sys:String x:Key="GuideCoreIntro">ClashBarX 不内置代理内核（no-core 策略）。首次使用前，请手动放入 mihomo 内核：</sys:String>

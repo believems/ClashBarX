@@ -86,6 +86,17 @@
     <sys:String x:Key="AboutDataDirLabel">Data folder</sys:String>
     <sys:String x:Key="AboutClose">Close</sys:String>
 
+    <!-- Corporate forward proxy (Issue #2; Windows side of the 13 Mac keys) -->
+    <sys:String x:Key="CorpProxyTitle">Corporate Forward Proxy</sys:String>
+    <sys:String x:Key="CorpProxyEnable">Enable Forward Proxy</sys:String>
+    <sys:String x:Key="CorpProxyHost">Server</sys:String>
+    <sys:String x:Key="CorpProxyHostPlaceholder">Corporate proxy address</sys:String>
+    <sys:String x:Key="CorpProxyPort">Port</sys:String>
+    <sys:String x:Key="CorpProxyUsername">Username</sys:String>
+    <sys:String x:Key="CorpProxyPassword">Password</sys:String>
+    <sys:String x:Key="CorpProxyOptionalPlaceholder">Optional</sys:String>
+    <sys:String x:Key="CorpProxyHint">When enabled, node connections and subscription downloads dial out via the corporate proxy; DNS resolution happens proxy-side</sys:String>
+
     <!-- No-core setup guide dialog (source: app.core.setup_required.*) -->
     <sys:String x:Key="GuideCoreTitle">Install the Mihomo core</sys:String>
     <sys:String x:Key="GuideCoreIntro">ClashBarX ships without a proxy core (no-core policy). Add the mihomo core before first use:</sys:String>
