@@ -1,9 +1,12 @@
 ﻿# ClashBarX 绿色便携版构建（M4-4）
-# 用法：powershell -File build-portable.ps1 [-Version 1.0.0]
+# 用法：powershell -File build-portable.ps1 [-Version 1.0.0] [-Lite]
 # 产出：windows/dist/ClashBarX-<版本>-portable-win-x64.zip（自包含 .NET，解压即用、免安装免管理员）
+#       加 -Lite：windows/dist/ClashBarX-<版本>-portable-win-x64-lite.zip（框架依赖发布，体积小；
+#       用户需自备 .NET 8 Desktop Runtime——对齐 build-installer.ps1 -Lite 的口径）
 param(
     [string]$Version = "1.0.0",
-    [string]$DotNet = ""
+    [string]$DotNet = "",
+    [switch]$Lite
 )
 
 $ErrorActionPreference = "Stop"
@@ -17,13 +20,21 @@ if (-not $DotNet) {
 $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)  # windows/installer -> 仓库根
 $windowsRoot = Join-Path $repoRoot "windows"
 $projectPath = Join-Path $windowsRoot "src\ClashBarX.App\ClashBarX.App.csproj"
-$publishDir = Join-Path $windowsRoot "src\ClashBarX.App\bin\Release\net8.0-windows\publish\win-x64"
+$publishFlavor = if ($Lite) { "win-x64-lite" } else { "win-x64" }
+$publishDir = Join-Path $windowsRoot "src\ClashBarX.App\bin\Release\net8.0-windows\publish\$publishFlavor"
 $distDir = Join-Path $windowsRoot "dist"
-$zipPath = Join-Path $distDir "ClashBarX-$Version-portable-win-x64.zip"
+$flavorLabel = if ($Lite) { "-lite" } else { "" }
+$zipPath = Join-Path $distDir "ClashBarX-$Version-portable-win-x64$flavorLabel.zip"
 
-Write-Host "[portable] 发布自包含构建（win-x64 self-contained）…"
-& $DotNet publish $projectPath -c Release -r win-x64 --self-contained true `
-    /p:Version=$Version /p:PublishDir=$publishDir
+if ($Lite) {
+    Write-Host "[portable] 发布框架依赖构建（win-x64 lite，需 .NET 8 Desktop Runtime）…"
+    & $DotNet publish $projectPath -c Release -r win-x64 --self-contained false `
+        /p:Version=$Version /p:PublishDir=$publishDir
+} else {
+    Write-Host "[portable] 发布自包含构建（win-x64 self-contained）…"
+    & $DotNet publish $projectPath -c Release -r win-x64 --self-contained true `
+        /p:Version=$Version /p:PublishDir=$publishDir
+}
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish 失败" }
 
 New-Item -ItemType Directory -Force -Path $distDir | Out-Null

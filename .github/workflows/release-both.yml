@@ -310,6 +310,13 @@ jobs:
           powershell -NoProfile -ExecutionPolicy Bypass -File windows/installer/build-portable.ps1 `
             -Version "${{ needs.prepare-version.outputs.version }}"
 
+      - name: Build lite portable zip
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          powershell -NoProfile -ExecutionPolicy Bypass -File windows/installer/build-portable.ps1 `
+            -Version "${{ needs.prepare-version.outputs.version }}" -Lite
+
       - name: Build setup installer
         shell: pwsh
         run: |
@@ -391,6 +398,7 @@ jobs:
           - **安装版**：\`ClashBarX-${{ needs.prepare-version.outputs.version }}-setup.exe\` —— Inno Setup，用户级安装（%LOCALAPPDATA%\Programs），无需管理员；含开始菜单快捷方式与卸载。
           - **轻量安装版**：\`ClashBarX-${{ needs.prepare-version.outputs.version }}-setup-lite.exe\` —— 安装体验与安装版相同，但不随包自带 .NET 运行时（体积小得多）；**需要已安装 [.NET 8 Desktop Runtime（Windows x64）](https://dotnet.microsoft.com/download/dotnet/8.0)**，未安装请先到该页面下载「.NET Desktop Runtime 8.0.x」再运行。
           - **绿色便携版**：\`ClashBarX-${{ needs.prepare-version.outputs.version }}-portable-win-x64.zip\` —— 自包含 .NET 8，解压即用。
+          - **轻量便携版**：\`ClashBarX-${{ needs.prepare-version.outputs.version }}-portable-win-x64-lite.zip\` —— 不随包自带 .NET 运行时（体积小得多），解压即用、免安装免管理员；**需要已安装 [.NET 8 Desktop Runtime（Windows x64）](https://dotnet.microsoft.com/download/dotnet/8.0)**，未安装请先到该页面下载「.NET Desktop Runtime 8.0.x」再运行。
           - 数据目录 \`%APPDATA%\ClashBarX\`（配置/订阅/内核），卸载与升级均保留。
           - 首次使用请导入订阅，并将 \`mihomo.exe\` 放入 \`%APPDATA%\ClashBarX\core\\\`。
           EOF
